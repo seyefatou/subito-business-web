@@ -1,0 +1,909 @@
+'use client';
+
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, VtcVehicleType, VtcPackageType, VtcCountry, VtcPaymentMethod, CreateVtcHourlyBookingDto, VtcPricing } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  Clock,
+  Car,
+  MapPin,
+  CreditCard,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Users,
+  Info,
+  ArrowLeft,
+  User,
+  Phone,
+  Mail
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { toast } from "sonner";
+import confetti from "canvas-confetti";
+
+interface Step {
+  id: number;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface VehicleTypeConfig {
+  id: VtcVehicleType;
+  name: string;
+  icon: string;
+  description: string;
+  capacity: number;
+  prices: { [key: string]: number };
+}
+
+interface PackageConfig {
+  id: VtcPackageType;
+  label: string;
+  hours: number;
+  kmIncluded: number;
+}
+
+interface Country {
+  code: VtcCountry;
+  name: string;
+  flag: string;
+}
+
+interface PaymentMethodConfig {
+  id: VtcPaymentMethod;
+  label: string;
+}
+
+interface FormData {
+  country: VtcCountry;
+  vehicleType: VtcVehicleType | "";
+  package: VtcPackageType | "";
+  pickupDate: Date | null;
+  pickupTime: string;
+  pickupLocation: string;
+  instructions: string;
+  paymentMethod: VtcPaymentMethod | "";
+  // Client info
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientAddress: string;
+}
+
+const steps: Step[] = [
+  { id: 1, title: "Vehicule", icon: Car },
+  { id: 2, title: "Details", icon: MapPin },
+  { id: 3, title: "Client", icon: User },
+  { id: 4, title: "Paiement", icon: CreditCard },
+  { id: 5, title: "Confirmation", icon: CheckCircle2 },
+];
+
+const countries: Country[] = [
+  { code: "senegal", name: "Senegal", flag: "🇸🇳" },
+  { code: "cotedivoire", name: "Cote d'Ivoire", flag: "🇨🇮" },
+];
+
+const vehicleTypes: VehicleTypeConfig[] = [
+  {
+    id: "berline",
+    name: "Berline",
+    icon: "🚗",
+    description: "Confortable pour 1-3 passagers",
+    capacity: 3,
+    prices: { "two_hours": 15000, "five_hours": 30000, "ten_hours": 55000 }
+  },
+  {
+    id: "berline_premium",
+    name: "Berline Premium",
+    icon: "🚘",
+    description: "Mercedes Classe E ou equivalent",
+    capacity: 3,
+    prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
+  },
+  {
+    id: "suv",
+    name: "SUV",
+    icon: "🚙",
+    description: "Spacieux, ideal pour 1-4 passagers",
+    capacity: 4,
+    prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
+  },
+  {
+    id: "monospace",
+    name: "Monospace",
+    icon: "🚐",
+    description: "Jusqu'a 6 passagers",
+    capacity: 6,
+    prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
+  },
+  {
+    id: "van",
+    name: "VAN",
+    icon: "🚌",
+    description: "Jusqu'a 8 passagers",
+    capacity: 8,
+    prices: { "two_hours": 16000, "five_hours": 70000, "ten_hours": 100000 }
+  },
+];
+
+const packages: PackageConfig[] = [
+  { id: "two_hours", label: "2 Heures", hours: 2, kmIncluded: 25 },
+  { id: "five_hours", label: "5 Heures", hours: 5, kmIncluded: 50 },
+  { id: "ten_hours", label: "10 Heures", hours: 10, kmIncluded: 100 },
+];
+
+const paymentMethods: PaymentMethodConfig[] = [
+  { id: "cash", label: "Especes" },
+  { id: "mobile_money", label: "Mobile Money" },
+  { id: "company_account", label: "Compte entreprise" },
+];
+
+export default function HourlyVTC() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
+  const [bookingRef, setBookingRef] = useState<string>("");
+
+  const [formData, setFormData] = useState<FormData>({
+    country: "senegal",
+    vehicleType: "",
+    package: "",
+    pickupDate: null,
+    pickupTime: "",
+    pickupLocation: "",
+    instructions: "",
+    paymentMethod: "",
+    clientName: "",
+    clientEmail: "",
+    clientPhone: "",
+    clientAddress: "",
+  });
+
+  // Fetch pricing from API
+  const { data: pricingResponse } = useQuery({
+    queryKey: ['vtc-pricing', formData.country],
+    queryFn: () => api.vtcHourly.getPricing(formData.country),
+  });
+
+  const pricing: VtcPricing | undefined = pricingResponse?.data;
+
+  const createBooking = useMutation({
+    mutationFn: (data: CreateVtcHourlyBookingDto) => api.vtcHourly.createByAdmin(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['vtc-bookings'] });
+      const ref = "VTC" + Date.now().toString().slice(-8);
+      setBookingRef(ref);
+      setBookingSuccess(true);
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erreur lors de la reservation");
+    }
+  });
+
+  const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const selectedVehicle = vehicleTypes.find(v => v.id === formData.vehicleType);
+  const selectedPackage = packages.find(p => p.id === formData.package);
+
+  // Get price from API pricing or fallback to local config
+  const getPrice = (): number => {
+    if (pricing && pricing.vehicleTypes && formData.vehicleType && formData.package) {
+      const apiVehicle = pricing.vehicleTypes.find(v => v.id === formData.vehicleType);
+      if (apiVehicle && formData.package in apiVehicle.prices) {
+        return apiVehicle.prices[formData.package as keyof typeof apiVehicle.prices];
+      }
+    }
+    // Fallback to local prices
+    return selectedVehicle && selectedPackage && formData.package ? selectedVehicle.prices[formData.package] : 0;
+  };
+
+  const totalPrice = getPrice();
+
+  // Validate phone number (format: +XXX XXXXXXXXX)
+  const isValidPhone = (phone: string): boolean => {
+    const cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
+    return /^\+\d{1,3}\d{7,12}$/.test(cleaned);
+  };
+
+  const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
+
+  const canContinue = (): boolean => {
+    switch (currentStep) {
+      case 1:
+        return !!(formData.vehicleType && formData.package);
+      case 2:
+        return !!(formData.pickupDate && formData.pickupTime && formData.pickupLocation);
+      case 3:
+        return !!(formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
+      case 4:
+        return !!formData.paymentMethod;
+      default:
+        return false;
+    }
+  };
+
+  const handleNext = () => {
+    // Validate current step before proceeding
+    if (currentStep === 1) {
+      if (!formData.vehicleType) {
+        toast.error("Veuillez selectionner un type de vehicule");
+        return;
+      }
+      if (!formData.package) {
+        toast.error("Veuillez selectionner un forfait");
+        return;
+      }
+    }
+
+    if (currentStep === 2) {
+      if (!formData.pickupDate) {
+        toast.error("Veuillez selectionner une date");
+        return;
+      }
+      if (!formData.pickupTime) {
+        toast.error("Veuillez selectionner une heure");
+        return;
+      }
+      if (!formData.pickupLocation) {
+        toast.error("Veuillez entrer l'adresse de prise en charge");
+        return;
+      }
+    }
+
+    if (currentStep === 3) {
+      if (!formData.clientName) {
+        toast.error("Veuillez entrer le nom du client");
+        return;
+      }
+      if (!formData.clientPhone) {
+        toast.error("Veuillez entrer le numero de telephone");
+        return;
+      }
+      if (!isValidPhone(formData.clientPhone)) {
+        toast.error("Numero de telephone invalide (ex: +221 77 123 45 67)");
+        return;
+      }
+      if (!formData.clientAddress) {
+        toast.error("Veuillez entrer l'adresse du client");
+        return;
+      }
+    }
+
+    if (currentStep === 4) {
+      if (!formData.paymentMethod) {
+        toast.error("Veuillez selectionner un mode de paiement");
+        return;
+      }
+    }
+
+    if (currentStep < 5) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.vehicleType || !formData.package || !formData.paymentMethod || !formData.pickupDate) {
+      toast.error("Veuillez remplir tous les champs requis");
+      return;
+    }
+
+    const bookingData: CreateVtcHourlyBookingDto = {
+      clientName: formData.clientName,
+      clientEmail: formData.clientEmail || undefined,
+      clientPhone: formData.clientPhone,
+      clientAddress: formData.clientAddress,
+      country: formData.country,
+      vehicleType: formData.vehicleType,
+      package: formData.package,
+      scheduledDatetime: `${format(formData.pickupDate, 'yyyy-MM-dd')}T${formData.pickupTime}:00`,
+      pickupAddress: formData.pickupLocation,
+      notes: formData.instructions || undefined,
+      paymentMethod: formData.paymentMethod,
+    };
+
+    createBooking.mutate(bookingData);
+  };
+
+  if (bookingSuccess) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-2xl mx-auto text-center py-16"
+      >
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 15 }}
+          className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6"
+        >
+          <CheckCircle2 className="w-12 h-12 text-green-600" />
+        </motion.div>
+
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">
+          Reservation confirmee !
+        </h1>
+        <p className="text-slate-500 mb-2">
+          Votre reference : <span className="font-bold text-slate-800">{bookingRef}</span>
+        </p>
+        <p className="text-slate-500 mb-2">
+          VTC reserve pour {formData.clientName}
+        </p>
+        <p className="text-sm text-slate-400 mb-8">
+          Un chauffeur vous sera assigne sous peu et vous contactera
+        </p>
+
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/tracking")}
+          >
+            Voir dans le suivi
+          </Button>
+          <Button
+            className="gradient-subito text-white border-0"
+            onClick={() => router.push("/")}
+          >
+            Retour a l'accueil
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-8">
+        <div className="p-3 rounded-xl gradient-subito">
+          <Clock className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">VTC a l'Heure</h1>
+          <p className="text-slate-500">Reservez un vehicule avec chauffeur pour vos deplacements</p>
+        </div>
+      </div>
+
+      {/* Country Selector */}
+      <div className="mb-6">
+        <RadioGroup
+          value={formData.country}
+          onValueChange={(v) => handleChange('country', v)}
+          className="flex gap-3"
+        >
+          {countries.map(country => (
+            <label
+              key={country.code}
+              className={`
+                flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
+                ${formData.country === country.code
+                  ? 'border-orange-400 bg-orange-50'
+                  : 'border-slate-200 hover:border-slate-300'
+                }
+              `}
+            >
+              <RadioGroupItem value={country.code} className="hidden" />
+              <span className="text-2xl">{country.flag}</span>
+              <span className="font-medium text-slate-800">{country.name}</span>
+              {formData.country === country.code && (
+                <Check className="w-5 h-5 text-orange-600 ml-auto" />
+              )}
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
+
+      {/* Progress */}
+      <div className="flex items-center justify-between mb-8">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.id}>
+            <div className="flex items-center gap-2">
+              <div className={`
+                w-10 h-10 rounded-xl flex items-center justify-center transition-all
+                ${currentStep >= step.id
+                  ? 'gradient-subito text-white'
+                  : 'bg-slate-200 text-slate-400'
+                }
+              `}>
+                {currentStep > step.id ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <step.icon className="w-5 h-5" />
+                )}
+              </div>
+              <span className={`font-medium text-sm hidden sm:block ${
+                currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
+              }`}>
+                {step.title}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-2 rounded ${
+                currentStep > step.id ? 'bg-orange-400' : 'bg-slate-200'
+              }`} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+        <AnimatePresence mode="wait">
+          {/* Step 1: Vehicle & Package */}
+          {currentStep === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <h3 className="font-semibold text-slate-800 mb-4">Choisissez votre vehicule</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {vehicleTypes.map(vehicle => {
+                    const isSelected = formData.vehicleType === vehicle.id;
+                    return (
+                      <motion.div
+                        key={vehicle.id}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleChange('vehicleType', vehicle.id)}
+                        className={`
+                          relative p-4 rounded-2xl border-2 cursor-pointer transition-all
+                          ${isSelected
+                            ? 'border-orange-400 bg-orange-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                          }
+                        `}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+
+                        <div className="text-3xl mb-2">{vehicle.icon}</div>
+                        <h4 className="font-semibold text-slate-800 mb-1">{vehicle.name}</h4>
+                        <p className="text-xs text-slate-500 mb-2">{vehicle.description}</p>
+                        <div className="flex items-center gap-1 text-slate-600">
+                          <Users className="w-3 h-3" />
+                          <span className="text-xs">{vehicle.capacity} places</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {formData.vehicleType && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <h3 className="font-semibold text-slate-800 mb-4">Choisissez votre forfait</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {packages.map(pkg => {
+                      const isSelected = formData.package === pkg.id;
+                      const price = selectedVehicle?.prices[pkg.id] || 0;
+                      return (
+                        <motion.div
+                          key={pkg.id}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleChange('package', pkg.id)}
+                          className={`
+                            relative p-6 rounded-2xl border-2 cursor-pointer transition-all
+                            ${isSelected
+                              ? 'border-orange-400 bg-orange-50'
+                              : 'border-slate-200 hover:border-slate-300'
+                            }
+                          `}
+                        >
+                          {isSelected && (
+                            <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-slate-800 mb-1">{pkg.label}</p>
+                            <p className="text-sm text-slate-500 mb-3">{pkg.kmIncluded} km inclus</p>
+                            <p className="text-xl font-bold text-orange-600">{price.toLocaleString()} FCFA</p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium mb-1">Depassements :</p>
+                        <p>- Kilometres supplementaires : +350 FCFA/km</p>
+                        <p>- Heures supplementaires : Variable selon le vehicule</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Step 2: Date, Time & Location */}
+          {currentStep === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="p-4 bg-orange-50 rounded-xl border border-orange-200 mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{selectedVehicle?.icon}</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-800">{selectedVehicle?.name} - {selectedPackage?.label}</p>
+                    <p className="text-sm text-slate-600">{selectedPackage?.kmIncluded} km inclus</p>
+                  </div>
+                  <p className="text-lg font-bold text-orange-600">{totalPrice.toLocaleString()} F</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <Label className="text-xs text-slate-500 mb-2 block">Date de prise en charge</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                      >
+                        <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                        {formData.pickupDate ? format(formData.pickupDate, "dd/MM/yyyy", { locale: fr }) : "Selectionner"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.pickupDate || undefined}
+                        onSelect={(date) => handleChange('pickupDate', date || null)}
+                        disabled={(date) => date < new Date()}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <Label className="text-xs text-slate-500 mb-2 block">Heure de prise en charge</Label>
+                  <Input
+                    type="time"
+                    value={formData.pickupTime}
+                    onChange={(e) => handleChange('pickupTime', e.target.value)}
+                    className="border-0 bg-transparent p-0 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-4">
+                <Label className="text-xs text-slate-500 mb-2 block">Lieu de prise en charge</Label>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-orange-600" />
+                  <Input
+                    value={formData.pickupLocation}
+                    onChange={(e) => handleChange('pickupLocation', e.target.value)}
+                    className="border-0 bg-transparent p-0 text-slate-800"
+                    placeholder="Adresse complete"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-2xl p-4">
+                <Label className="text-xs text-slate-500 mb-2 block">Instructions (optionnel)</Label>
+                <Textarea
+                  value={formData.instructions}
+                  onChange={(e) => handleChange('instructions', e.target.value)}
+                  className="border-0 bg-transparent p-0 text-slate-800 min-h-[80px]"
+                  placeholder="Ex: Plusieurs arrets prevus, passage a l'aeroport..."
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Client Info */}
+          {currentStep === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nom complet *</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Ex: Moussa Diop"
+                      className="pl-10"
+                      value={formData.clientName}
+                      onChange={(e) => handleChange('clientName', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Telephone *</Label>
+                  <PhoneInput
+                    value={formData.clientPhone}
+                    onChange={(v) => handleChange('clientPhone', v)}
+                    error={!!phoneError}
+                  />
+                  {phoneError && (
+                    <p className="text-sm text-red-500">Numero invalide</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Email (optionnel)</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    type="email"
+                    placeholder="Ex: moussa.diop@email.com"
+                    className="pl-10"
+                    value={formData.clientEmail}
+                    onChange={(e) => handleChange('clientEmail', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Adresse *</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                  <Textarea
+                    placeholder="Ex: Cite Keur Gorgui, Villa 123, Dakar"
+                    className="pl-10 min-h-[80px]"
+                    value={formData.clientAddress}
+                    onChange={(e) => handleChange('clientAddress', e.target.value)}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 4: Payment */}
+          {currentStep === 4 && (
+            <motion.div
+              key="step4"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="bg-slate-50 rounded-2xl p-6">
+                <h3 className="font-semibold text-slate-800 mb-4">Resume</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Vehicule</span>
+                    <span className="font-medium text-slate-800">{selectedVehicle?.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Forfait</span>
+                    <span className="font-medium text-slate-800">{selectedPackage?.label} ({selectedPackage?.kmIncluded} km)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Client</span>
+                    <span className="font-medium text-slate-800">{formData.clientName}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                    <span className="text-lg font-semibold text-slate-800">Total</span>
+                    <span className="text-2xl font-bold text-orange-600">{totalPrice.toLocaleString()} FCFA</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-800 mb-4">Mode de paiement</h3>
+                <RadioGroup
+                  value={formData.paymentMethod}
+                  onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  {paymentMethods.map(method => (
+                    <label
+                      key={method.id}
+                      className={`
+                        block p-4 rounded-xl border-2 cursor-pointer transition-all
+                        ${formData.paymentMethod === method.id
+                          ? 'border-orange-400 bg-orange-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <RadioGroupItem value={method.id} />
+                        <span className="font-medium text-slate-800">{method.label}</span>
+                        {formData.paymentMethod === method.id && (
+                          <Check className="w-5 h-5 text-orange-600 ml-auto" />
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </RadioGroup>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 5: Confirmation */}
+          {currentStep === 5 && (
+            <motion.div
+              key="step5"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Recapitulatif de la reservation</h3>
+
+              {/* Vehicle & Package */}
+              <div className="p-6 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-4 mb-4">
+                  <span className="text-4xl">{selectedVehicle?.icon}</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-800">{selectedVehicle?.name}</p>
+                    <p className="text-sm text-slate-500">{selectedVehicle?.description}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <span className="text-slate-600">Forfait {selectedPackage?.label}</span>
+                  <span className="font-semibold text-slate-800">{selectedPackage?.kmIncluded} km inclus</span>
+                </div>
+              </div>
+
+              {/* Trip details */}
+              <div className="p-6 rounded-xl bg-slate-50 space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500">Date</p>
+                    <p className="font-medium text-slate-800">
+                      {formData.pickupDate && format(formData.pickupDate, 'dd MMMM yyyy', { locale: fr })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-500">Heure</p>
+                    <p className="font-medium text-slate-800">{formData.pickupTime}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Lieu de prise en charge</p>
+                  <p className="font-medium text-slate-800">{formData.pickupLocation}</p>
+                </div>
+                {formData.instructions && (
+                  <div>
+                    <p className="text-sm text-slate-500">Instructions</p>
+                    <p className="font-medium text-slate-800">{formData.instructions}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Client */}
+              <div className="p-6 rounded-xl border border-slate-200">
+                <p className="text-sm text-slate-500 mb-2">Client</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
+                    {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{formData.clientName}</p>
+                    <p className="text-sm text-slate-500">{formData.clientPhone}</p>
+                    {formData.clientEmail && (
+                      <p className="text-sm text-slate-400">{formData.clientEmail}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment total */}
+              <div className="p-6 rounded-xl bg-orange-50 border-2 border-orange-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-600">Mode de paiement</span>
+                  <span className="font-medium text-slate-800">
+                    {paymentMethods.find(m => m.id === formData.paymentMethod)?.label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-4 border-t border-orange-300">
+                  <span className="text-slate-800 font-semibold">Total</span>
+                  <span className="text-3xl font-bold text-subito">
+                    {totalPrice.toLocaleString()} FCFA
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between">
+        {currentStep > 1 ? (
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            className="gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/")}
+            className="gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Annuler
+          </Button>
+        )}
+
+        {currentStep < 5 ? (
+          <Button
+            onClick={handleNext}
+            className="gradient-subito text-white border-0 gap-2"
+          >
+            Continuer
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={createBooking.isPending}
+            className="gradient-subito text-white border-0 gap-2 text-lg px-8"
+          >
+            {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${totalPrice.toLocaleString()} FCFA`}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
