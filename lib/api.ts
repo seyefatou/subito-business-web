@@ -807,6 +807,36 @@ class ApiClient {
         headers: { Authorization: `Bearer ${token}` },
       }),
   };
+
+  // ==================== NOTIFICATIONS COMPAGNY ====================
+  notificationsCompagny = {
+    getAll: (token: string) =>
+      this.request<CompagnyNotification[]>('/notifications/compagny', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    getUnreadCount: (token: string) =>
+      this.request<{ count: number }>('/notifications/compagny/unread-count', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    getById: (token: string, id: number) =>
+      this.request<CompagnyNotification>(`/notifications/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    markAsRead: (token: string, id: number) =>
+      this.request<CompagnyNotification>(`/notifications/compagny/${id}/read`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    markAllAsRead: (token: string) =>
+      this.request('/notifications/compagny/read-all', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+  };
 }
 
 // ==================== AUTH TYPES ====================
@@ -933,6 +963,18 @@ export interface TravelDocumentTarif {
   description: string;
   price: number;
   isActive: boolean;
+}
+
+// ==================== NOTIFICATION TYPES ====================
+export interface CompagnyNotification {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  data?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Export singleton instance
