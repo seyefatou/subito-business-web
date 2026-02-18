@@ -59,13 +59,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await api.authCompagny.login({ email, password });
-    const { access_token, user } = response.data;
+    // Handle both wrapped { data: {...} } and direct response formats
+    const data = response.data || response;
 
-    setToken(access_token);
-    setUser(user);
+    // Extract token - handle both { access_token } and { token } formats
+    const rawData = data as Record<string, unknown>;
+    const accessToken = (rawData.access_token || rawData.token) as string;
+    if (!accessToken) {
+      console.error('Login response:', JSON.stringify(response));
+      throw new Error('Token non recu du serveur');
+    }
 
-    localStorage.setItem(TOKEN_KEY, access_token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    setToken(accessToken);
+    localStorage.setItem(TOKEN_KEY, accessToken);
+
+    // If user data is in the login response, use it temporarily
+    const userData = rawData.user as CompagnyUserProfile | undefined;
+    if (userData && (userData.id || userData.nomCompagny)) {
+      setUser(userData);
+      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+    }
+
+    // Always fetch the full profile from /auth/compagny/profile
+    try {
+      const profileResponse = await api.authCompagny.getProfile(accessToken);
+      // Handle both wrapped and direct response
+      const profile = profileResponse.data || profileResponse;
+      if (profile && (profile.id || profile.nomCompagny)) {
+        setUser(profile as CompagnyUserProfile);
+        localStorage.setItem(USER_KEY, JSON.stringify(profile));
+      }
+    } catch (err) {
+      console.error('Error fetching profile after login:', err);
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -89,8 +115,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       const response = await api.authCompagny.getProfile(token);
-      setUser(response.data);
-      localStorage.setItem(USER_KEY, JSON.stringify(response.data));
+      // Handle both wrapped { data: {...} } and direct response
+      const profile = response.data || response;
+      setUser(profile as CompagnyUserProfile);
+      localStorage.setItem(USER_KEY, JSON.stringify(profile));
     } catch (error) {
       console.error('Error refreshing profile:', error);
     }

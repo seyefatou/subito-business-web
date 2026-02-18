@@ -76,10 +76,10 @@ export default function Profile() {
   useEffect(() => {
     if (user) {
       setProfileData({
-        nomCompagny: user.nom || "",
-        emailCompagny: user.email || "",
-        telephoneCompagny: user.telephone || "",
-        adresseCompagny: user.adresse || "",
+        nomCompagny: user.nomCompagny || user.nom || "",
+        emailCompagny: user.emailCompagny || user.email || "",
+        telephoneCompagny: user.telephoneCompagny || user.telephone || "",
+        adresseCompagny: user.adresseCompagny || user.adresse || "",
       });
     }
   }, [user]);
@@ -147,6 +147,9 @@ export default function Profile() {
 
   const getUserInitials = () => {
     if (!user) return 'U';
+    if (user.nomCompagny) {
+      return user.nomCompagny.substring(0, 2).toUpperCase();
+    }
     const prenom = user.prenom || '';
     const nom = user.nom || '';
     return `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase() || 'U';
@@ -154,6 +157,7 @@ export default function Profile() {
 
   const getUserDisplayName = () => {
     if (!user) return '';
+    if (user.nomCompagny) return user.nomCompagny;
     return `${user.prenom || ''} ${user.nom || ''}`.trim();
   };
 
@@ -176,14 +180,18 @@ export default function Profile() {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-slate-800 mb-1">{getUserDisplayName()}</h2>
-            <p className="text-slate-600 mb-2">{user?.email}</p>
+            <p className="text-slate-600 mb-2">{user?.emailCompagny || user?.email}</p>
             <div className="flex items-center gap-2">
               <Badge className="gradient-subito text-white border-0">
                 <Shield className="w-3 h-3 mr-1" />
-                {user?.role || 'Administrateur'}
+                {user?.role || 'Compagnie'}
               </Badge>
-              <Badge variant="outline" className={user?.statut === 'active' ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}>
-                {user?.statut === 'active' ? 'Actif' : 'Inactif'}
+              <Badge variant="outline" className={
+                user?.statut?.toLowerCase() === 'active' || user?.statut?.toLowerCase() === 'actif'
+                  ? 'text-green-600 border-green-200'
+                  : 'text-red-600 border-red-200'
+              }>
+                {user?.statut?.toLowerCase() === 'active' || user?.statut?.toLowerCase() === 'actif' ? 'Actif' : (user?.statut || 'Inactif')}
               </Badge>
             </div>
           </div>

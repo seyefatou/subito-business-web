@@ -822,16 +822,23 @@ export interface AuthResponse {
 
 export interface CompagnyUserProfile {
   id: number;
-  email: string;
-  nom: string;
-  prenom: string;
-  role: string;
-  statut: string;
+  // Compagny fields (from GET /auth/compagny/profile)
+  nomCompagny?: string;
+  emailCompagny?: string;
+  telephoneCompagny?: string;
+  adresseCompagny?: string;
+  logo?: string;
+  statut?: string;
+  // User fields (may come from login response)
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  role?: string;
   telephone?: string;
   adresse?: string;
   compagnyId?: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UpdateCompagnyProfileDto {

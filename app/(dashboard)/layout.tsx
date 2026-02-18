@@ -88,6 +88,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Get user initials
   const getUserInitials = () => {
     if (!user) return 'AB';
+    if (user.nomCompagny) {
+      return user.nomCompagny.substring(0, 2).toUpperCase();
+    }
     const prenom = user.prenom || '';
     const nom = user.nom || '';
     return `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase() || 'AB';
@@ -95,6 +98,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const getUserDisplayName = () => {
     if (!user) return 'Admin Business';
+    if (user.nomCompagny) return user.nomCompagny;
     return `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Admin Business';
   };
 
@@ -264,7 +268,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
                     <div className="hidden md:block text-left">
                       <p className="text-sm font-medium text-slate-800">{getUserDisplayName()}</p>
-                      <p className="text-xs text-slate-500">{user?.role || 'Administrateur'}</p>
+                      <p className="text-xs text-slate-500">{user?.role || 'Compagnie'}</p>
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-400 hidden md:block" />
                   </button>
