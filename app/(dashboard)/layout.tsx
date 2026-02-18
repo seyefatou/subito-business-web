@@ -74,12 +74,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isLoading, isAuthenticated, router]);
+  // // Redirect to login if not authenticated (TEMPORAIREMENT DESACTIVE)
+  // useEffect(() => {
+  //   if (!isLoading && !isAuthenticated) {
+  //     router.push('/login');
+  //   }
+  // }, [isLoading, isAuthenticated, router]);
 
   const handleLogout = async () => {
     await logout();
@@ -98,19 +98,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Admin Business';
   };
 
-  // Show loading state while checking auth
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-      </div>
-    );
-  }
+  // // Show loading state while checking auth (TEMPORAIREMENT DESACTIVE)
+  // if (isLoading) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center bg-slate-50">
+  //       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+  //     </div>
+  //   );
+  // }
 
-  // Don't render dashboard if not authenticated
-  if (!isAuthenticated) {
-    return null;
-  }
+  // // Don't render dashboard if not authenticated (TEMPORAIREMENT DESACTIVE)
+  // if (!isAuthenticated) {
+  //   return null;
+  // }
 
   const isActive = (href: string): boolean => {
     if (href === "/") {
@@ -169,7 +169,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100">
             <div className="flex items-center gap-3">
               <img
-                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/user_6946dbe819e9ee682c61bf7f/36291ab74_1_logo-removebg-preview.png"
+                src="/logo-subito.jpeg"
                 alt="Subito"
                 className="h-10 w-auto"
               />

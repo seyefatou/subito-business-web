@@ -4,8 +4,8 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 // Token keys for localStorage
-const TOKEN_KEY = 'subito_admin_token';
-const USER_KEY = 'subito_admin_user';
+const TOKEN_KEY = 'subito_compagny_token';
+const USER_KEY = 'subito_compagny_user';
 
 // Types
 export interface ApiResponse<T> {
@@ -17,7 +17,7 @@ export interface ApiResponse<T> {
 // ==================== VTC HOURLY TYPES ====================
 export type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
 export type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
-export type VtcPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
+export type VtcPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
 export type VtcCountry = 'senegal' | 'cotedivoire' | 'mali';
 
 export interface CreateVtcHourlyBookingDto {
@@ -31,8 +31,11 @@ export interface CreateVtcHourlyBookingDto {
   package: VtcPackageType;
   scheduledDatetime: string;
   pickupAddress: string;
+  adressePriseEnCharge: string;
   notes?: string;
   paymentMethod: VtcPaymentMethod;
+  discountAmount?: number;
+  discountPercent?: number;
 }
 
 export interface VtcHourlyBooking {
@@ -46,6 +49,7 @@ export interface VtcHourlyBooking {
   package: VtcPackageType;
   scheduledDatetime: string;
   pickupAddress: string;
+  adressePriseEnCharge?: string;
   notes?: string;
   paymentMethod: VtcPaymentMethod;
   status: string;
@@ -77,18 +81,19 @@ export interface VtcPricing {
 }
 
 // ==================== AIRPORT SHUTTLE TYPES ====================
-export type AirportPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
+export type AirportPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
 
 export interface CreateAirportShuttleBookingDto {
   clientName: string;
   clientEmail?: string;
-  clientPhone: string;
-  clientAddress: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  adressePriseEnChargeAller: string;
   isOneWay: boolean;
   pickupDateAller: string;
   pickupTimeAller: string;
   paymentMethod: AirportPaymentMethod;
-  serviceType: 'airport_shuttle';
+  serviceType: string;
   flightNumber?: string;
   departureTime?: string;
   arrivalTime?: string;
@@ -100,14 +105,17 @@ export interface CreateAirportShuttleBookingDto {
   pickupTimeRetour?: string;
   departureTimeRetour?: string;
   arrivalTimeRetour?: string;
+  adressePriseEnChargeRetour?: string;
   siegeBebesRetour?: number;
   animalDeCompagnieRetour?: boolean;
   adresseSupplementRetour?: string[];
   trajetAeroportId: number;
-  customerId?: number;
-  passengers?: number;
+  customerId: number;
+  passengers: number;
   smallBags?: number;
   largeBags?: number;
+  discountAmount?: number;
+  discountPercent?: number;
 }
 
 export interface AirportShuttleBooking {
@@ -122,14 +130,16 @@ export interface AirportShuttleBooking {
 
 // ==================== INTER CITY TYPES ====================
 export type InterCityServiceType = 'one_way' | 'round_trip';
-export type InterCityPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
+export type InterCityPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
 
 export interface CreateInterCityBookingDto {
-  customerId?: number;
+  customerId: number;
   clientName: string;
   clientEmail?: string;
   clientPhone: string;
   clientAddress: string;
+  adressePriseEnChargeDepartAller: string;
+  adressePriseEnChargeArriveeAller: string;
   serviceType: InterCityServiceType;
   adresseSupplement?: number;
   siegeBebes?: number;
@@ -150,9 +160,13 @@ export interface CreateInterCityBookingDto {
   pickupTimeRetour?: string;
   departureTimeRetour?: string;
   arrivalTimeRetour?: string;
+  adressePriseEnChargeDepartRetour?: string;
+  adressePriseEnChargeArriveeRetour?: string;
   siegeBebesRetour?: number;
   animalDeCompagnieRetour?: boolean;
   adresseSupplementRetour?: string[];
+  discountAmount?: number;
+  discountPercent?: number;
 }
 
 export interface InterCityBooking {
@@ -162,6 +176,92 @@ export interface InterCityBooking {
   clientPhone: string;
   status: string;
   totalPrice: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== VISA ASSISTANCE TYPES ====================
+export type VisaAssistancePaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
+
+export interface CreateVisaAssistanceRequestDto {
+  flightTicket: boolean;
+  hotelReservation: boolean;
+  travelInsurance: boolean;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  numeroPasseport: string;
+  dateNaissance: string;
+  nationalite: string;
+  paysDestination: string;
+  villeDestination: string;
+  dateDepart: string;
+  dateRetour?: string;
+  motifVoyage: string;
+  motifAutre?: string;
+  categorieHotel?: string;
+  nombrePersonnes?: number;
+  typeChambre?: string;
+  precisionsHotel?: string;
+  notes?: string;
+  doc?: string;
+  docCNI?: string;
+  docPassport?: string;
+  paymentMethod: VisaAssistancePaymentMethod;
+  discountAmount?: number;
+  discountPercent?: number;
+}
+
+export interface UpdateVisaAssistanceDto {
+  flightTicket?: boolean;
+  hotelReservation?: boolean;
+  travelInsurance?: boolean;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  numeroPasseport?: string;
+  dateNaissance?: string;
+  nationalite?: string;
+  paysDestination?: string;
+  villeDestination?: string;
+  dateDepart?: string;
+  dateRetour?: string;
+  motifVoyage?: string;
+  motifAutre?: string;
+  categorieHotel?: string;
+  nombrePersonnes?: number;
+  typeChambre?: string;
+  precisionsHotel?: string;
+  notes?: string;
+  doc?: string;
+  docCNI?: string;
+  docPassport?: string;
+  paymentMethod?: VisaAssistancePaymentMethod;
+  discountAmount?: number;
+  discountPercent?: number;
+}
+
+export interface VisaAssistanceBooking {
+  id: number;
+  flightTicket: boolean;
+  hotelReservation: boolean;
+  travelInsurance: boolean;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
+  numeroPasseport: string;
+  nationalite: string;
+  paysDestination: string;
+  villeDestination: string;
+  dateDepart: string;
+  dateRetour?: string;
+  motifVoyage: string;
+  status: string;
+  totalPrice: number;
+  paymentMethod: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -414,6 +514,173 @@ class ApiClient {
       }),
   };
 
+  // ==================== BOOKINGS COMPAGNY - GENERAL ====================
+  bookingsCompagny = {
+    getAll: (token: string, params?: { page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      return this.request(`/bookings/compagny${query ? `?${query}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    getById: (token: string, id: number) =>
+      this.request(`/bookings/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    // cancel: (token: string, id: number) =>
+    //   this.request(`/bookings/compagny/${id}`, {
+    //     method: 'DELETE',
+    //     headers: { Authorization: `Bearer ${token}` },
+    //   }),
+  };
+
+  // ==================== AIRPORT SHUTTLE COMPAGNY ====================
+  airportShuttleCompagny = {
+    create: (token: string, data: CreateAirportShuttleBookingDto) =>
+      this.request<AirportShuttleBooking>('/bookings/airport-shuttle-by-compagny', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+
+    getAll: (token: string, params?: { page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      return this.request<AirportShuttleBooking[]>(`/bookings/airport-shuttle/compagny${query ? `?${query}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    getById: (token: string, id: number) =>
+      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    update: (token: string, id: number, data: Partial<CreateAirportShuttleBookingDto>) =>
+      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/compagny/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+  };
+
+  // ==================== INTER CITY COMPAGNY ====================
+  interCityCompagny = {
+    create: (token: string, data: CreateInterCityBookingDto) =>
+      this.request<InterCityBooking>('/bookings/inter-city-by-compagny', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+
+    getAll: (token: string, params?: { page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      return this.request<InterCityBooking[]>(`/bookings/inter-city/compagny${query ? `?${query}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    getById: (token: string, id: number) =>
+      this.request<InterCityBooking>(`/bookings/inter-city/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    update: (token: string, id: number, data: Partial<CreateInterCityBookingDto>) =>
+      this.request<InterCityBooking>(`/bookings/inter-city/compagny/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+  };
+
+  // ==================== VTC HOURLY COMPAGNY ====================
+  vtcHourlyCompagny = {
+    create: (token: string, data: CreateVtcHourlyBookingDto) =>
+      this.request<VtcHourlyBooking>('/bookings/vtc-hourly/by-compagny', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+
+    getAll: (token: string, params?: { page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      return this.request<VtcHourlyBooking[]>(`/bookings/vtc-hourly/compagny${query ? `?${query}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    getById: (token: string, id: number) =>
+      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    update: (token: string, id: number, data: Partial<CreateVtcHourlyBookingDto>) =>
+      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/compagny/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+  };
+
+  // ==================== VISA ASSISTANCE COMPAGNY ====================
+  visaAssistanceCompagny = {
+    create: (token: string, data: CreateVisaAssistanceRequestDto) =>
+      this.request<VisaAssistanceBooking>('/bookings/visa-assistance/by-compagny', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+
+    getAll: (token: string, params?: { page?: number; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) searchParams.append(key, String(value));
+        });
+      }
+      const query = searchParams.toString();
+      return this.request<VisaAssistanceBooking[]>(`/bookings/visa-assistance/compagny${query ? `?${query}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+
+    getById: (token: string, id: number) =>
+      this.request<VisaAssistanceBooking>(`/bookings/visa-assistance/compagny/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+
+    update: (token: string, id: number, data: UpdateVisaAssistanceDto) =>
+      this.request<VisaAssistanceBooking>(`/bookings/visa-assistance/compagny/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+  };
+
   // ==================== TRAJETS AEROPORT ====================
   trajetsAeroport = {
     getAll: () => this.request<TrajetAeroport[]>('/trajet-aeroport'),
@@ -448,135 +715,149 @@ class ApiClient {
     getAll: () => this.request('/ville'),
   };
 
-  // ==================== ADMIN AUTH ====================
-  authAdmin = {
-    login: (data: LoginAdminDto) =>
-      this.request<AuthResponse>('/auth/admin/login', {
+  // ==================== COMPAGNY AUTH ====================
+  authCompagny = {
+    login: (data: LoginCompagnyDto) =>
+      this.request<AuthResponse>('/auth/compagny/login', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
 
     logout: (token: string) =>
-      this.request('/auth/admin/logout', {
+      this.request('/auth/compagny/logout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }),
 
     getProfile: (token: string) =>
-      this.request<AdminProfile>('/auth/admin/me', {
+      this.request<CompagnyUserProfile>('/auth/compagny/profile', {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
-    updateProfile: (token: string, data: UpdateAdminProfileDto) =>
-      this.request<AdminProfile>('/auth/admin/profile', {
+    updateProfile: (token: string, data: UpdateCompagnyProfileDto) =>
+      this.request<CompagnyUserProfile>('/auth/compagny/profile', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       }),
 
-    changePassword: (token: string, data: ChangePasswordDto) =>
-      this.request('/auth/admin/change-password', {
+    changePassword: (token: string, data: ChangePasswordCompagnyDto) =>
+      this.request('/auth/compagny/change-password', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       }),
 
     forgotPassword: (email: string) =>
-      this.request('/auth/admin/forgot-password', {
+      this.request('/auth/compagny/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email }),
       }),
 
-    resetPassword: (data: ResetPasswordDto) =>
-      this.request('/auth/admin/reset-password', {
+    resetPassword: (data: ResetPasswordCompagnyDto) =>
+      this.request('/auth/compagny/reset-password', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
   };
 
-  // ==================== TRAVEL DOCUMENTS ====================
+  // ==================== TRAVEL DOCUMENTS (public) ====================
   travelDocuments = {
-    create: (data: CreateTravelDocumentDto) =>
-      this.request<TravelDocument>('/travel-documents', {
+    getTarifs: () =>
+      this.request<TravelDocumentTarif[]>('/travel-documents/tarifs'),
+  };
+
+  // ==================== TRAVEL DOCUMENTS COMPAGNY ====================
+  travelDocumentsCompagny = {
+    create: (token: string, data: CreateTravelDocumentDto) =>
+      this.request<TravelDocument>('/travel-documents/compagny', {
         method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       }),
 
-    getTarifs: () =>
-      this.request<TravelDocumentTarif[]>('/travel-documents/tarifs'),
-
-    getAll: (token: string, params?: { status?: string; search?: string }) => {
+    getAll: (token: string, params?: { status?: TravelDocumentStatus; page?: number; limit?: number }) => {
       const searchParams = new URLSearchParams();
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, value);
+          if (value !== undefined) searchParams.append(key, String(value));
         });
       }
       const query = searchParams.toString();
-      return this.request<TravelDocument[]>(`/travel-documents/admin${query ? `?${query}` : ''}`, {
+      return this.request<TravelDocument[]>(`/travel-documents/compagny${query ? `?${query}` : ''}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     },
 
     getById: (token: string, id: number) =>
-      this.request<TravelDocument>(`/travel-documents/admin/${id}`, {
+      this.request<TravelDocument>(`/travel-documents/compagny/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
-    update: (token: string, id: number, data: Partial<CreateTravelDocumentDto>) =>
-      this.request<TravelDocument>(`/travel-documents/admin/${id}`, {
-        method: 'PATCH',
+    update: (token: string, id: number, data: CreateTravelDocumentDto) =>
+      this.request<TravelDocument>(`/travel-documents/compagny/${id}`, {
+        method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       }),
 
-    getStats: (token: string) =>
-      this.request('/travel-documents/admin/stats', {
+    cancel: (token: string, id: number) =>
+      this.request(`/travel-documents/compagny/${id}`, {
+        method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       }),
   };
 }
 
 // ==================== AUTH TYPES ====================
-export interface LoginAdminDto {
+export interface LoginCompagnyDto {
   email: string;
   password: string;
 }
 
 export interface AuthResponse {
   access_token: string;
-  user: AdminProfile;
+  user: CompagnyUserProfile;
 }
 
-export interface AdminProfile {
+export interface CompagnyUserProfile {
   id: number;
   email: string;
   nom: string;
   prenom: string;
   role: string;
   statut: string;
+  telephone?: string;
+  adresse?: string;
+  compagnyId?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface UpdateAdminProfileDto {
-  nom?: string;
-  prenom?: string;
-  email?: string;
+export interface UpdateCompagnyProfileDto {
+  nomCompagny: string;
+  emailCompagny: string;
+  telephoneCompagny: string;
+  adresseCompagny: string;
+  logo?: string;
 }
 
-export interface ChangePasswordDto {
-  currentPassword: string;
+export interface ChangePasswordCompagnyDto {
+  oldPassword: string;
   newPassword: string;
 }
 
-export interface ResetPasswordDto {
+export interface ResetPasswordCompagnyDto {
   token: string;
   newPassword: string;
 }
 
 // ==================== TRAVEL DOCUMENT TYPES ====================
 export type TravelDocumentPaymentMethod = 'mobile_money' | 'company_account';
+export type TravelDocumentStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
+export type TravelReason = 'tourisme' | 'affaires' | 'etudes' | 'visite' | 'autre';
+export type HotelCategory = 'economique' | 'standard' | 'haut-gamme';
+export type RoomType = 'single' | 'double' | 'twin' | 'suite';
 
 export interface CreateTravelDocumentDto {
   flightReservation: boolean;
@@ -587,6 +868,7 @@ export interface CreateTravelDocumentDto {
   nationality: string;
   birthDate: string;
   phone: string;
+  phoneCountryCode?: string;
   email: string;
   departureCountry: string;
   departureCity: string;
@@ -594,10 +876,10 @@ export interface CreateTravelDocumentDto {
   destinationCity: string;
   departureDate: string;
   returnDate?: string;
-  travelReason: string;
-  hotelCategory?: string;
+  travelReason: TravelReason;
+  hotelCategory?: HotelCategory;
   numberOfPeople?: number;
-  roomType?: string;
+  roomType?: RoomType;
   hotelDetails?: string;
   paymentMethod: TravelDocumentPaymentMethod;
 }
@@ -613,18 +895,25 @@ export interface TravelDocument {
   nationality: string;
   birthDate: string;
   phone: string;
+  phoneCountryCode?: string;
   email: string;
+  departureCountry: string;
+  departureCity: string;
   destinationCountry: string;
   destinationCity: string;
   departureDate: string;
-  returnDate: string;
-  travelReason: string;
-  hotelCategory?: string;
+  returnDate?: string;
+  travelReason: TravelReason;
+  hotelCategory?: HotelCategory;
   numberOfPeople?: number;
-  roomType?: string;
+  roomType?: RoomType;
   hotelDetails?: string;
-  paymentMethod: string;
-  status: string;
+  paymentMethod: TravelDocumentPaymentMethod;
+  status: TravelDocumentStatus;
+  flightDocument?: string;
+  hotelDocument?: string;
+  adminNotes?: string;
+  paymentStatus?: string;
   totalPrice: number;
   createdAt: string;
   updatedAt: string;

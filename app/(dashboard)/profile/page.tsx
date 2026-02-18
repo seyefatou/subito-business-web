@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { api, UpdateAdminProfileDto, ChangePasswordDto } from "@/lib/api";
+import { api, ChangePasswordCompagnyDto, UpdateCompagnyProfileDto } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
   User,
-  Mail,
+  Phone,
+  MapPin,
   Key,
   Bell,
   Globe,
@@ -24,11 +25,6 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-interface ProfileData {
-  prenom: string;
-  nom: string;
-}
-
 interface Settings {
   emailNotifications: boolean;
   orderNotifications: boolean;
@@ -43,12 +39,21 @@ interface PasswordData {
   confirmPassword: string;
 }
 
+interface ProfileData {
+  nomCompagny: string;
+  emailCompagny: string;
+  telephoneCompagny: string;
+  adresseCompagny: string;
+}
+
 export default function Profile() {
   const { user, token, logout, refreshProfile } = useAuth();
 
   const [profileData, setProfileData] = useState<ProfileData>({
-    prenom: "",
-    nom: "",
+    nomCompagny: "",
+    emailCompagny: "",
+    telephoneCompagny: "",
+    adresseCompagny: "",
   });
 
   const [passwordData, setPasswordData] = useState<PasswordData>({
@@ -71,16 +76,18 @@ export default function Profile() {
   useEffect(() => {
     if (user) {
       setProfileData({
-        prenom: user.prenom || "",
-        nom: user.nom || "",
+        nomCompagny: user.nom || "",
+        emailCompagny: user.email || "",
+        telephoneCompagny: user.telephone || "",
+        adresseCompagny: user.adresse || "",
       });
     }
   }, [user]);
 
   const updateProfile = useMutation({
-    mutationFn: async (data: UpdateAdminProfileDto) => {
+    mutationFn: async (data: UpdateCompagnyProfileDto) => {
       if (!token) throw new Error('Non authentifie');
-      return api.authAdmin.updateProfile(token, data);
+      return api.authCompagny.updateProfile(token, data);
     },
     onSuccess: () => {
       refreshProfile();
@@ -92,9 +99,9 @@ export default function Profile() {
   });
 
   const changePassword = useMutation({
-    mutationFn: async (data: ChangePasswordDto) => {
+    mutationFn: async (data: ChangePasswordCompagnyDto) => {
       if (!token) throw new Error('Non authentifie');
-      return api.authAdmin.changePassword(token, data);
+      return api.authCompagny.changePassword(token, data);
     },
     onSuccess: () => {
       toast.success("Mot de passe modifie avec succes");
@@ -112,8 +119,10 @@ export default function Profile() {
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateProfile.mutate({
-      prenom: profileData.prenom,
-      nom: profileData.nom,
+      nomCompagny: profileData.nomCompagny,
+      emailCompagny: profileData.emailCompagny,
+      telephoneCompagny: profileData.telephoneCompagny,
+      adresseCompagny: profileData.adresseCompagny,
     });
   };
 
@@ -131,7 +140,7 @@ export default function Profile() {
     }
 
     changePassword.mutate({
-      currentPassword: passwordData.currentPassword,
+      oldPassword: passwordData.currentPassword,
       newPassword: passwordData.newPassword,
     });
   };
@@ -191,30 +200,44 @@ export default function Profile() {
             <form onSubmit={handleProfileSubmit} className="space-y-6">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Prenom</Label>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Nom de la compagnie</Label>
                     <Input
-                      value={profileData.prenom}
-                      onChange={(e) => setProfileData({ ...profileData, prenom: e.target.value })}
-                      placeholder="Votre prenom"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Nom</Label>
-                    <Input
-                      value={profileData.nom}
-                      onChange={(e) => setProfileData({ ...profileData, nom: e.target.value })}
-                      placeholder="Votre nom"
+                      value={profileData.nomCompagny}
+                      onChange={(e) => setProfileData({ ...profileData, nomCompagny: e.target.value })}
+                      placeholder="Nom de la compagnie"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Email</Label>
                     <Input
-                      value={user?.email || ""}
-                      disabled
-                      className="bg-slate-50"
+                      type="email"
+                      value={profileData.emailCompagny}
+                      onChange={(e) => setProfileData({ ...profileData, emailCompagny: e.target.value })}
+                      placeholder="Email de la compagnie"
                     />
-                    <p className="text-xs text-slate-500">L'email ne peut pas etre modifie</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5" />
+                      Telephone
+                    </Label>
+                    <Input
+                      value={profileData.telephoneCompagny}
+                      onChange={(e) => setProfileData({ ...profileData, telephoneCompagny: e.target.value })}
+                      placeholder="Telephone de la compagnie"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                      Adresse
+                    </Label>
+                    <Input
+                      value={profileData.adresseCompagny}
+                      onChange={(e) => setProfileData({ ...profileData, adresseCompagny: e.target.value })}
+                      placeholder="Adresse de la compagnie"
+                    />
                   </div>
                 </div>
               </div>

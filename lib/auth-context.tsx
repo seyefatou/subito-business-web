@@ -1,11 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { api, AdminProfile } from './api';
+import { api, CompagnyUserProfile } from './api';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
-  user: AdminProfile | null;
+  user: CompagnyUserProfile | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -16,15 +16,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'subito_admin_token';
-const USER_KEY = 'subito_admin_user';
+const TOKEN_KEY = 'subito_compagny_token';
+const USER_KEY = 'subito_compagny_user';
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AdminProfile | null>(null);
+  const [user, setUser] = useState<CompagnyUserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Start with loading = true
   const router = useRouter();
@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await api.authAdmin.login({ email, password });
+    const response = await api.authCompagny.login({ email, password });
     const { access_token, user } = response.data;
 
     setToken(access_token);
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       if (token) {
-        await api.authAdmin.logout(token);
+        await api.authCompagny.logout(token);
       }
     } catch (error) {
       console.error('Error during logout:', error);
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!token) return;
 
     try {
-      const response = await api.authAdmin.getProfile(token);
+      const response = await api.authCompagny.getProfile(token);
       setUser(response.data);
       localStorage.setItem(USER_KEY, JSON.stringify(response.data));
     } catch (error) {
