@@ -3,13 +3,10 @@
 import { motion } from "framer-motion";
 import { MapPin, Navigation, Package, Car, Clock } from "lucide-react";
 
-type ServiceCategory = 'transport' | 'livraison' | 'administratif' | 'carburant' | 'flotte' | 'assistance';
-type OrderStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-
 interface Order {
   id: string | number;
-  status: OrderStatus;
-  service_category?: ServiceCategory;
+  status: string;
+  service_category?: string;
 }
 
 interface LiveMapProps {

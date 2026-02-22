@@ -3,7 +3,9 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateTravelDocumentDto, TravelDocumentTarif, TravelDocumentPaymentMethod } from "@/lib/api";
+import { api, CreateTravelDocumentDto, TravelDocumentTarif, EmployeeResponse } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+type TravelDocumentPaymentMethod = 'mobile_money' | 'company_account';
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -21,7 +23,8 @@ import {
   CreditCard,
   Phone,
   Mail,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +59,6 @@ interface Service {
   label: string;
   icon: string;
   description: string;
-  apiField: 'flightReservation' | 'hotelReservation';
 }
 
 interface Country {
@@ -87,6 +89,7 @@ interface FormData {
   roomType: string;
   notes: string;
   paymentMethod: TravelDocumentPaymentMethod;
+  employeeId: number | null;
 }
 
 const steps: Step[] = [
@@ -98,8 +101,9 @@ const steps: Step[] = [
 ];
 
 const services: Service[] = [
-  { id: "flight", label: "Reservation Vol", icon: "plane", description: "Attestation de vol", apiField: 'flightReservation' },
-  { id: "hotel", label: "Reservation Hotel", icon: "hotel", description: "Attestation d'hebergement", apiField: 'hotelReservation' },
+  { id: "flight", label: "Reservation Vol", icon: "plane", description: "Attestation de vol" },
+  { id: "hotel", label: "Reservation Hotel", icon: "hotel", description: "Attestation d'hebergement" },
+  { id: "insurance", label: "Assurance Voyage", icon: "insurance", description: "Assurance pour votre voyage" },
 ];
 
 const departureCountries: Country[] = [
@@ -157,6 +161,7 @@ const roomTypes: { value: string; label: string }[] = [
 export default function TravelDocuments() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [success, setSuccess] = useState<boolean>(false);
   const [bookingReference, setBookingReference] = useState<string>("");
@@ -182,42 +187,56 @@ export default function TravelDocuments() {
     roomType: "",
     notes: "",
     paymentMethod: "mobile_money",
+    employeeId: null,
   });
 
   // Fetch tarifs
   const { data: tarifsResponse } = useQuery({
     queryKey: ['travel-document-tarifs'],
-    queryFn: () => api.travelDocuments.getTarifs(),
+    queryFn: () => api.reference.getTravelDocumentTarifs(),
   });
 
-  // API may return array directly or wrapped in { data: [...] }
   const tarifs: TravelDocumentTarif[] = Array.isArray(tarifsResponse?.data)
     ? tarifsResponse.data
-    : Array.isArray(tarifsResponse)
-      ? tarifsResponse
-      : [];
+    : [];
 
-  // Create booking mutation
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees'],
+    queryFn: () => api.employees.list({ limit: 100, actif: true }),
+  });
+  const employeesRaw = employeesResponse?.data;
+  const employees: EmployeeResponse[] = Array.isArray(employeesRaw)
+    ? employeesRaw
+    : (employeesRaw as any)?.items || (employeesRaw as any)?.list || (employeesRaw as any)?.data || [];
+
+  // Create travel document mutation
   const createBooking = useMutation({
     mutationFn: (data: CreateTravelDocumentDto) => api.travelDocuments.create(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['travel-documents'] });
-      const ref = response.data?.reference || `TD-${Date.now().toString().slice(-8)}`;
-      setBookingReference(ref);
+      setBookingReference(response.data?.reference || `SUB-${Date.now()}`);
       setSuccess(true);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Erreur lors de la demande");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'envoi");
+    },
   });
 
   const handleChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const cleanPhone = (phone: string): string => phone.replace(/[\s\-\.\(\)]/g, '');
+  const formatPhoneForApi = (phone: string): string => {
+    const digits = cleanPhone(phone);
+    const match = digits.match(/^(\+\d{1,3})(\d+)$/);
+    if (match) {
+      const [, code, num] = match;
+      const formatted = num.replace(/(\d{2})(?=\d)/g, '$1 ');
+      return `${code} ${formatted}`;
+    }
+    return phone;
   };
 
   const toggleService = (serviceId: string) => {
@@ -233,6 +252,7 @@ export default function TravelDocuments() {
   const selectedCountry = countries.find(c => c.code === formData.country);
   const hasHotel = formData.selectedServices.includes('hotel');
   const hasFlight = formData.selectedServices.includes('flight');
+  const hasInsurance = formData.selectedServices.includes('insurance');
 
   // Calculate total price from tarifs
   const calculateTotal = (): number => {
@@ -244,6 +264,10 @@ export default function TravelDocuments() {
     if (hasHotel) {
       const hotelTarif = tarifs.find(t => t.serviceType === 'hotel' && t.isActive);
       if (hotelTarif) total += hotelTarif.price;
+    }
+    if (hasInsurance) {
+      const insuranceTarif = tarifs.find(t => t.serviceType === 'insurance' && t.isActive);
+      if (insuranceTarif) total += insuranceTarif.price;
     }
     return total || 50000; // Default price if no tarifs
   };
@@ -284,33 +308,39 @@ export default function TravelDocuments() {
   };
 
   const handleSubmit = () => {
+    const isCompanyPayment = formData.paymentMethod === 'company_account';
+
+    const selectedDepartureCountry = departureCountries.find(c => c.code === formData.departureCountry);
+
     const bookingData: CreateTravelDocumentDto = {
       flightReservation: hasFlight,
       hotelReservation: hasHotel,
+      travelInsurance: hasInsurance,
       firstName: formData.firstName,
       lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone ? formatPhoneForApi(formData.phone) : '',
       passportNumber: formData.passport,
       nationality: formData.nationality,
-      birthDate: formData.birthDate ? format(formData.birthDate, 'yyyy-MM-dd') : '',
-      phone: formData.phone,
-      email: formData.email,
+      birthDate: formData.birthDate ? formData.birthDate.toISOString() : '',
       departureCountry: selectedDepartureCountry?.name || formData.departureCountry,
       departureCity: formData.departureCity,
       destinationCountry: selectedCountry?.name || formData.country,
       destinationCity: formData.city,
-      departureDate: formData.departureDate ? format(formData.departureDate, 'yyyy-MM-dd') : '',
-      ...(formData.returnDate ? { returnDate: format(formData.returnDate, 'yyyy-MM-dd') } : {}),
-      travelReason: formData.reason,
-      paymentMethod: formData.paymentMethod,
+      departureDate: formData.departureDate ? formData.departureDate.toISOString() : '',
+      returnDate: formData.returnDate ? formData.returnDate.toISOString() : undefined,
+      travelReason: formData.reason as CreateTravelDocumentDto['travelReason'],
+      paidBy: isCompanyPayment ? 'company' : 'client',
+      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      companyCode: user?.companyCode || undefined,
+      employeeId: formData.employeeId || undefined,
+      hotelCategory: hasHotel ? formData.category : undefined,
+      numberOfPeople: hasHotel ? (parseInt(formData.persons) || 1) : undefined,
+      roomType: hasHotel ? formData.roomType : undefined,
+      hotelDetails: hasHotel ? formData.notes : undefined,
     };
 
-    // Add hotel details if hotel is selected
-    if (hasHotel) {
-      bookingData.hotelCategory = formData.category;
-      bookingData.numberOfPeople = parseInt(formData.persons) || 1;
-      bookingData.roomType = formData.roomType;
-      bookingData.hotelDetails = formData.notes;
-    }
+    console.log('[TRAVEL-DOCS] Booking data:', JSON.stringify(bookingData, null, 2));
 
     createBooking.mutate(bookingData);
   };
@@ -339,6 +369,7 @@ export default function TravelDocuments() {
       roomType: "",
       notes: "",
       paymentMethod: "mobile_money",
+      employeeId: null,
     });
   };
 
@@ -478,7 +509,7 @@ export default function TravelDocuments() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {services.map((service) => {
                   const isSelected = formData.selectedServices.includes(service.id);
                   const tarif = tarifs.find(t => t.serviceType === service.id && t.isActive);
@@ -502,7 +533,9 @@ export default function TravelDocuments() {
                       )}
 
                       <div className="text-4xl mb-3">
-                        {service.id === 'flight' ? <Plane className="w-10 h-10 text-blue-500" /> : <Globe className="w-10 h-10 text-green-500" />}
+                        {service.id === 'flight' ? <Plane className="w-10 h-10 text-blue-500" /> :
+                         service.id === 'insurance' ? <FileText className="w-10 h-10 text-purple-500" /> :
+                         <Globe className="w-10 h-10 text-green-500" />}
                       </div>
                       <h3 className="font-semibold text-slate-800 mb-1">{service.label}</h3>
                       <p className="text-sm text-slate-500 mb-2">{service.description}</p>
@@ -525,6 +558,40 @@ export default function TravelDocuments() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
+              {/* Employee selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Voyageur (employe)
+                </Label>
+                <Select
+                  value={formData.employeeId?.toString() || ""}
+                  onValueChange={(v) => {
+                    const empId = parseInt(v);
+                    handleChange('employeeId', empId);
+                    const emp = employees.find(e => e.id === empId);
+                    if (emp) {
+                      handleChange('firstName', emp.prenom);
+                      handleChange('lastName', emp.nom);
+                      if (emp.email) handleChange('email', emp.email);
+                      if (emp.telephone) handleChange('phone', emp.telephone);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <Users className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Selectionner un employe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Prenom(s) *</Label>
@@ -900,7 +967,9 @@ export default function TravelDocuments() {
                     const service = services.find(s => s.id === serviceId);
                     return service && (
                       <div key={serviceId} className="flex items-center gap-2 text-slate-700">
-                        {service.id === 'flight' ? <Plane className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
+                        {service.id === 'flight' ? <Plane className="w-5 h-5" /> :
+                         service.id === 'insurance' ? <FileText className="w-5 h-5" /> :
+                         <Globe className="w-5 h-5" />}
                         {service.label}
                       </div>
                     );

@@ -26,29 +26,48 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<CompagnyUserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Start with loading = true
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Load auth state from localStorage on mount (client-side only)
+  // Load auth state from localStorage and validate token on mount
   useEffect(() => {
-    const loadAuthState = () => {
+    const loadAuthState = async () => {
       try {
         const storedToken = localStorage.getItem(TOKEN_KEY);
         const storedUser = localStorage.getItem(USER_KEY);
 
-        if (storedToken && storedToken !== 'undefined' && storedUser && storedUser !== 'undefined') {
-          try {
-            const parsedUser = JSON.parse(storedUser);
+        console.log(`[AUTH] loadAuthState | token: ${storedToken ? 'YES (' + storedToken.substring(0, 20) + '...)' : 'NO'} | user: ${storedUser ? 'YES' : 'NO'}`);
+
+        if (!storedToken || storedToken === 'undefined') {
+          console.log('[AUTH] No token in localStorage');
+          return;
+        }
+
+        // We have a token — validate it by calling the profile endpoint
+        try {
+          console.log('[AUTH] Validating token via profile endpoint...');
+          const profileResponse = await api.authCompagny.getProfile(storedToken);
+          const profile = profileResponse.data || profileResponse;
+
+          if (profile && (profile.id || profile.nomCompagny || profile.raisonSociale)) {
             setToken(storedToken);
-            setUser(parsedUser);
-          } catch {
-            // Invalid JSON, clear storage
+            setUser(profile as CompagnyUserProfile);
+            localStorage.setItem(USER_KEY, JSON.stringify(profile));
+            console.log('[AUTH] Token valid, profile loaded OK');
+          } else {
+            // Profile response is empty/invalid
+            console.warn('[AUTH] Profile response invalid, clearing auth');
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(USER_KEY);
           }
+        } catch {
+          // Token is expired/invalid — clean up
+          console.warn('[AUTH] Token validation failed (401 or error), clearing auth');
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
         }
       } catch (error) {
-        console.error('Error loading auth state:', error);
+        console.error('[AUTH] Error loading auth state:', error);
       } finally {
         setIsLoading(false);
       }
@@ -58,7 +77,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    console.log('[AUTH] login() called');
     const response = await api.authCompagny.login({ email, password });
+    console.log('[AUTH] login API response:', JSON.stringify(response).substring(0, 200));
+
     // Handle both wrapped { data: {...} } and direct response formats
     const data = response.data || response;
 
@@ -66,32 +88,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const rawData = data as Record<string, unknown>;
     const accessToken = (rawData.access_token || rawData.token) as string;
     if (!accessToken) {
-      console.error('Login response:', JSON.stringify(response));
+      console.error('[AUTH] NO TOKEN in response! Full response:', JSON.stringify(response));
       throw new Error('Token non recu du serveur');
     }
 
+    console.log(`[AUTH] Token received: ${accessToken.substring(0, 30)}...`);
     setToken(accessToken);
     localStorage.setItem(TOKEN_KEY, accessToken);
 
     // If user data is in the login response, use it temporarily
     const userData = rawData.user as CompagnyUserProfile | undefined;
-    if (userData && (userData.id || userData.nomCompagny)) {
+    const loginRole = rawData.role as string | undefined;
+    console.log(`[AUTH] User in login response: ${userData ? 'YES (id=' + userData.id + ')' : 'NO'} | role: ${loginRole || 'N/A'}`);
+    if (userData && (userData.id || userData.nomCompagny || userData.raisonSociale)) {
+      if (loginRole) userData.role = loginRole;
       setUser(userData);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
     }
 
-    // Always fetch the full profile from /auth/compagny/profile
+    // Fetch the full profile
     try {
+      console.log('[AUTH] Fetching profile...');
       const profileResponse = await api.authCompagny.getProfile(accessToken);
-      // Handle both wrapped and direct response
+      console.log('[AUTH] Profile response:', JSON.stringify(profileResponse).substring(0, 200));
       const profile = profileResponse.data || profileResponse;
-      if (profile && (profile.id || profile.nomCompagny)) {
+      if (profile && (profile.id || profile.nomCompagny || profile.raisonSociale)) {
         setUser(profile as CompagnyUserProfile);
         localStorage.setItem(USER_KEY, JSON.stringify(profile));
+        console.log('[AUTH] Profile saved OK');
+      } else {
+        console.warn('[AUTH] Profile response has no id or nomCompagny:', profile);
       }
     } catch (err) {
-      console.error('Error fetching profile after login:', err);
+      console.error('[AUTH] Error fetching profile after login:', err);
     }
+
+    // Final state check
+    const finalToken = localStorage.getItem(TOKEN_KEY);
+    const finalUser = localStorage.getItem(USER_KEY);
+    console.log(`[AUTH] login() done | token in storage: ${!!finalToken} | user in storage: ${!!finalUser}`);
   }, []);
 
   const logout = useCallback(async () => {
@@ -115,7 +150,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       const response = await api.authCompagny.getProfile(token);
-      // Handle both wrapped { data: {...} } and direct response
       const profile = response.data || response;
       setUser(profile as CompagnyUserProfile);
       localStorage.setItem(USER_KEY, JSON.stringify(profile));

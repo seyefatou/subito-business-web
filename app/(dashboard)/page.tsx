@@ -2,12 +2,10 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, DashboardData, TravelDocumentResponse } from "@/lib/api";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  TrendingUp,
-  Package,
   ShoppingCart,
   Wallet,
   ArrowRight,
@@ -22,63 +20,90 @@ import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import LiveMap from "@/components/dashboard/LiveMap";
 import ServiceUsageChart from "@/components/dashboard/ServiceUsageChart";
 
-interface Order {
-  id: string;
-  created_date: string;
-  final_cost?: number;
-  estimated_cost?: number;
-  service_category: string;
-  status: string;
-  departure_address?: string;
-  arrival_address?: string;
-  beneficiary_name?: string;
-}
-
-interface ServiceCounts {
-  [key: string]: number;
-}
-
 export default function Dashboard() {
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ['orders'],
-    queryFn: () => base44.entities.Order.list('-created_date', 100),
+  // Fetch bookings dashboard data
+  const { data: dashboardResponse, isLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => api.bookings.dashboard(),
   });
 
-  // Calculate KPIs
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
-  const thisMonthOrders = orders.filter((o: Order) => {
-    const d = new Date(o.created_date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  // Fetch travel documents dashboard data
+  const { data: travelDocsDashResponse } = useQuery({
+    queryKey: ['travel-docs-dashboard'],
+    queryFn: () => api.travelDocuments.dashboard(),
   });
 
-  const lastMonthOrders = orders.filter((o: Order) => {
-    const d = new Date(o.created_date);
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const year = currentMonth === 0 ? currentYear - 1 : currentYear;
-    return d.getMonth() === lastMonth && d.getFullYear() === year;
-  });
+  const bookingsDash: DashboardData | undefined = dashboardResponse?.data;
+  const travelDocsDash: DashboardData | undefined = travelDocsDashResponse?.data;
 
-  const thisMonthSpending = thisMonthOrders.reduce((sum: number, o: Order) => sum + (o.final_cost || o.estimated_cost || 0), 0);
-  const lastMonthSpending = lastMonthOrders.reduce((sum: number, o: Order) => sum + (o.final_cost || o.estimated_cost || 0), 0);
+  // Merge stats from both sources
+  const totalBookings = (bookingsDash?.totalBookings || 0) + (travelDocsDash?.totalBookings || 0);
+  const activeBookings = (bookingsDash?.activeBookings || 0) + (travelDocsDash?.activeBookings || 0);
+  const totalSpent = (bookingsDash?.totalSpent || 0) + (travelDocsDash?.totalSpent || 0);
 
-  const spendingTrend = lastMonthSpending > 0
-    ? ((thisMonthSpending - lastMonthSpending) / lastMonthSpending * 100).toFixed(1)
-    : 0;
-
-  const ordersTrend = lastMonthOrders.length > 0
-    ? ((thisMonthOrders.length - lastMonthOrders.length) / lastMonthOrders.length * 100).toFixed(1)
-    : 0;
+  // Merge byService from both
+  const byService: Record<string, number> = { ...(bookingsDash?.byService || {}) };
+  if (travelDocsDash?.byService) {
+    Object.entries(travelDocsDash.byService).forEach(([key, val]) => {
+      byService[key] = (byService[key] || 0) + val;
+    });
+  }
+  // Ensure travel docs appear even if not in byService
+  if (travelDocsDash?.totalBookings && !byService['visa_assistance']) {
+    byService['visa_assistance'] = travelDocsDash.totalBookings;
+  }
 
   // Most used service
-  const serviceCounts: ServiceCounts = thisMonthOrders.reduce((acc: ServiceCounts, o: Order) => {
-    acc[o.service_category] = (acc[o.service_category] || 0) + 1;
-    return acc;
-  }, {});
-  const topService = Object.entries(serviceCounts).sort((a, b) => b[1] - a[1])[0];
+  const topService = Object.entries(byService).sort((a, b) => b[1] - a[1])[0];
 
-  const avgDeliveryTime = 32; // Placeholder - would calculate from actual data
+  // Fetch recent bookings
+  const { data: bookingsResponse } = useQuery({
+    queryKey: ['bookings-recent'],
+    queryFn: () => api.bookings.list(1, 10),
+  });
+  const recentBookings = bookingsResponse?.data?.items || [];
+
+  // Fetch recent travel documents
+  const { data: travelDocsResponse } = useQuery({
+    queryKey: ['travel-docs-recent'],
+    queryFn: () => api.travelDocuments.list({ page: 1, limit: 10 }),
+  });
+  const travelDocsRaw = travelDocsResponse?.data;
+  const travelDocsData = (travelDocsRaw as any)?.data || travelDocsRaw;
+  const recentTravelDocs: TravelDocumentResponse[] = Array.isArray(travelDocsData)
+    ? travelDocsData
+    : (travelDocsData as any)?.items || (travelDocsData as any)?.list || [];
+
+  // Map bookings to order-like format
+  const bookingOrders = recentBookings.map(b => ({
+    id: String(b.id),
+    created_date: b.createdAt || '',
+    final_cost: b.totalPrice || 0,
+    estimated_cost: b.totalPrice || 0,
+    service_category: b.serviceType || '',
+    status: b.status || '',
+    departure_address: '',
+    arrival_address: '',
+    beneficiary_name: b.clientName || '',
+  }));
+
+  // Map travel documents to same format
+  const travelDocOrders = recentTravelDocs.map(td => ({
+    id: `td-${td.id}`,
+    created_date: td.createdAt || '',
+    final_cost: (td as any).totalPrice || (td as any).amount || 0,
+    estimated_cost: (td as any).totalPrice || (td as any).amount || 0,
+    service_category: 'visa_assistance',
+    status: td.status || 'pending',
+    departure_address: '',
+    arrival_address: '',
+    beneficiary_name: [td.firstName, td.lastName].filter(Boolean).join(' ') || (td as any).clientName || '-',
+  }));
+
+  // Merge and sort by date
+  const orders = [...bookingOrders, ...travelDocOrders].sort(
+    (a, b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
+  );
 
   return (
     <div className="space-y-8">
@@ -119,11 +144,11 @@ export default function Dashboard() {
           </div>
           <div className="flex-1">
             <p className="font-medium">
-              Votre entreprise a effectue {thisMonthOrders.length} commandes ce mois-ci
+              Votre entreprise a effectue {totalBookings} commandes
               {topService && `, dont ${topService[1]} en ${topService[0]}`}
             </p>
             <p className="text-slate-400 text-sm mt-0.5">
-              Delai moyen de livraison : {avgDeliveryTime} min
+              {activeBookings} commande{activeBookings > 1 ? 's' : ''} en cours
             </p>
           </div>
           <Button variant="secondary" size="sm" className="whitespace-nowrap">
@@ -135,22 +160,18 @@ export default function Dashboard() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <KPICard
-          title="Depenses du mois"
-          value={`${thisMonthSpending.toLocaleString()} FCFA`}
-          subtitle="vs mois dernier"
+          title="Depenses totales"
+          value={`${totalSpent.toLocaleString()} FCFA`}
+          subtitle="total"
           icon={Wallet}
-          trend={Number(spendingTrend) <= 0 ? "down" : "up"}
-          trendValue={`${Math.abs(Number(spendingTrend))}%`}
           gradient
           delay={0}
         />
         <KPICard
           title="Commandes"
-          value={thisMonthOrders.length}
-          subtitle="ce mois-ci"
+          value={totalBookings}
+          subtitle={`dont ${activeBookings} en cours`}
           icon={ShoppingCart}
-          trend={Number(ordersTrend) >= 0 ? "up" : "down"}
-          trendValue={`${Math.abs(Number(ordersTrend))}%`}
           delay={0.1}
         />
         <KPICard
@@ -171,7 +192,7 @@ export default function Dashboard() {
 
         {/* Right column - Chart */}
         <div>
-          <ServiceUsageChart orders={thisMonthOrders} />
+          <ServiceUsageChart orders={orders} />
         </div>
       </div>
 
@@ -191,8 +212,8 @@ export default function Dashboard() {
             {[
               { label: "Navette Aeroport", icon: "✈️", href: "/airport-shuttle" },
               { label: "Inter-villes", icon: "🚗", href: "/inter-city" },
-              { label: "Carburant", icon: "⛽", href: "/fuel-management" },
-              { label: "Flotte", icon: "🚙", href: "/fleet" },
+              { label: "VTC Horaire", icon: "🕐", href: "/hourly-vtc" },
+              { label: "Documents Voyage", icon: "📄", href: "/travel-documents" },
             ].map((action, index) => (
               <Link key={action.label} href={action.href}>
                 <motion.div

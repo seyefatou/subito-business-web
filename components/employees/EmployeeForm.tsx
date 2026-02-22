@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, FormEvent, ChangeEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { CreateEmployeeDto, EmployeeResponse, DepartmentResponse } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,48 +13,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Employee {
-  id?: string;
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  department?: string;
-  company?: string;
-  role?: string;
-  monthly_limit?: number | string;
-  is_active?: boolean;
-}
-
-interface Department {
-  id: string;
-  name: string;
-}
-
-interface Company {
-  id: string;
-  name: string;
-  is_active: boolean;
-}
-
 interface EmployeeFormData {
-  full_name: string;
+  nom: string;
+  prenom: string;
   email: string;
-  phone: string;
-  department: string;
-  company: string;
+  telephone: string;
+  departementId: string;
   role: string;
-  monthly_limit: string;
-  is_active: boolean;
-}
-
-interface EmployeeSubmitData extends Omit<EmployeeFormData, 'monthly_limit'> {
-  monthly_limit: number | null;
+  plafondMensuel: string;
+  actif: boolean;
 }
 
 interface EmployeeFormProps {
-  employee?: Employee | null;
-  departments: Department[];
-  onSubmit: (data: EmployeeSubmitData) => void;
+  employee?: EmployeeResponse | null;
+  departments: DepartmentResponse[];
+  onSubmit: (data: CreateEmployeeDto) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
@@ -68,27 +40,28 @@ export default function EmployeeForm({
   isSubmitting
 }: EmployeeFormProps) {
   const [formData, setFormData] = useState<EmployeeFormData>({
-    full_name: employee?.full_name || "",
+    nom: employee?.nom || "",
+    prenom: employee?.prenom || "",
     email: employee?.email || "",
-    phone: employee?.phone || "",
-    department: employee?.department || "",
-    company: employee?.company || "",
-    role: employee?.role || "user",
-    monthly_limit: employee?.monthly_limit?.toString() || "",
-    is_active: employee?.is_active !== undefined ? employee.is_active : true,
-  });
-
-  const { data: companies = [] } = useQuery<Company[]>({
-    queryKey: ['companies'],
-    queryFn: () => base44.entities.Company.filter({ is_active: true }),
+    telephone: employee?.telephone || "",
+    departementId: employee?.departementId?.toString() || employee?.departement?.id?.toString() || "",
+    role: employee?.role || "employe",
+    plafondMensuel: employee?.plafondMensuel?.toString() || "",
+    actif: employee?.actif !== undefined ? employee.actif : true,
   });
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const submitData: EmployeeSubmitData = {
-      ...formData,
-      monthly_limit: formData.monthly_limit ? parseFloat(formData.monthly_limit) : null,
+    const submitData: CreateEmployeeDto = {
+      nom: formData.nom,
+      prenom: formData.prenom,
+      email: formData.email,
+      telephone: formData.telephone || undefined,
+      departementId: formData.departementId && formData.departementId !== 'none' ? parseInt(formData.departementId) : undefined,
+      role: formData.role || undefined,
+      plafondMensuel: formData.plafondMensuel ? parseFloat(formData.plafondMensuel) : undefined,
+      actif: formData.actif,
     };
 
     onSubmit(submitData);
@@ -102,51 +75,61 @@ export default function EmployeeForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="full_name">Nom complet *</Label>
+          <Label htmlFor="prenom">Prenom *</Label>
           <Input
-            id="full_name"
-            value={formData.full_name}
-            onChange={(e) => handleChange('full_name', e.target.value)}
-            placeholder="Jean Dupont"
+            id="prenom"
+            value={formData.prenom}
+            onChange={(e) => handleChange('prenom', e.target.value)}
+            placeholder="Jean"
             required
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email *</Label>
+          <Label htmlFor="nom">Nom *</Label>
           <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => handleChange('email', e.target.value)}
-            placeholder="jean.dupont@entreprise.com"
+            id="nom"
+            value={formData.nom}
+            onChange={(e) => handleChange('nom', e.target.value)}
+            placeholder="Dupont"
             required
           />
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="email">Email *</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => handleChange('email', e.target.value)}
+          placeholder="jean.dupont@entreprise.com"
+          required
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="phone">Telephone</Label>
+          <Label htmlFor="telephone">Telephone</Label>
           <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => handleChange('phone', e.target.value)}
+            id="telephone"
+            value={formData.telephone}
+            onChange={(e) => handleChange('telephone', e.target.value)}
             placeholder="+221 77 123 45 67"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="department">Departement</Label>
-          <Select value={formData.department} onValueChange={(v) => handleChange('department', v)}>
+          <Label htmlFor="departement">Departement</Label>
+          <Select value={formData.departementId} onValueChange={(v) => handleChange('departementId', v)}>
             <SelectTrigger>
               <SelectValue placeholder="Choisir un departement" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">General</SelectItem>
               {departments.map(dept => (
-                <SelectItem key={dept.id} value={dept.name}>
-                  {dept.name}
+                <SelectItem key={dept.id} value={dept.id.toString()}>
+                  {dept.nom}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -162,20 +145,20 @@ export default function EmployeeForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="user">Employe</SelectItem>
+              <SelectItem value="employe">Employe</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
-              <SelectItem value="admin">Admin Entreprise</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="monthly_limit">Plafond mensuel (FCFA)</Label>
+          <Label htmlFor="plafondMensuel">Plafond mensuel (FCFA)</Label>
           <Input
-            id="monthly_limit"
+            id="plafondMensuel"
             type="number"
-            value={formData.monthly_limit}
-            onChange={(e) => handleChange('monthly_limit', e.target.value)}
+            value={formData.plafondMensuel}
+            onChange={(e) => handleChange('plafondMensuel', e.target.value)}
             placeholder="50000"
           />
         </div>
@@ -185,8 +168,8 @@ export default function EmployeeForm({
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
-            checked={formData.is_active}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange('is_active', e.target.checked)}
+            checked={formData.actif}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange('actif', e.target.checked)}
             className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
           />
           <span className="text-sm text-slate-700">Employe actif</span>

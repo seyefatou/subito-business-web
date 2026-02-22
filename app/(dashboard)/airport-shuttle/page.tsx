@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateAirportShuttleBookingDto, AirportPaymentMethod } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -14,15 +13,12 @@ import {
   ArrowRight,
   ArrowLeft,
   Check,
-  Car,
-  Briefcase,
   Baby,
   PawPrint,
   Plus,
   CreditCard,
   CheckCircle2,
   User,
-  Clock,
   ArrowRightLeft,
   Phone,
   Mail
@@ -40,50 +36,19 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
+import { api, TrajetAeroport, CreateAirportShuttleBookingDto, EmployeeResponse } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
-interface Step {
+interface StepDef {
   id: number;
   title: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-interface Vehicle {
-  id: string;
-  name: string;
-  passengers: number;
-  luggage: number;
-  price: number;
-  duration: number;
-  amenities: string[];
-  icon: string;
-}
-
-interface Option {
-  id: string;
-  label: string;
-  price: number;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-interface Ville {
-  id: number;
-  name: string;
-}
-
-interface TrajetAeroport {
-  id: number;
-  villeDepart: Ville;
-  villeArrivee: Ville;
-  prixAllerSimple?: number;
-  prixAllerRetour?: number;
-  prixAdresseSupplementaire?: number;
-  prixSiegeBebe?: number;
-  prixAnimalCompagnie?: number;
-}
+type PaymentChoice = 'cash' | 'mobile_money' | 'company_account';
 
 interface FormData {
   direction: string;
@@ -96,70 +61,49 @@ interface FormData {
   passengers: number;
   flight_number: string;
   address: string;
-  vehicle_id: string;
-  outbound_options: string[];
-  return_options: string[];
-  payment_method: AirportPaymentMethod;
-  // Client info
+  payment_method: PaymentChoice;
   clientName: string;
   clientEmail: string;
   clientPhone: string;
   clientAddress: string;
-  // Options
   siegeBebes: number;
   animalDeCompagnie: boolean;
   adresseSupplement: number;
   specialRequests: string;
+  employeeId: number | null;
 }
 
-const steps: Step[] = [
+const initialFormData: FormData = {
+  direction: "to_airport",
+  trajetAeroportId: null,
+  is_round_trip: false,
+  departure_date: "",
+  departure_time: "",
+  return_date: "",
+  return_time: "",
+  passengers: 1,
+  flight_number: "",
+  address: "",
+  payment_method: "cash",
+  clientName: "",
+  clientEmail: "",
+  clientPhone: "",
+  clientAddress: "",
+  siegeBebes: 0,
+  animalDeCompagnie: false,
+  adresseSupplement: 0,
+  specialRequests: "",
+  employeeId: null,
+};
+
+const steps: StepDef[] = [
   { id: 1, title: "Trajet", icon: MapPin },
   { id: 2, title: "Client", icon: User },
-  { id: 3, title: "Vehicule", icon: Car },
-  { id: 4, title: "Paiement", icon: CreditCard },
-  { id: 5, title: "Confirmation", icon: Check },
+  { id: 3, title: "Paiement", icon: CreditCard },
+  { id: 4, title: "Confirmation", icon: Check },
 ];
 
-const vehicles: Vehicle[] = [
-  {
-    id: "berline",
-    name: "Berline Confort",
-    passengers: 3,
-    luggage: 2,
-    price: 15000,
-    duration: 45,
-    amenities: ["Wifi", "Climatisation", "Eau"],
-    icon: "🚗"
-  },
-  {
-    id: "minibus",
-    name: "Minibus Premium",
-    passengers: 6,
-    luggage: 4,
-    price: 35000,
-    duration: 50,
-    amenities: ["Wifi", "Climatisation", "Eau", "Snacks"],
-    icon: "🚐"
-  },
-  {
-    id: "van",
-    name: "Van Luxe",
-    passengers: 8,
-    luggage: 6,
-    price: 50000,
-    duration: 50,
-    amenities: ["Wifi", "Climatisation", "Eau", "Snacks", "Premium"],
-    icon: "🚙"
-  }
-];
-
-const options: Option[] = [
-  { id: "baby_seat", label: "Siege bebe", price: 2000, icon: Baby },
-  { id: "extra_stop", label: "Arret supplementaire", price: 3000, icon: Plus },
-  { id: "pet", label: "Animal de compagnie", price: 2000, icon: PawPrint },
-];
-
-const paymentMethods: { id: AirportPaymentMethod; label: string; icon: string; desc: string }[] = [
+const paymentMethods: { id: PaymentChoice; label: string; icon: string; desc: string }[] = [
   { id: "cash", label: "Especes", icon: "💵", desc: "Paiement au chauffeur" },
   { id: "mobile_money", label: "Mobile Money", icon: "📱", desc: "Orange Money, Wave, Free Money" },
   { id: "company_account", label: "Compte entreprise", icon: "🏢", desc: "Facturation sur le compte" },
@@ -168,121 +112,111 @@ const paymentMethods: { id: AirportPaymentMethod; label: string; icon: string; d
 export default function AirportShuttle() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [currentStep, setCurrentStep] = useState<number>(1);
-  const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
-  const [bookingRef, setBookingRef] = useState<string>("");
+  const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
 
-  const [formData, setFormData] = useState<FormData>({
-    direction: "to_airport",
-    trajetAeroportId: null,
-    is_round_trip: false,
-    departure_date: "",
-    departure_time: "",
-    return_date: "",
-    return_time: "",
-    passengers: 1,
-    flight_number: "",
-    address: "",
-    vehicle_id: "",
-    outbound_options: [],
-    return_options: [],
-    payment_method: "cash",
-    clientName: "",
-    clientEmail: "",
-    clientPhone: "",
-    clientAddress: "",
-    siegeBebes: 0,
-    animalDeCompagnie: false,
-    adresseSupplement: 0,
-    specialRequests: "",
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+
+  // Fetch employees for company bookings
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees'],
+    queryFn: () => api.employees.list({ limit: 100, actif: true }),
   });
+  const employeesRaw = employeesResponse?.data;
+  const employees: EmployeeResponse[] = Array.isArray(employeesRaw)
+    ? employeesRaw
+    : (employeesRaw as any)?.items || (employeesRaw as any)?.list || [];
 
-  // Fetch trajets from API
-  const { data: trajetsData } = useQuery({
-    queryKey: ['trajets-aeroport'],
-    queryFn: () => api.trajetsAeroport.getAll(),
+  // Fetch airport routes
+  const { data: trajetsResponse } = useQuery({
+    queryKey: ['trajet-aeroport'],
+    queryFn: () => api.reference.getTrajetAeroport(),
   });
+  const trajetsRaw = trajetsResponse?.data;
+  const trajets: TrajetAeroport[] = Array.isArray(trajetsRaw)
+    ? trajetsRaw
+    : (trajetsRaw as any)?.list || (trajetsRaw as any)?.items || [];
 
-  // API returns { data: { list: [...], total, page, pageSize } }
-  const trajets: TrajetAeroport[] = trajetsData?.data?.list || [];
-
+  // Create booking mutation
   const createBooking = useMutation({
-    mutationFn: (data: CreateAirportShuttleBookingDto) => api.airportShuttle.createByAdmin(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['airport-bookings'] });
-      const ref = "NAV" + Date.now().toString().slice(-8);
-      setBookingRef(ref);
+    mutationFn: (data: CreateAirportShuttleBookingDto) => api.bookings.createAirportShuttle(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setBookingRef(response.data?.reference || `SUB-${Date.now()}`);
       setBookingSuccess(true);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Erreur lors de la reservation");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la reservation");
+    },
   });
 
   const handleChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
+
+  const calculateTotal = (): number => {
+    if (!selectedTrajet) return 0;
+    let total = formData.is_round_trip
+      ? (selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple || 0) * 2)
+      : (selectedTrajet.prixAllerSimple || 0);
+    if (formData.siegeBebes > 0 && selectedTrajet.prixSiegeBebe) {
+      total += selectedTrajet.prixSiegeBebe * formData.siegeBebes;
+    }
+    if (formData.animalDeCompagnie && selectedTrajet.prixAnimalCompagnie) {
+      total += selectedTrajet.prixAnimalCompagnie;
+    }
+    if (formData.adresseSupplement > 0 && selectedTrajet.prixAdresseSupplementaire) {
+      total += selectedTrajet.prixAdresseSupplementaire * formData.adresseSupplement;
+    }
+    return total;
+  };
+
+  const cleanPhone = (phone: string): string => phone.replace(/[\s\-\.\(\)]/g, '');
+  const isValidPhone = (phone: string): boolean => /^\+?\d{7,15}$/.test(cleanPhone(phone));
+  // Format phone for backend: +221 77 130 85 07
+  const formatPhoneForApi = (phone: string): string => {
+    const digits = cleanPhone(phone);
+    const match = digits.match(/^(\+\d{1,3})(\d+)$/);
+    if (match) {
+      const [, code, num] = match;
+      const formatted = num.replace(/(\d{2})(?=\d)/g, '$1 ');
+      return `${code} ${formatted}`;
+    }
+    return phone;
+  };
+
+  const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
+
   const handleNext = () => {
-    // Validate current step before proceeding
     if (currentStep === 1) {
-      if (!formData.trajetAeroportId) {
-        toast.error("Veuillez selectionner un trajet");
-        return;
-      }
-      if (!formData.departure_date) {
-        toast.error("Veuillez selectionner une date de depart");
-        return;
-      }
-      if (!formData.departure_time) {
-        toast.error("Veuillez selectionner une heure de depart");
-        return;
-      }
-      if (!formData.address) {
-        toast.error("Veuillez entrer une adresse");
-        return;
+      if (!formData.trajetAeroportId) { toast.error("Veuillez selectionner un trajet"); return; }
+      if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
+      if (!formData.departure_time) { toast.error("Veuillez selectionner une heure de depart"); return; }
+      if (!formData.address) { toast.error("Veuillez entrer une adresse"); return; }
+      if (formData.is_round_trip) {
+        if (!formData.return_date) { toast.error("Veuillez selectionner une date de retour"); return; }
+        if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
       }
     }
 
     if (currentStep === 2) {
-      if (!formData.clientName) {
-        toast.error("Veuillez entrer le nom du client");
-        return;
-      }
-      if (!formData.clientPhone) {
-        toast.error("Veuillez entrer le numero de telephone");
-        return;
-      }
-      if (!isValidPhone(formData.clientPhone)) {
-        toast.error("Numero de telephone invalide (ex: +221 77 123 45 67)");
-        return;
-      }
-      if (!formData.clientAddress) {
-        toast.error("Veuillez entrer l'adresse du client");
-        return;
-      }
+      if (!formData.employeeId) { toast.error("Veuillez selectionner un voyageur"); return; }
+      if (!formData.clientName) { toast.error("Veuillez entrer le nom du client"); return; }
+      if (!formData.clientPhone) { toast.error("Veuillez entrer le numero de telephone"); return; }
+      if (!isValidPhone(formData.clientPhone)) { toast.error("Numero de telephone invalide"); return; }
+      if (!formData.clientAddress) { toast.error("Veuillez entrer l'adresse du client"); return; }
     }
 
     if (currentStep === 3) {
-      if (!formData.vehicle_id) {
-        toast.error("Veuillez selectionner un vehicule");
-        return;
-      }
+      if (!formData.payment_method) { toast.error("Veuillez selectionner un mode de paiement"); return; }
     }
 
-    if (currentStep === 4) {
-      if (!formData.payment_method) {
-        toast.error("Veuillez selectionner un mode de paiement");
-        return;
-      }
-    }
-
-    if (currentStep < 5) setCurrentStep(currentStep + 1);
+    if (currentStep < 4) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -290,77 +224,49 @@ export default function AirportShuttle() {
   };
 
   const handleSubmit = () => {
-    if (!formData.trajetAeroportId) {
-      toast.error("Veuillez selectionner un trajet");
-      return;
-    }
+    if (!formData.trajetAeroportId) { toast.error("Veuillez selectionner un trajet"); return; }
+
+    const isCompanyPayment = formData.payment_method === 'company_account';
 
     const bookingData: CreateAirportShuttleBookingDto = {
-      clientName: formData.clientName,
-      clientEmail: formData.clientEmail || undefined,
-      clientPhone: formData.clientPhone,
-      clientAddress: formData.clientAddress,
+      serviceType: 'airport_shuttle',
+      trajetAeroportId: formData.trajetAeroportId,
       isOneWay: !formData.is_round_trip,
       pickupDateAller: formData.departure_date,
       pickupTimeAller: formData.departure_time,
-      paymentMethod: formData.payment_method,
-      serviceType: "airport_shuttle",
-      flightNumber: formData.flight_number || undefined,
-      siegeBebes: formData.siegeBebes,
-      animalDeCompagnie: formData.animalDeCompagnie,
-      adresseSupplement: formData.adresseSupplement,
-      specialRequests: formData.specialRequests || undefined,
-      trajetAeroportId: formData.trajetAeroportId,
-      passengers: formData.passengers,
       pickupDateRetour: formData.is_round_trip ? formData.return_date : undefined,
       pickupTimeRetour: formData.is_round_trip ? formData.return_time : undefined,
+      passengers: formData.passengers,
+      flightNumber: formData.flight_number || undefined,
+      adressePriseEnChargeAller: formData.address,
+      clientName: formData.clientName,
+      clientPhone: formatPhoneForApi(formData.clientPhone),
+      clientEmail: formData.clientEmail || undefined,
+      clientAddress: formData.clientAddress,
+      siegeBebes: formData.siegeBebes || undefined,
+      animalDeCompagnie: formData.animalDeCompagnie || undefined,
+      adresseSupplement: formData.adresseSupplement || undefined,
+      specialRequests: formData.specialRequests || undefined,
+      paidBy: isCompanyPayment ? 'company' : 'client',
+      paymentMethod: isCompanyPayment ? undefined : formData.payment_method,
+      companyCode: user?.companyCode || undefined,
+      employeeId: formData.employeeId || undefined,
     };
 
+    console.log('[AIRPORT-SHUTTLE] Booking data:', JSON.stringify(bookingData, null, 2));
     createBooking.mutate(bookingData);
   };
 
-  const calculateTotal = (): number => {
-    const vehicle = vehicles.find(v => v.id === formData.vehicle_id);
-    if (!vehicle) return 0;
-
-    let total = vehicle.price;
-    if (formData.is_round_trip) total *= 2;
-
-    formData.outbound_options.forEach(optId => {
-      const opt = options.find(o => o.id === optId);
-      if (opt) total += opt.price;
-    });
-
-    if (formData.is_round_trip) {
-      formData.return_options.forEach(optId => {
-        const opt = options.find(o => o.id === optId);
-        if (opt) total += opt.price;
-      });
-    }
-
-    return total;
-  };
-
-  const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id);
-  const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
-
-  // Validate phone number (accepts formats like +221771234567, 221771234567, 771234567, 77 123 45 67)
-  const isValidPhone = (phone: string): boolean => {
-    const cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
-    return /^\+\d{1,3}\d{7,12}$/.test(cleaned);
-  };
-
-  const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
-
   const canContinue = (): boolean => {
     switch (currentStep) {
-      case 1:
-        return !!(formData.trajetAeroportId && formData.departure_date && formData.departure_time && formData.address);
+      case 1: {
+        const baseValid = !!(formData.trajetAeroportId && formData.departure_date && formData.departure_time && formData.address);
+        if (formData.is_round_trip) return baseValid && !!(formData.return_date && formData.return_time);
+        return baseValid;
+      }
       case 2:
-        return !!(formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 3:
-        return !!formData.vehicle_id;
-      case 4:
         return !!formData.payment_method;
       default:
         return false;
@@ -401,30 +307,7 @@ export default function AirportShuttle() {
             onClick={() => {
               setBookingSuccess(false);
               setCurrentStep(1);
-              setFormData({
-                direction: "to_airport",
-                trajetAeroportId: null,
-                is_round_trip: false,
-                departure_date: "",
-                departure_time: "",
-                return_date: "",
-                return_time: "",
-                passengers: 1,
-                flight_number: "",
-                address: "",
-                vehicle_id: "",
-                outbound_options: [],
-                return_options: [],
-                payment_method: "cash",
-                clientName: "",
-                clientEmail: "",
-                clientPhone: "",
-                clientAddress: "",
-                siegeBebes: 0,
-                animalDeCompagnie: false,
-                adresseSupplement: 0,
-                specialRequests: "",
-              });
+              setFormData(initialFormData);
             }}
           >
             Nouvelle reservation
@@ -539,7 +422,7 @@ export default function AirportShuttle() {
                   <SelectContent>
                     {trajets.map(trajet => (
                       <SelectItem key={trajet.id} value={trajet.id.toString()}>
-                        {trajet.villeDepart?.name} → {trajet.villeArrivee?.name} {trajet.prixAllerSimple && `- ${trajet.prixAllerSimple.toLocaleString()} FCFA`}
+                        {trajet.villeDepart?.name} → {trajet.villeArrivee?.name} {trajet.prixAllerSimple ? `- ${trajet.prixAllerSimple.toLocaleString()} FCFA` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -657,6 +540,39 @@ export default function AirportShuttle() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
 
+              {/* Employee selector */}
+              <div className="space-y-2">
+                <Label>Voyageur (employe) *</Label>
+                <Select
+                  value={formData.employeeId?.toString() || ""}
+                  onValueChange={(v) => {
+                    const empId = parseInt(v);
+                    handleChange('employeeId', empId);
+                    const emp = employees.find(e => e.id === empId);
+                    if (emp) {
+                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                      if (emp.email) handleChange('clientEmail', emp.email);
+                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <Users className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Selectionner un employe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {employees.length === 0 && (
+                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nom complet *</Label>
@@ -723,7 +639,7 @@ export default function AirportShuttle() {
             </motion.div>
           )}
 
-          {/* Step 3: Vehicle selection */}
+          {/* Step 3: Options & Payment */}
           {currentStep === 3 && (
             <motion.div
               key="step3"
@@ -732,185 +648,111 @@ export default function AirportShuttle() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
+              {/* Options */}
               <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">Choisissez votre vehicule</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">Options supplementaires</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {vehicles.map((vehicle) => (
-                    <div
-                      key={vehicle.id}
-                      onClick={() => handleChange('vehicle_id', vehicle.id)}
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <Baby className="w-5 h-5 text-slate-500" />
+                      <div>
+                        <p className="font-medium text-slate-800">Sieges bebe</p>
+                        {selectedTrajet?.prixSiegeBebe && (
+                          <p className="text-sm text-slate-500">+{selectedTrajet.prixSiegeBebe.toLocaleString()} FCFA/siege</p>
+                        )}
+                      </div>
+                    </div>
+                    <Select
+                      value={formData.siegeBebes.toString()}
+                      onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 2, 3].map(n => (
+                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <PawPrint className="w-5 h-5 text-slate-500" />
+                      <div>
+                        <p className="font-medium text-slate-800">Animal</p>
+                        {selectedTrajet?.prixAnimalCompagnie && (
+                          <p className="text-sm text-slate-500">+{selectedTrajet.prixAnimalCompagnie.toLocaleString()} FCFA</p>
+                        )}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.animalDeCompagnie}
+                      onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <Plus className="w-5 h-5 text-slate-500" />
+                      <div>
+                        <p className="font-medium text-slate-800">Adresse supp.</p>
+                        {selectedTrajet?.prixAdresseSupplementaire && (
+                          <p className="text-sm text-slate-500">+{selectedTrajet.prixAdresseSupplementaire.toLocaleString()} FCFA</p>
+                        )}
+                      </div>
+                    </div>
+                    <Select
+                      value={formData.adresseSupplement.toString()}
+                      onValueChange={(v) => handleChange('adresseSupplement', parseInt(v))}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 2, 3].map(n => (
+                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment method */}
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">Mode de paiement</h3>
+                <RadioGroup
+                  value={formData.payment_method}
+                  onValueChange={(v) => handleChange('payment_method', v as PaymentChoice)}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                >
+                  {paymentMethods.map((option) => (
+                    <Label
+                      key={option.id}
+                      htmlFor={`payment-${option.id}`}
                       className={`
-                        p-6 rounded-2xl border-2 cursor-pointer transition-all
-                        ${formData.vehicle_id === vehicle.id
+                        flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
+                        ${formData.payment_method === option.id
                           ? 'border-orange-400 bg-orange-50'
                           : 'border-slate-200 hover:border-slate-300'
                         }
                       `}
                     >
-                      <div className="text-4xl mb-3">{vehicle.icon}</div>
-                      <h4 className="font-semibold text-slate-800 mb-2">{vehicle.name}</h4>
-                      <div className="space-y-2 mb-4 text-sm text-slate-600">
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4" />
-                          {vehicle.passengers} passagers
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Briefcase className="w-4 h-4" />
-                          {vehicle.luggage} bagages
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          {vehicle.duration} min
-                        </div>
+                      <RadioGroupItem value={option.id} id={`payment-${option.id}`} className="sr-only" />
+                      <span className="text-3xl">{option.icon}</span>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-800">{option.label}</p>
+                        <p className="text-sm text-slate-500">{option.desc}</p>
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {vehicle.amenities.map(amenity => (
-                          <Badge key={amenity} variant="secondary" className="text-xs">
-                            {amenity}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xl font-bold text-subito">
-                        {vehicle.price.toLocaleString()} FCFA
-                      </p>
-                    </div>
+                      {formData.payment_method === option.id && (
+                        <Check className="w-5 h-5 text-orange-600" />
+                      )}
+                    </Label>
                   ))}
-                </div>
+                </RadioGroup>
               </div>
-
-              {/* Options for outbound */}
-              {formData.vehicle_id && (
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                    Options supplementaires {formData.is_round_trip && '(Aller)'}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {options.map((option) => {
-                      const isSelected = formData.outbound_options.includes(option.id);
-                      return (
-                        <div
-                          key={option.id}
-                          onClick={() => {
-                            const current = formData.outbound_options;
-                            handleChange(
-                              'outbound_options',
-                              isSelected
-                                ? current.filter(id => id !== option.id)
-                                : [...current, option.id]
-                            );
-                          }}
-                          className={`
-                            p-4 rounded-xl border-2 cursor-pointer transition-all
-                            ${isSelected
-                              ? 'border-orange-400 bg-orange-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                            }
-                          `}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <option.icon className="w-5 h-5 text-slate-600" />
-                              <div>
-                                <p className="font-medium text-slate-800">{option.label}</p>
-                                <p className="text-sm text-subito">+{option.price.toLocaleString()} FCFA</p>
-                              </div>
-                            </div>
-                            {isSelected && <Check className="w-5 h-5 text-orange-600" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Options for return if round trip */}
-              {formData.vehicle_id && formData.is_round_trip && (
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                    Options supplementaires (Retour)
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {options.map((option) => {
-                      const isSelected = formData.return_options.includes(option.id);
-                      return (
-                        <div
-                          key={option.id}
-                          onClick={() => {
-                            const current = formData.return_options;
-                            handleChange(
-                              'return_options',
-                              isSelected
-                                ? current.filter(id => id !== option.id)
-                                : [...current, option.id]
-                            );
-                          }}
-                          className={`
-                            p-4 rounded-xl border-2 cursor-pointer transition-all
-                            ${isSelected
-                              ? 'border-orange-400 bg-orange-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                            }
-                          `}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <option.icon className="w-5 h-5 text-slate-600" />
-                              <div>
-                                <p className="font-medium text-slate-800">{option.label}</p>
-                                <p className="text-sm text-subito">+{option.price.toLocaleString()} FCFA</p>
-                              </div>
-                            </div>
-                            {isSelected && <Check className="w-5 h-5 text-orange-600" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* Step 4: Payment */}
-          {currentStep === 4 && (
-            <motion.div
-              key="step4"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
-            >
-              <h3 className="text-lg font-semibold text-slate-800">Mode de paiement</h3>
-              <RadioGroup
-                value={formData.payment_method}
-                onValueChange={(v) => handleChange('payment_method', v as AirportPaymentMethod)}
-                className="grid grid-cols-1 md:grid-cols-3 gap-4"
-              >
-                {paymentMethods.map((option) => (
-                  <Label
-                    key={option.id}
-                    htmlFor={`payment-${option.id}`}
-                    className={`
-                      flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
-                      ${formData.payment_method === option.id
-                        ? 'border-orange-400 bg-orange-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <RadioGroupItem value={option.id} id={`payment-${option.id}`} className="sr-only" />
-                    <span className="text-3xl">{option.icon}</span>
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-800">{option.label}</p>
-                      <p className="text-sm text-slate-500">{option.desc}</p>
-                    </div>
-                    {formData.payment_method === option.id && (
-                      <Check className="w-5 h-5 text-orange-600" />
-                    )}
-                  </Label>
-                ))}
-              </RadioGroup>
 
               {/* Summary */}
               <div className="bg-slate-50 rounded-2xl p-6">
@@ -921,13 +763,31 @@ export default function AirportShuttle() {
                     <span className="font-medium text-slate-800">{selectedTrajet?.villeDepart?.name} → {selectedTrajet?.villeArrivee?.name}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Vehicule</span>
-                    <span className="font-medium text-slate-800">{selectedVehicle?.name}</span>
+                    <span className="text-slate-600">Type</span>
+                    <span className="font-medium text-slate-800">{formData.is_round_trip ? 'Aller-retour' : 'Aller simple'}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Client</span>
                     <span className="font-medium text-slate-800">{formData.clientName}</span>
                   </div>
+                  {formData.siegeBebes > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Sieges bebe x{formData.siegeBebes}</span>
+                      <span className="text-slate-800">+{((selectedTrajet?.prixSiegeBebe || 0) * formData.siegeBebes).toLocaleString()} FCFA</span>
+                    </div>
+                  )}
+                  {formData.animalDeCompagnie && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Animal de compagnie</span>
+                      <span className="text-slate-800">+{(selectedTrajet?.prixAnimalCompagnie || 0).toLocaleString()} FCFA</span>
+                    </div>
+                  )}
+                  {formData.adresseSupplement > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Adresse supp. x{formData.adresseSupplement}</span>
+                      <span className="text-slate-800">+{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adresseSupplement).toLocaleString()} FCFA</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                     <span className="text-lg font-semibold text-slate-800">Total</span>
                     <span className="text-2xl font-bold text-orange-600">{calculateTotal().toLocaleString()} FCFA</span>
@@ -937,10 +797,10 @@ export default function AirportShuttle() {
             </motion.div>
           )}
 
-          {/* Step 5: Summary */}
-          {currentStep === 5 && (
+          {/* Step 4: Confirmation */}
+          {currentStep === 4 && (
             <motion.div
-              key="step5"
+              key="step4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1003,57 +863,6 @@ export default function AirportShuttle() {
                 </div>
               </div>
 
-              {/* Vehicle & Options */}
-              {selectedVehicle && (
-                <div className="p-6 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{selectedVehicle.icon}</span>
-                      <div>
-                        <p className="font-medium text-slate-800">{selectedVehicle.name}</p>
-                        <p className="text-sm text-slate-500">
-                          {selectedVehicle.passengers} passagers - {selectedVehicle.luggage} bagages
-                        </p>
-                      </div>
-                    </div>
-                    <p className="font-semibold text-slate-800">
-                      {selectedVehicle.price.toLocaleString()} FCFA
-                      {formData.is_round_trip && ' x 2'}
-                    </p>
-                  </div>
-
-                  {formData.outbound_options.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100">
-                      <p className="text-sm text-slate-500 mb-2">Options aller</p>
-                      {formData.outbound_options.map(optId => {
-                        const opt = options.find(o => o.id === optId);
-                        return opt && (
-                          <div key={optId} className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-slate-600">{opt.label}</span>
-                            <span className="text-slate-800">+{opt.price.toLocaleString()} FCFA</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {formData.is_round_trip && formData.return_options.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100">
-                      <p className="text-sm text-slate-500 mb-2">Options retour</p>
-                      {formData.return_options.map(optId => {
-                        const opt = options.find(o => o.id === optId);
-                        return opt && (
-                          <div key={optId} className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-slate-600">{opt.label}</span>
-                            <span className="text-slate-800">+{opt.price.toLocaleString()} FCFA</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Payment */}
               <div className="p-6 rounded-xl bg-orange-50 border-2 border-orange-200">
                 <div className="flex items-center justify-between mb-2">
@@ -1085,9 +894,10 @@ export default function AirportShuttle() {
           {currentStep === 1 ? 'Annuler' : 'Retour'}
         </Button>
 
-        {currentStep < 5 ? (
+        {currentStep < 4 ? (
           <Button
             onClick={handleNext}
+            disabled={!canContinue()}
             className="gradient-subito text-white border-0 gap-2"
           >
             Continuer

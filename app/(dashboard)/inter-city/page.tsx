@@ -2,7 +2,9 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateInterCityBookingDto, TrajetInterVille, InterCityPaymentMethod } from "@/lib/api";
+import { api, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+type InterCityPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -65,6 +67,7 @@ interface FormData {
   clientEmail: string;
   clientPhone: string;
   clientAddress: string;
+  employeeId: number | null;
   // Trip info
   trajetInterVilleId: number | null;
   departureCity: string;
@@ -72,6 +75,11 @@ interface FormData {
   pickupDateAller: string;
   pickupTimeAller: string;
   isOneWay: boolean;
+  // Addresses
+  adressePriseEnChargeDepartAller: string;
+  adressePriseEnChargeArriveeAller: string;
+  adressePriseEnChargeDepartRetour: string;
+  adressePriseEnChargeArriveeRetour: string;
   // Options
   siegeBebes: number;
   animalDeCompagnie: boolean;
@@ -103,21 +111,27 @@ const tripOptions: TripOption[] = [
 export default function InterCity() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
   const [bookingReference, setBookingReference] = useState<string>("");
 
-  const [formData, setFormData] = useState<FormData>({
+  const initialFormData: FormData = {
     clientName: "",
     clientEmail: "",
     clientPhone: "",
     clientAddress: "",
+    employeeId: null,
     trajetInterVilleId: null,
     departureCity: "",
     arrivalCity: "",
     pickupDateAller: "",
     pickupTimeAller: "",
     isOneWay: true,
+    adressePriseEnChargeDepartAller: "",
+    adressePriseEnChargeArriveeAller: "",
+    adressePriseEnChargeDepartRetour: "",
+    adressePriseEnChargeArriveeRetour: "",
     siegeBebes: 0,
     animalDeCompagnie: false,
     smallBags: 0,
@@ -128,16 +142,27 @@ export default function InterCity() {
     siegeBebesRetour: 0,
     animalDeCompagnieRetour: false,
     paymentMethod: "cash",
-  });
+  };
 
-  // Fetch available routes
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+
+  // Fetch inter-city routes
   const { data: trajetsResponse, isLoading: trajetsLoading } = useQuery({
-    queryKey: ['trajets-inter-ville'],
-    queryFn: () => api.trajetsInterVille.getAll(),
+    queryKey: ['trajet-inter-ville'],
+    queryFn: () => api.reference.getTrajetInterVille(),
   });
 
-  // API returns { data: { list: [...], total, page, pageSize } }
   const trajets: TrajetInterVille[] = trajetsResponse?.data?.list || [];
+
+  // Fetch employees for company bookings
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees'],
+    queryFn: () => api.employees.list({ limit: 100, actif: true }),
+  });
+  const employeesRaw = employeesResponse?.data;
+  const employees: EmployeeResponse[] = Array.isArray(employeesRaw)
+    ? employeesRaw
+    : (employeesRaw as any)?.items || (employeesRaw as any)?.list || (employeesRaw as any)?.data || [];
 
   // Get unique cities from routes
   const departureCities = [...new Set(trajets.map(t => t.villeDepart?.name).filter(Boolean))];
@@ -150,22 +175,18 @@ export default function InterCity() {
     t => t.villeDepart?.name === formData.departureCity && t.villeArrivee?.name === formData.arrivalCity
   );
 
+  // Create booking mutation
   const createBooking = useMutation({
-    mutationFn: (data: CreateInterCityBookingDto) => api.interCity.createByAdmin(data),
+    mutationFn: (data: CreateInterCityBookingDto) => api.bookings.createInterCity(data),
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['inter-city-bookings'] });
-      const ref = `IC-${response.data?.id || Date.now().toString().slice(-8)}`;
-      setBookingReference(ref);
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setBookingReference(response.data?.reference || `SUB-${Date.now()}`);
       setBookingSuccess(true);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Erreur lors de la reservation");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la reservation");
+    },
   });
 
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
@@ -190,10 +211,20 @@ export default function InterCity() {
     }
   };
 
-  // Validate phone number
-  const isValidPhone = (phone: string): boolean => {
-    const cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
-    return /^\+\d{1,3}\d{7,12}$/.test(cleaned);
+  // Validate & format phone number
+  const cleanPhone = (phone: string): string => phone.replace(/[\s\-\.\(\)]/g, '');
+  const isValidPhone = (phone: string): boolean => /^\+?\d{7,15}$/.test(cleanPhone(phone));
+  // Format phone for backend: +221 77 130 85 07
+  const formatPhoneForApi = (phone: string): string => {
+    const digits = cleanPhone(phone);
+    // Match country code (1-3 digits after +) then format the rest in pairs
+    const match = digits.match(/^(\+\d{1,3})(\d+)$/);
+    if (match) {
+      const [, code, num] = match;
+      const formatted = num.replace(/(\d{2})(?=\d)/g, '$1 ');
+      return `${code} ${formatted}`;
+    }
+    return phone;
   };
 
   const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
@@ -238,6 +269,14 @@ export default function InterCity() {
         toast.error("Veuillez selectionner une ville d'arrivee");
         return;
       }
+      if (!formData.adressePriseEnChargeDepartAller) {
+        toast.error("Veuillez entrer l'adresse de prise en charge au depart");
+        return;
+      }
+      if (!formData.adressePriseEnChargeArriveeAller) {
+        toast.error("Veuillez entrer l'adresse de depose a l'arrivee");
+        return;
+      }
       if (!formData.pickupDateAller) {
         toast.error("Veuillez selectionner une date de depart");
         return;
@@ -249,6 +288,10 @@ export default function InterCity() {
     }
 
     if (currentStep === 2) {
+      if (!formData.employeeId) {
+        toast.error("Veuillez selectionner un voyageur");
+        return;
+      }
       if (!formData.clientName) {
         toast.error("Veuillez entrer le nom du client");
         return;
@@ -258,7 +301,7 @@ export default function InterCity() {
         return;
       }
       if (!isValidPhone(formData.clientPhone)) {
-        toast.error("Numero de telephone invalide (ex: +221 77 123 45 67)");
+        toast.error("Numero de telephone invalide");
         return;
       }
       if (!formData.clientAddress) {
@@ -287,11 +330,15 @@ export default function InterCity() {
       return;
     }
 
+    const isCompanyPayment = formData.paymentMethod === 'company_account';
+
     const bookingData: CreateInterCityBookingDto = {
       clientName: formData.clientName,
       clientEmail: formData.clientEmail || undefined,
-      clientPhone: formData.clientPhone,
+      clientPhone: formatPhoneForApi(formData.clientPhone),
       clientAddress: formData.clientAddress,
+      adressePriseEnChargeDepartAller: formData.adressePriseEnChargeDepartAller,
+      adressePriseEnChargeArriveeAller: formData.adressePriseEnChargeArriveeAller,
       serviceType: formData.isOneWay ? 'one_way' : 'round_trip',
       trajetInterVilleId: selectedRoute.id,
       departureCity: formData.departureCity,
@@ -299,11 +346,15 @@ export default function InterCity() {
       isOneWay: formData.isOneWay,
       pickupDateAller: formData.pickupDateAller,
       pickupTimeAller: formData.pickupTimeAller,
-      paymentMethod: formData.paymentMethod,
-      siegeBebes: formData.siegeBebes,
-      animalDeCompagnie: formData.animalDeCompagnie,
-      smallBags: formData.smallBags,
-      largeBags: formData.largeBags,
+      paidBy: isCompanyPayment ? 'company' : 'client',
+      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      companyCode: user?.companyCode || undefined,
+      employeeId: formData.employeeId || undefined,
+      customerId: formData.employeeId || undefined,
+      siegeBebes: formData.siegeBebes || undefined,
+      animalDeCompagnie: formData.animalDeCompagnie || undefined,
+      smallBags: formData.smallBags || undefined,
+      largeBags: formData.largeBags || undefined,
       specialRequests: formData.specialRequests || undefined,
     };
 
@@ -313,36 +364,34 @@ export default function InterCity() {
       bookingData.pickupTimeRetour = formData.pickupTimeRetour;
       bookingData.siegeBebesRetour = formData.siegeBebesRetour;
       bookingData.animalDeCompagnieRetour = formData.animalDeCompagnieRetour;
+      (bookingData as any).adressePriseEnChargeDepartRetour = formData.adressePriseEnChargeDepartRetour || undefined;
+      (bookingData as any).adressePriseEnChargeArriveeRetour = formData.adressePriseEnChargeArriveeRetour || undefined;
     }
 
+    console.log('[INTER-CITY] Booking data:', JSON.stringify(bookingData, null, 2));
     createBooking.mutate(bookingData);
   };
 
   const resetForm = () => {
     setBookingSuccess(false);
     setCurrentStep(1);
-    setFormData({
-      clientName: "",
-      clientEmail: "",
-      clientPhone: "",
-      clientAddress: "",
-      trajetInterVilleId: null,
-      departureCity: "",
-      arrivalCity: "",
-      pickupDateAller: "",
-      pickupTimeAller: "",
-      isOneWay: true,
-      siegeBebes: 0,
-      animalDeCompagnie: false,
-      smallBags: 0,
-      largeBags: 0,
-      specialRequests: "",
-      pickupDateRetour: "",
-      pickupTimeRetour: "",
-      siegeBebesRetour: 0,
-      animalDeCompagnieRetour: false,
-      paymentMethod: "cash",
-    });
+    setFormData(initialFormData);
+  };
+
+  const canContinue = (): boolean => {
+    switch (currentStep) {
+      case 1: {
+        const baseValid = !!(formData.departureCity && formData.arrivalCity && formData.adressePriseEnChargeDepartAller && formData.adressePriseEnChargeArriveeAller && formData.pickupDateAller && formData.pickupTimeAller);
+        if (!formData.isOneWay) return baseValid && !!(formData.pickupDateRetour && formData.pickupTimeRetour);
+        return baseValid;
+      }
+      case 2:
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
+      case 3:
+        return !!formData.paymentMethod;
+      default:
+        return false;
+    }
   };
 
   if (bookingSuccess) {
@@ -516,7 +565,7 @@ export default function InterCity() {
                     </Button>
 
                     <div className="space-y-2">
-                      <Label>Ville d'arrivee</Label>
+                      <Label>Ville d&apos;arrivee</Label>
                       <Select
                         value={formData.arrivalCity}
                         onValueChange={(v) => {
@@ -555,6 +604,32 @@ export default function InterCity() {
                       </Badge>
                     </div>
                   )}
+
+                  {/* Pickup addresses */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        Adresse de prise en charge (depart) *
+                      </Label>
+                      <Input
+                        placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
+                        value={formData.adressePriseEnChargeDepartAller}
+                        onChange={(e) => handleChange('adressePriseEnChargeDepartAller', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        Adresse de depose (arrivee) *
+                      </Label>
+                      <Input
+                        placeholder="Ex: Gare routiere, Thies"
+                        value={formData.adressePriseEnChargeArriveeAller}
+                        onChange={(e) => handleChange('adressePriseEnChargeArriveeAller', e.target.value)}
+                      />
+                    </div>
+                  </div>
 
                   {/* Date and time */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -680,6 +755,31 @@ export default function InterCity() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            Adresse de prise en charge (retour)
+                          </Label>
+                          <Input
+                            placeholder="Ex: Gare routiere, Thies"
+                            value={formData.adressePriseEnChargeDepartRetour}
+                            onChange={(e) => handleChange('adressePriseEnChargeDepartRetour', e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            Adresse de depose (retour)
+                          </Label>
+                          <Input
+                            placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
+                            value={formData.adressePriseEnChargeArriveeRetour}
+                            onChange={(e) => handleChange('adressePriseEnChargeArriveeRetour', e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
                           <Label>Date de retour</Label>
                           <Input
                             type="date"
@@ -763,6 +863,42 @@ export default function InterCity() {
               className="space-y-6"
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations du client</h3>
+
+              {/* Employee selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Voyageur (employe) *
+                </Label>
+                <Select
+                  value={formData.employeeId?.toString() || ""}
+                  onValueChange={(v) => {
+                    const empId = parseInt(v);
+                    handleChange('employeeId', empId);
+                    const emp = employees.find(e => e.id === empId);
+                    if (emp) {
+                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                      if (emp.email) handleChange('clientEmail', emp.email);
+                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <Users className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Selectionner un employe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {employees.length === 0 && (
+                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -951,6 +1087,10 @@ export default function InterCity() {
                     </Badge>
                   )}
                 </div>
+                <div className="text-sm text-slate-600 space-y-1 pt-2 border-t border-slate-200">
+                  <p><span className="text-slate-500">Prise en charge:</span> {formData.adressePriseEnChargeDepartAller}</p>
+                  <p><span className="text-slate-500">Depose:</span> {formData.adressePriseEnChargeArriveeAller}</p>
+                </div>
               </div>
 
               {/* Trip details */}
@@ -1090,6 +1230,7 @@ export default function InterCity() {
         {currentStep < 4 ? (
           <Button
             onClick={handleNext}
+            disabled={!canContinue()}
             className="gradient-subito text-white border-0 gap-2"
           >
             Continuer

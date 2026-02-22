@@ -16,16 +16,13 @@ import {
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-type ServiceCategory = 'transport' | 'livraison' | 'administratif' | 'carburant' | 'flotte' | 'assistance';
-type ActivityStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-
 interface Activity {
   id: string | number;
-  service_category?: ServiceCategory;
+  service_category?: string;
   service_type?: string;
   beneficiary_name?: string;
   department?: string;
-  status: ActivityStatus;
+  status: string;
   created_date?: string;
 }
 
@@ -33,7 +30,11 @@ interface ActivityTimelineProps {
   activities?: Activity[];
 }
 
-const serviceIcons: Record<ServiceCategory, LucideIcon> = {
+const serviceIcons: Record<string, LucideIcon> = {
+  airport_shuttle: Car,
+  inter_city: Car,
+  vtc_hourly: Clock,
+  visa_assistance: FileText,
   transport: Car,
   livraison: Package,
   administratif: FileText,
@@ -42,20 +43,22 @@ const serviceIcons: Record<ServiceCategory, LucideIcon> = {
   assistance: AlertTriangle,
 };
 
-const statusColors: Record<ActivityStatus, string> = {
+const statusColors: Record<string, string> = {
   pending: "bg-amber-100 text-amber-600",
   confirmed: "bg-blue-100 text-blue-600",
   in_progress: "bg-orange-100 text-subito",
   completed: "bg-green-100 text-green-600",
   cancelled: "bg-red-100 text-red-600",
+  processing: "bg-indigo-100 text-indigo-600",
 };
 
-const statusLabels: Record<ActivityStatus, string> = {
+const statusLabels: Record<string, string> = {
   pending: "En attente",
-  confirmed: "Confirmée",
+  confirmed: "Confirmee",
   in_progress: "En cours",
-  completed: "Terminée",
-  cancelled: "Annulée",
+  completed: "Terminee",
+  cancelled: "Annulee",
+  processing: "En traitement",
 };
 
 export default function ActivityTimeline({ activities = [] }: ActivityTimelineProps) {
@@ -82,7 +85,7 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
 
       <div className="space-y-4">
         {activities.slice(0, 5).map((activity, index) => {
-          const Icon = activity.service_category
+          const Icon = (activity.service_category && serviceIcons[activity.service_category])
             ? serviceIcons[activity.service_category]
             : Package;
 
@@ -108,8 +111,8 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
                       {activity.beneficiary_name || 'Non assigné'} • {activity.department || 'Général'}
                     </p>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${statusColors[activity.status]}`}>
-                    {statusLabels[activity.status]}
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${statusColors[activity.status] || 'bg-slate-100 text-slate-600'}`}>
+                    {statusLabels[activity.status] || activity.status}
                   </span>
                 </div>
 

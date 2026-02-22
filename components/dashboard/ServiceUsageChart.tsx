@@ -3,11 +3,9 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { motion } from "framer-motion";
 
-type ServiceCategory = 'transport' | 'livraison' | 'assistance' | 'carburant' | 'flotte' | 'administratif' | 'other';
-
 interface Order {
   id: string | number;
-  service_category?: ServiceCategory;
+  service_category?: string;
 }
 
 interface ServiceUsageChartProps {
@@ -22,12 +20,16 @@ interface ChartDataItem {
 const COLORS: string[] = ['#FF6B35', '#FF8B6A', '#FFB59A', '#FF7B7B', '#94a3b8', '#64748b'];
 
 const serviceLabels: Record<string, string> = {
+  airport_shuttle: "Navette Aeroport",
+  inter_city: "Inter-ville",
+  vtc_hourly: "VTC Horaire",
+  visa_assistance: "Documents Voyage",
   transport: "Transport",
   livraison: "Livraison",
   assistance: "Assistance",
   carburant: "Carburant",
   flotte: "Flotte",
-  administratif: "Administratif"
+  administratif: "Administratif",
 };
 
 export default function ServiceUsageChart({ orders = [] }: ServiceUsageChartProps) {

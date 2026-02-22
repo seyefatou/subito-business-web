@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, DepartmentResponse, CreateDepartmentDto } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -12,11 +12,10 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +23,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,138 +31,116 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-interface Department {
-  id: string;
-  name: string;
-  cost_center?: string;
-  monthly_budget?: number;
-  manager_email?: string;
-  created_date: string;
-}
-
-interface Employee {
-  id: string;
-  department?: string;
-}
-
-interface Order {
-  id: string;
-  department?: string;
-  final_cost?: number;
-  estimated_cost?: number;
-}
-
 interface FormData {
-  name: string;
-  cost_center: string;
-  monthly_budget: number;
-  manager_email: string;
-}
-
-interface DepartmentStats {
-  employees: number;
-  orders: number;
-  spending: number;
+  nom: string;
+  centreDeCouts: string;
+  budgetMensuel: number;
+  emailResponsable: string;
 }
 
 export default function Departments() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<DepartmentResponse | null>(null);
   const [formData, setFormData] = useState<FormData>({
-    name: "",
-    cost_center: "",
-    monthly_budget: 100000,
-    manager_email: "",
+    nom: "",
+    centreDeCouts: "",
+    budgetMensuel: 100000,
+    emailResponsable: "",
   });
 
-  const { data: departments = [] } = useQuery<Department[]>({
+  // Fetch departments
+  const { data: departmentsResponse } = useQuery({
     queryKey: ['departments'],
-    queryFn: () => base44.entities.Department.list(),
+    queryFn: () => api.departments.list(1, 100),
   });
 
-  const { data: employees = [] } = useQuery<Employee[]>({
-    queryKey: ['employees'],
-    queryFn: () => base44.entities.Employee.list(),
-  });
+  console.log('[DEPARTMENTS] Raw API response:', JSON.stringify(departmentsResponse).substring(0, 500));
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
 
-  const { data: orders = [] } = useQuery<Order[]>({
-    queryKey: ['orders'],
-    queryFn: () => base44.entities.Order.list('-created_date', 500),
-  });
-
+  // Create department
   const createDepartment = useMutation({
-    mutationFn: (data: Partial<Department>) => base44.entities.Department.create(data),
-    onSuccess: () => {
+    mutationFn: (data: CreateDepartmentDto) => api.departments.create(data),
+    onSuccess: (response) => {
+      console.log('[DEPARTMENTS] Create response:', JSON.stringify(response).substring(0, 500));
       queryClient.invalidateQueries({ queryKey: ['departments'] });
-      setIsDialogOpen(false);
-      resetForm();
       toast.success("Departement cree avec succes");
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la creation");
     },
   });
 
+  // Update department
   const updateDepartment = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Department> }) => base44.entities.Department.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: CreateDepartmentDto }) =>
+      api.departments.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
-      setIsDialogOpen(false);
-      setEditingDepartment(null);
-      resetForm();
       toast.success("Departement modifie avec succes");
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la modification");
     },
   });
 
+  // Delete department
   const deleteDepartment = useMutation({
-    mutationFn: (id: string) => base44.entities.Department.delete(id),
+    mutationFn: (id: number) => api.departments.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       toast.success("Departement supprime");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la suppression");
     },
   });
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      cost_center: "",
-      monthly_budget: 100000,
-      manager_email: "",
+      nom: "",
+      centreDeCouts: "",
+      budgetMensuel: 100000,
+      emailResponsable: "",
     });
+    setEditingDepartment(null);
   };
 
-  const handleEdit = (department: Department) => {
+  const handleEdit = (department: DepartmentResponse) => {
     setEditingDepartment(department);
     setFormData({
-      name: department.name || "",
-      cost_center: department.cost_center || "",
-      monthly_budget: department.monthly_budget || 100000,
-      manager_email: department.manager_email || "",
+      nom: department.nom || "",
+      centreDeCouts: department.centreDeCouts || "",
+      budgetMensuel: department.budgetMensuel || 100000,
+      emailResponsable: department.emailResponsable || "",
     });
     setIsDialogOpen(true);
   };
 
   const handleSubmit = () => {
+    const dto: CreateDepartmentDto = {
+      nom: formData.nom,
+      centreDeCouts: formData.centreDeCouts || undefined,
+      budgetMensuel: Number(formData.budgetMensuel) || 0,
+      emailResponsable: formData.emailResponsable || undefined,
+    };
     if (editingDepartment) {
-      updateDepartment.mutate({ id: editingDepartment.id, data: formData });
+      updateDepartment.mutate({ id: editingDepartment.id, data: dto });
     } else {
-      createDepartment.mutate(formData);
+      createDepartment.mutate(dto);
     }
   };
 
-  // Calculate stats per department
-  const getDepartmentStats = (deptName: string): DepartmentStats => {
-    const deptOrders = orders.filter(o => o.department === deptName);
-    const deptEmployees = employees.filter(e => e.department === deptName);
-    const totalSpending = deptOrders.reduce((sum, o) => sum + (o.final_cost || o.estimated_cost || 0), 0);
-    return {
-      employees: deptEmployees.length,
-      orders: deptOrders.length,
-      spending: totalSpending,
-    };
-  };
-
   // Overall stats
-  const totalBudget = departments.reduce((sum, d) => sum + (d.monthly_budget || 0), 0);
-  const totalSpent = orders.reduce((sum, o) => sum + (o.final_cost || o.estimated_cost || 0), 0);
+  const totalBudget = departments.reduce((sum, d) => sum + (Number(d.budgetMensuel) || 0), 0);
+  const totalEmployees = departments.reduce((sum, d) => sum + (d._count?.employees || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -177,7 +153,6 @@ export default function Departments() {
         <Button
           className="gradient-subito text-white border-0 gap-2"
           onClick={() => {
-            setEditingDepartment(null);
             resetForm();
             setIsDialogOpen(true);
           }}
@@ -226,105 +201,80 @@ export default function Departments() {
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 rounded-xl bg-green-100">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+              <Users className="w-5 h-5 text-green-600" />
             </div>
-            <span className="text-slate-600">Consommation</span>
+            <span className="text-slate-600">Employes</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800">
-            {totalBudget > 0 ? Math.round(totalSpent / totalBudget * 100) : 0}%
-          </p>
+          <p className="text-3xl font-bold text-slate-800">{totalEmployees}</p>
         </motion.div>
       </div>
 
       {/* Departments grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatePresence>
-          {departments.map((department, index) => {
-            const stats = getDepartmentStats(department.name);
-            const budgetPercent = department.monthly_budget
-              ? Math.min((stats.spending / department.monthly_budget) * 100, 100)
-              : 0;
-
-            return (
-              <motion.div
-                key={department.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-slate-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-800">{department.name}</h3>
-                      {department.cost_center && (
-                        <p className="text-xs text-slate-500">CC: {department.cost_center}</p>
-                      )}
-                    </div>
+          {departments.map((department, index) => (
+            <motion.div
+              key={department.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ delay: index * 0.05 }}
+              className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-slate-600" />
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(department)}>
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Modifier
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => deleteDepartment.mutate(department.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 py-4 border-y border-slate-100">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-800">{stats.employees}</p>
-                    <p className="text-xs text-slate-500">Membres</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-800">{stats.orders}</p>
-                    <p className="text-xs text-slate-500">Commandes</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-subito">
-                      {(stats.spending / 1000).toFixed(0)}k
-                    </p>
-                    <p className="text-xs text-slate-500">FCFA</p>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">{department.nom}</h3>
+                    {department.centreDeCouts && (
+                      <p className="text-xs text-slate-500">CC: {department.centreDeCouts}</p>
+                    )}
                   </div>
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEdit(department)}>
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Modifier
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-red-600"
+                      onClick={() => deleteDepartment.mutate(department.id)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Supprimer
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-                {/* Budget progress */}
+              <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-100">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-slate-800">{department._count?.employees || 0}</p>
+                  <p className="text-xs text-slate-500">Membres</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-subito">
+                    {((department.budgetMensuel || 0) / 1000).toFixed(0)}k
+                  </p>
+                  <p className="text-xs text-slate-500">Budget FCFA</p>
+                </div>
+              </div>
+
+              {department.emailResponsable && (
                 <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <span className="text-slate-500">Budget mensuel</span>
-                    <span className="font-medium text-slate-700">
-                      {stats.spending.toLocaleString()} / {(department.monthly_budget || 0).toLocaleString()} FCFA
-                    </span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        budgetPercent > 90 ? 'bg-red-500' : budgetPercent > 70 ? 'bg-amber-500' : 'bg-green-500'
-                      }`}
-                      style={{ width: `${budgetPercent}%` }}
-                    />
-                  </div>
+                  <p className="text-xs text-slate-500">Responsable: {department.emailResponsable}</p>
                 </div>
-              </motion.div>
-            );
-          })}
+              )}
+            </motion.div>
+          ))}
         </AnimatePresence>
 
         {departments.length === 0 && (
@@ -350,8 +300,8 @@ export default function Departments() {
               <Label>Nom du departement</Label>
               <Input
                 placeholder="Direction Generale"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.nom}
+                onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
               />
             </div>
 
@@ -359,8 +309,8 @@ export default function Departments() {
               <Label>Centre de couts (optionnel)</Label>
               <Input
                 placeholder="CC-001"
-                value={formData.cost_center}
-                onChange={(e) => setFormData({ ...formData, cost_center: e.target.value })}
+                value={formData.centreDeCouts}
+                onChange={(e) => setFormData({ ...formData, centreDeCouts: e.target.value })}
               />
             </div>
 
@@ -369,8 +319,8 @@ export default function Departments() {
               <Input
                 type="number"
                 placeholder="100000"
-                value={formData.monthly_budget}
-                onChange={(e) => setFormData({ ...formData, monthly_budget: parseInt(e.target.value) || 0 })}
+                value={formData.budgetMensuel}
+                onChange={(e) => setFormData({ ...formData, budgetMensuel: parseInt(e.target.value) || 0 })}
               />
             </div>
 
@@ -379,8 +329,8 @@ export default function Departments() {
               <Input
                 type="email"
                 placeholder="manager@entreprise.com"
-                value={formData.manager_email}
-                onChange={(e) => setFormData({ ...formData, manager_email: e.target.value })}
+                value={formData.emailResponsable}
+                onChange={(e) => setFormData({ ...formData, emailResponsable: e.target.value })}
               />
             </div>
           </div>

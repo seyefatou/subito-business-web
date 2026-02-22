@@ -19,55 +19,54 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, CompagnyNotification } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
 export default function Notifications() {
-  const { token } = useAuth();
   const [notifications, setNotifications] = useState<CompagnyNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [filterRead, setFilterRead] = useState<string>("all");
 
   const fetchNotifications = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
-      const response = await api.notificationsCompagny.getAll(token);
-      const data = response.data || response;
-      const list = Array.isArray(data) ? data : [];
-      setNotifications(list);
-    } catch {
+      const response = await api.notifications.list();
+      const data = response.data;
+      // Handle both { data: [...], meta } and direct array
+      const items = Array.isArray(data) ? data : (data?.data || []);
+      setNotifications(items);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
       toast.error("Erreur lors du chargement des notifications");
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
   const handleMarkAsRead = async (id: number) => {
-    if (!token) return;
     try {
-      await api.notificationsCompagny.markAsRead(token, id);
+      await api.notifications.markRead(id);
       setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, isRead: true } : n)
       );
-    } catch {
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
       toast.error("Erreur lors du marquage");
     }
   };
 
   const handleMarkAllAsRead = async () => {
-    if (!token) return;
     setMarkingAll(true);
     try {
-      await api.notificationsCompagny.markAllAsRead(token);
+      await api.notifications.markAllRead();
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       toast.success("Toutes les notifications marquees comme lues");
-    } catch {
+    } catch (err) {
+      console.error('Error marking all as read:', err);
       toast.error("Erreur lors du marquage");
     } finally {
       setMarkingAll(false);

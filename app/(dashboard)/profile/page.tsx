@@ -76,7 +76,7 @@ export default function Profile() {
   useEffect(() => {
     if (user) {
       setProfileData({
-        nomCompagny: user.nomCompagny || user.nom || "",
+        nomCompagny: user.nomCompagny || user.raisonSociale || user.nom || "",
         emailCompagny: user.emailCompagny || user.email || "",
         telephoneCompagny: user.telephoneCompagny || user.telephone || "",
         adresseCompagny: user.adresseCompagny || user.adresse || "",
@@ -147,8 +147,9 @@ export default function Profile() {
 
   const getUserInitials = () => {
     if (!user) return 'U';
-    if (user.nomCompagny) {
-      return user.nomCompagny.substring(0, 2).toUpperCase();
+    const name = user.nomCompagny || user.raisonSociale;
+    if (name) {
+      return name.substring(0, 2).toUpperCase();
     }
     const prenom = user.prenom || '';
     const nom = user.nom || '';
@@ -157,7 +158,8 @@ export default function Profile() {
 
   const getUserDisplayName = () => {
     if (!user) return '';
-    if (user.nomCompagny) return user.nomCompagny;
+    const name = user.nomCompagny || user.raisonSociale;
+    if (name) return name;
     return `${user.prenom || ''} ${user.nom || ''}`.trim();
   };
 
@@ -179,7 +181,12 @@ export default function Profile() {
             {getUserInitials()}
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-slate-800 mb-1">{getUserDisplayName()}</h2>
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-xl font-bold text-slate-800">{getUserDisplayName()}</h2>
+              {user?.companyCode && (
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-sm font-mono text-slate-600">{user.companyCode}</span>
+              )}
+            </div>
             <p className="text-slate-600 mb-2">{user?.emailCompagny || user?.email}</p>
             <div className="flex items-center gap-2">
               <Badge className="gradient-subito text-white border-0">

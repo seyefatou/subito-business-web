@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, InvoiceResponse, InvoiceSummary, BillingStats } from "@/lib/api";
 import { motion } from "framer-motion";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   Download,
@@ -47,15 +47,6 @@ interface Invoice {
   created_date: string;
 }
 
-interface Order {
-  id: string;
-  service_category?: string;
-  department?: string;
-  final_cost?: number;
-  estimated_cost?: number;
-  created_date: string;
-}
-
 interface StatusConfig {
   label: string;
   color: string;
@@ -80,54 +71,49 @@ export default function Billing() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: invoices = [] } = useQuery<Invoice[]>({
+  // Fetch invoices
+  const { data: invoicesResponse } = useQuery({
     queryKey: ['invoices'],
-    queryFn: () => base44.entities.Invoice.list('-created_date', 50),
+    queryFn: () => api.invoices.list({ page: 1, limit: 100 }),
   });
+  const invoices: Invoice[] = (invoicesResponse?.data?.items || []).map((inv: InvoiceResponse) => ({
+    id: String(inv.id),
+    invoice_number: inv.invoiceNumber,
+    period_start: inv.startDate,
+    period_end: inv.endDate,
+    due_date: inv.dueDate,
+    total_amount: inv.totalAmount,
+    status: (inv.status?.toLowerCase() === 'paid' ? 'paid' : inv.status?.toLowerCase() === 'overdue' ? 'overdue' : 'pending') as Invoice['status'],
+    created_date: inv.createdAt || '',
+  }));
 
-  const { data: orders = [] } = useQuery<Order[]>({
-    queryKey: ['orders'],
-    queryFn: () => base44.entities.Order.list('-created_date', 100),
+  // Fetch summary
+  const { data: summaryResponse } = useQuery({
+    queryKey: ['invoices-summary'],
+    queryFn: () => api.invoices.summary(),
   });
+  const summary: InvoiceSummary | undefined = summaryResponse?.data;
 
-  // Current month orders for billing preview
+  // Fetch billing stats
+  const { data: billingStatsResponse } = useQuery({
+    queryKey: ['billing-stats'],
+    queryFn: () => api.invoices.billingStats(),
+  });
+  const billingStats: BillingStats | undefined = billingStatsResponse?.data;
+
   const now = new Date();
-  const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const currentMonthOrders = orders.filter(o => {
-    const d = new Date(o.created_date);
-    return d >= monthStart && d <= monthEnd;
-  });
 
-  const currentMonthTotal = currentMonthOrders.reduce((sum, o) =>
-    sum + (o.final_cost || o.estimated_cost || 0), 0
-  );
+  const currentMonthTotal = summary?.currentMonthTotal || 0;
+  const byCategory = billingStats?.byService || {};
+  const byDepartment = billingStats?.byDepartment || {};
 
-  // Group by category
-  const byCategory = currentMonthOrders.reduce((acc, o) => {
-    const cat = o.service_category || 'other';
-    acc[cat] = (acc[cat] || 0) + (o.final_cost || o.estimated_cost || 0);
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Group by department
-  const byDepartment = currentMonthOrders.reduce((acc, o) => {
-    const dept = o.department || 'General';
-    acc[dept] = (acc[dept] || 0) + (o.final_cost || o.estimated_cost || 0);
-    return acc;
-  }, {} as Record<string, number>);
-
-  const totalPending = invoices
-    .filter(i => i.status === 'pending')
-    .reduce((sum, i) => sum + (i.total_amount || 0), 0);
-
-  const totalPaid = invoices
-    .filter(i => i.status === 'paid')
-    .reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const totalPending = summary?.totalPending || 0;
+  const totalPaid = summary?.totalPaid || 0;
 
   const filteredInvoices = invoices.filter(inv =>
     inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    format(new Date(inv.period_start || inv.created_date), 'MMM yyyy', { locale: fr }).toLowerCase().includes(searchTerm.toLowerCase())
+    (inv.period_start && format(new Date(inv.period_start), 'MMM yyyy', { locale: fr }).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const paymentMethods: PaymentMethod[] = [
@@ -160,7 +146,7 @@ export default function Billing() {
             <span className="text-slate-600">Mois en cours</span>
           </div>
           <p className="text-3xl font-bold text-slate-800">{currentMonthTotal.toLocaleString()} FCFA</p>
-          <p className="text-sm text-slate-500 mt-1">{currentMonthOrders.length} commandes</p>
+          <p className="text-sm text-slate-500 mt-1">Mois en cours</p>
         </motion.div>
 
         <motion.div
@@ -398,7 +384,7 @@ export default function Billing() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-slate-500">Banque</p>
-                <p className="font-medium text-slate-800">SGBCI Cote d'Ivoire</p>
+                <p className="font-medium text-slate-800">SGBCI Cote d&apos;Ivoire</p>
               </div>
               <div>
                 <p className="text-slate-500">IBAN</p>

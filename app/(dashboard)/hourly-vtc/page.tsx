@@ -2,7 +2,12 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, VtcVehicleType, VtcPackageType, VtcCountry, VtcPaymentMethod, CreateVtcHourlyBookingDto, VtcPricing } from "@/lib/api";
+import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
+type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
+type VtcCountry = 'senegal' | 'cotedivoire' | 'mali';
+type VtcPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -51,6 +56,8 @@ interface Step {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+type VtcPricing = VtcPricingGrid;
+
 interface VehicleTypeConfig {
   id: VtcVehicleType;
   name: string;
@@ -88,6 +95,7 @@ interface FormData {
   instructions: string;
   paymentMethod: VtcPaymentMethod | "";
   // Client info
+  employeeId: number | null;
   clientName: string;
   clientEmail: string;
   clientPhone: string;
@@ -165,6 +173,7 @@ const paymentMethods: PaymentMethodConfig[] = [
 export default function HourlyVTC() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
   const [bookingRef, setBookingRef] = useState<string>("");
@@ -178,36 +187,43 @@ export default function HourlyVTC() {
     pickupLocation: "",
     instructions: "",
     paymentMethod: "",
+    employeeId: null,
     clientName: "",
     clientEmail: "",
     clientPhone: "",
     clientAddress: "",
   });
 
-  // Fetch pricing from API
+  // Fetch employees for company bookings
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees'],
+    queryFn: () => api.employees.list({ limit: 100, actif: true }),
+  });
+  const employeesRaw = employeesResponse?.data;
+  const employees: EmployeeResponse[] = Array.isArray(employeesRaw)
+    ? employeesRaw
+    : (employeesRaw as any)?.items || (employeesRaw as any)?.list || [];
+
+  // Fetch VTC pricing grid
   const { data: pricingResponse } = useQuery({
-    queryKey: ['vtc-pricing', formData.country],
-    queryFn: () => api.vtcHourly.getPricing(formData.country),
+    queryKey: ['vtc-grid', formData.country],
+    queryFn: () => api.reference.getVtcGrid(formData.country),
   });
 
-  const pricing: VtcPricing | undefined = pricingResponse?.data;
+  const pricing: VtcPricingGrid | undefined = pricingResponse?.data;
 
+  // Create booking mutation
   const createBooking = useMutation({
-    mutationFn: (data: CreateVtcHourlyBookingDto) => api.vtcHourly.createByAdmin(data),
+    mutationFn: (data: CreateVtcHourlyBookingDto) => api.bookings.createVtcHourly(data),
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['vtc-bookings'] });
-      const ref = "VTC" + Date.now().toString().slice(-8);
-      setBookingRef(ref);
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setBookingRef(response.data?.reference || `SUB-${Date.now()}`);
       setBookingSuccess(true);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Erreur lors de la reservation");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la reservation");
+    },
   });
 
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
@@ -231,10 +247,18 @@ export default function HourlyVTC() {
 
   const totalPrice = getPrice();
 
-  // Validate phone number (format: +XXX XXXXXXXXX)
-  const isValidPhone = (phone: string): boolean => {
-    const cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
-    return /^\+\d{1,3}\d{7,12}$/.test(cleaned);
+  // Validate and format phone number
+  const cleanPhone = (phone: string): string => phone.replace(/[\s\-\.\(\)]/g, '');
+  const isValidPhone = (phone: string): boolean => /^\+?\d{7,15}$/.test(cleanPhone(phone));
+  const formatPhoneForApi = (phone: string): string => {
+    const digits = cleanPhone(phone);
+    const match = digits.match(/^(\+\d{1,3})(\d+)$/);
+    if (match) {
+      const [, code, num] = match;
+      const formatted = num.replace(/(\d{2})(?=\d)/g, '$1 ');
+      return `${code} ${formatted}`;
+    }
+    return phone;
   };
 
   const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
@@ -246,7 +270,7 @@ export default function HourlyVTC() {
       case 2:
         return !!(formData.pickupDate && formData.pickupTime && formData.pickupLocation);
       case 3:
-        return !!(formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 4:
         return !!formData.paymentMethod;
       default:
@@ -283,6 +307,10 @@ export default function HourlyVTC() {
     }
 
     if (currentStep === 3) {
+      if (!formData.employeeId) {
+        toast.error("Veuillez selectionner un voyageur");
+        return;
+      }
       if (!formData.clientName) {
         toast.error("Veuillez entrer le nom du client");
         return;
@@ -323,20 +351,28 @@ export default function HourlyVTC() {
       return;
     }
 
+    const isCompanyPayment = formData.paymentMethod === 'company_account';
+
     const bookingData: CreateVtcHourlyBookingDto = {
       clientName: formData.clientName,
       clientEmail: formData.clientEmail || undefined,
-      clientPhone: formData.clientPhone,
+      clientPhone: formatPhoneForApi(formData.clientPhone),
       clientAddress: formData.clientAddress,
       country: formData.country,
       vehicleType: formData.vehicleType,
       package: formData.package,
       scheduledDatetime: `${format(formData.pickupDate, 'yyyy-MM-dd')}T${formData.pickupTime}:00`,
       pickupAddress: formData.pickupLocation,
+      adressePriseEnCharge: formData.pickupLocation,
       notes: formData.instructions || undefined,
-      paymentMethod: formData.paymentMethod,
+      paidBy: isCompanyPayment ? 'company' : 'client',
+      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      companyCode: user?.companyCode || undefined,
+      employeeId: formData.employeeId || undefined,
+      customerId: formData.employeeId || undefined,
     };
 
+    console.log('[VTC-HOURLY] Booking data:', JSON.stringify(bookingData, null, 2));
     createBooking.mutate(bookingData);
   };
 
@@ -380,7 +416,7 @@ export default function HourlyVTC() {
             className="gradient-subito text-white border-0"
             onClick={() => router.push("/")}
           >
-            Retour a l'accueil
+            Retour a l&apos;accueil
           </Button>
         </div>
       </motion.div>
@@ -395,7 +431,7 @@ export default function HourlyVTC() {
           <Clock className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">VTC a l'Heure</h1>
+          <h1 className="text-2xl font-bold text-slate-800">VTC a l&apos;Heure</h1>
           <p className="text-slate-500">Reservez un vehicule avec chauffeur pour vos deplacements</p>
         </div>
       </div>
@@ -656,6 +692,39 @@ export default function HourlyVTC() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
 
+              {/* Employee selector */}
+              <div className="space-y-2">
+                <Label>Voyageur (employe) *</Label>
+                <Select
+                  value={formData.employeeId?.toString() || ""}
+                  onValueChange={(v) => {
+                    const empId = parseInt(v);
+                    handleChange('employeeId', empId);
+                    const emp = employees.find(e => e.id === empId);
+                    if (emp) {
+                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                      if (emp.email) handleChange('clientEmail', emp.email);
+                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <Users className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Selectionner un employe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {employees.length === 0 && (
+                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nom complet *</Label>
@@ -889,6 +958,7 @@ export default function HourlyVTC() {
         {currentStep < 5 ? (
           <Button
             onClick={handleNext}
+            disabled={!canContinue()}
             className="gradient-subito text-white border-0 gap-2"
           >
             Continuer

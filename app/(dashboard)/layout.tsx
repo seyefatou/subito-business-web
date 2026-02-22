@@ -88,8 +88,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Get user initials
   const getUserInitials = () => {
     if (!user) return 'AB';
-    if (user.nomCompagny) {
-      return user.nomCompagny.substring(0, 2).toUpperCase();
+    const name = user.nomCompagny || user.raisonSociale;
+    if (name) {
+      return name.substring(0, 2).toUpperCase();
     }
     const prenom = user.prenom || '';
     const nom = user.nom || '';
@@ -98,7 +99,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const getUserDisplayName = () => {
     if (!user) return 'Admin Business';
-    if (user.nomCompagny) return user.nomCompagny;
+    const name = user.nomCompagny || user.raisonSociale;
+    if (name) return name;
     return `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Admin Business';
   };
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, BookingResponse, DepartmentResponse, TravelDocumentResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -108,15 +108,60 @@ export default function Reports() {
     endDate: null,
   });
 
-  const { data: orders = [] } = useQuery<Order[]>({
-    queryKey: ['orders'],
-    queryFn: () => base44.entities.Order.list('-created_date', 500),
+  const { data: bookingsResponse } = useQuery({
+    queryKey: ['bookings-all'],
+    queryFn: () => api.bookings.list(1, 500),
   });
+  const bookingOrders: Order[] = (bookingsResponse?.data?.items || []).map((b: BookingResponse) => ({
+    id: String(b.id),
+    tracking_number: b.reference,
+    service_type: b.serviceType,
+    service_category: b.serviceType,
+    department: undefined,
+    beneficiary_name: b.clientName,
+    status: b.status,
+    final_cost: b.totalPrice,
+    estimated_cost: b.totalPrice,
+    created_date: b.createdAt || '',
+  }));
 
-  const { data: departments = [] } = useQuery<Department[]>({
-    queryKey: ['departments'],
-    queryFn: () => base44.entities.Department.list(),
+  // Fetch travel documents
+  const { data: travelDocsResponse } = useQuery({
+    queryKey: ['travel-docs-all'],
+    queryFn: () => api.travelDocuments.list({ page: 1, limit: 500 }),
   });
+  const travelDocsRaw = travelDocsResponse?.data;
+  const travelDocsData = (travelDocsRaw as any)?.data || travelDocsRaw;
+  const travelDocsArray: TravelDocumentResponse[] = Array.isArray(travelDocsData)
+    ? travelDocsData
+    : (travelDocsData as any)?.items || (travelDocsData as any)?.list || [];
+
+  const travelDocOrders: Order[] = travelDocsArray.map((td: TravelDocumentResponse) => ({
+    id: `td-${td.id}`,
+    tracking_number: td.reference || `TD-${td.id}`,
+    service_type: 'visa_assistance',
+    service_category: 'visa_assistance',
+    department: undefined,
+    beneficiary_name: [td.firstName, td.lastName].filter(Boolean).join(' ') || (td as any).clientName || '-',
+    status: td.status || 'pending',
+    final_cost: (td as any).totalPrice || (td as any).amount || 0,
+    estimated_cost: (td as any).totalPrice || (td as any).amount || 0,
+    created_date: td.createdAt || '',
+  }));
+
+  // Merge bookings + travel documents
+  const orders: Order[] = [...bookingOrders, ...travelDocOrders].sort(
+    (a, b) => new Date(b.created_date || '').getTime() - new Date(a.created_date || '').getTime()
+  );
+
+  const { data: deptResponse } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => api.departments.list(1, 100),
+  });
+  const departments: Department[] = (deptResponse?.data?.items || []).map((d: DepartmentResponse) => ({
+    id: String(d.id),
+    name: d.nom,
+  }));
 
   // Get unique service types and categories
   const serviceTypes = [...new Set(orders.map(o => o.service_type).filter(Boolean))] as string[];

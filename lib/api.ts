@@ -7,68 +7,119 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 const TOKEN_KEY = 'subito_compagny_token';
 const USER_KEY = 'subito_compagny_user';
 
-// Types
+// ==================== GENERIC TYPES ====================
 export interface ApiResponse<T> {
   message: string;
   status: number;
   data: T;
 }
 
-// ==================== VTC HOURLY TYPES ====================
-export type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
-export type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
-export type VtcPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
-export type VtcCountry = 'senegal' | 'cotedivoire' | 'mali';
-
-export interface CreateVtcHourlyBookingDto {
-  customerId?: number;
-  clientName: string;
-  clientEmail?: string;
-  clientPhone: string;
-  clientAddress: string;
-  country: VtcCountry;
-  vehicleType: VtcVehicleType;
-  package: VtcPackageType;
-  scheduledDatetime: string;
-  pickupAddress: string;
-  adressePriseEnCharge: string;
-  notes?: string;
-  paymentMethod: VtcPaymentMethod;
-  discountAmount?: number;
-  discountPercent?: number;
+export interface PaginatedData<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
-export interface VtcHourlyBooking {
+export interface PaginatedList<T> {
+  list: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// ==================== AUTH TYPES ====================
+export interface LoginCompagnyDto {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  user: CompagnyUserProfile;
+}
+
+export interface CompagnyUserProfile {
   id: number;
-  clientName: string;
-  clientEmail?: string;
-  clientPhone: string;
-  clientAddress: string;
-  country: VtcCountry;
-  vehicleType: VtcVehicleType;
-  package: VtcPackageType;
-  scheduledDatetime: string;
-  pickupAddress: string;
-  adressePriseEnCharge?: string;
-  notes?: string;
-  paymentMethod: VtcPaymentMethod;
-  status: string;
-  totalPrice: number;
-  createdAt: string;
-  updatedAt: string;
+  nomCompagny?: string;
+  emailCompagny?: string;
+  telephoneCompagny?: string;
+  adresseCompagny?: string;
+  raisonSociale?: string;
+  logo?: string;
+  statut?: string;
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  role?: string;
+  telephone?: string;
+  adresse?: string;
+  companyCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface VtcPricing {
+export interface UpdateCompagnyProfileDto {
+  nomCompagny?: string;
+  emailCompagny?: string;
+  telephoneCompagny?: string;
+  adresseCompagny?: string;
+  logo?: string;
+}
+
+export interface ChangePasswordCompagnyDto {
+  oldPassword: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordCompagnyDto {
+  token: string;
+  newPassword: string;
+}
+
+// ==================== REFERENCE DATA TYPES ====================
+export interface Ville {
+  id: number;
+  name: string;
+  pays?: string;
+}
+
+export interface TrajetAeroport {
+  id: number;
+  villeDepart: Ville;
+  villeArrivee: Ville;
+  prixAllerSimple?: number;
+  prixAllerRetour?: number;
+  prixAdresseSupplementaire?: number;
+  prixSiegeBebe?: number;
+  prixAnimalCompagnie?: number;
+}
+
+export interface TrajetInterVille {
+  id: number;
+  villeDepart: Ville;
+  villeArrivee: Ville;
+  prixAllerSimple: number;
+  prixAllerRetour?: number;
+  duree?: number;
+  distance?: number;
+}
+
+export interface VtcTarif {
+  id: number;
+  country: string;
+  vehicleType: string;
+  package: string;
+  price: number;
+}
+
+export interface VtcPricingGrid {
   vehicleTypes: {
     id: string;
     name: string;
     description: string;
     capacity: number;
-    prices: {
-      two_hours: number;
-      five_hours: number;
-      ten_hours: number;
-    };
+    prices: { two_hours: number; five_hours: number; ten_hours: number };
   }[];
   packages: {
     id: string;
@@ -80,222 +131,298 @@ export interface VtcPricing {
   extraKmCost: number;
 }
 
-// ==================== AIRPORT SHUTTLE TYPES ====================
-export type AirportPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
+export interface TravelDocumentTarif {
+  id: number;
+  serviceType: string;
+  serviceName: string;
+  description: string;
+  price: number;
+  isActive: boolean;
+}
 
+// ==================== DEPARTMENT TYPES ====================
+export interface DepartmentResponse {
+  id: number;
+  nom: string;
+  centreDeCouts?: string;
+  budgetMensuel?: number;
+  emailResponsable?: string;
+  _count?: { employees: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDepartmentDto {
+  nom: string;
+  centreDeCouts?: string;
+  budgetMensuel?: number;
+  emailResponsable?: string;
+}
+
+export interface UpdateDepartmentDto {
+  nom?: string;
+  centreDeCouts?: string;
+  budgetMensuel?: number;
+  emailResponsable?: string;
+}
+
+// ==================== EMPLOYEE TYPES ====================
+export interface EmployeeResponse {
+  id: number;
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string;
+  departementId?: number;
+  departement?: { id: number; nom: string };
+  role?: string;
+  plafondMensuel?: number;
+  actif?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEmployeeDto {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string;
+  departementId?: number;
+  role?: string;
+  plafondMensuel?: number;
+  actif?: boolean;
+}
+
+export interface UpdateEmployeeDto {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  telephone?: string;
+  departementId?: number;
+  role?: string;
+  plafondMensuel?: number;
+  actif?: boolean;
+}
+
+// ==================== BOOKING TYPES ====================
 export interface CreateAirportShuttleBookingDto {
-  clientName: string;
-  clientEmail?: string;
-  clientPhone?: string;
-  clientAddress?: string;
-  adressePriseEnChargeAller: string;
+  serviceType: string;
+  trajetAeroportId: number;
   isOneWay: boolean;
   pickupDateAller: string;
   pickupTimeAller: string;
-  paymentMethod: AirportPaymentMethod;
-  serviceType: string;
-  flightNumber?: string;
-  departureTime?: string;
-  arrivalTime?: string;
-  siegeBebes?: number;
-  animalDeCompagnie?: boolean;
-  adresseSupplement?: number;
-  specialRequests?: string;
   pickupDateRetour?: string;
   pickupTimeRetour?: string;
-  departureTimeRetour?: string;
-  arrivalTimeRetour?: string;
-  adressePriseEnChargeRetour?: string;
-  siegeBebesRetour?: number;
-  animalDeCompagnieRetour?: boolean;
-  adresseSupplementRetour?: string[];
-  trajetAeroportId: number;
-  customerId: number;
   passengers: number;
-  smallBags?: number;
-  largeBags?: number;
-  discountAmount?: number;
-  discountPercent?: number;
-}
-
-export interface AirportShuttleBooking {
-  id: number;
+  flightNumber?: string;
+  adressePriseEnChargeAller: string;
   clientName: string;
-  clientEmail?: string;
   clientPhone: string;
-  status: string;
-  totalPrice: number;
-  createdAt: string;
-}
-
-// ==================== INTER CITY TYPES ====================
-export type InterCityServiceType = 'one_way' | 'round_trip';
-export type InterCityPaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
-
-export interface CreateInterCityBookingDto {
-  customerId: number;
-  clientName: string;
   clientEmail?: string;
-  clientPhone: string;
   clientAddress: string;
-  adressePriseEnChargeDepartAller: string;
-  adressePriseEnChargeArriveeAller: string;
-  serviceType: InterCityServiceType;
-  adresseSupplement?: number;
   siegeBebes?: number;
   animalDeCompagnie?: boolean;
-  smallBags?: number;
-  largeBags?: number;
+  adresseSupplement?: number;
   specialRequests?: string;
+  paidBy: 'company' | 'client';
+  paymentMethod?: string;
+  companyCode?: string;
+  customerId?: number;
+  employeeId?: number;
+}
+
+export interface CreateInterCityBookingDto {
+  serviceType: 'one_way' | 'round_trip';
   trajetInterVilleId: number;
   departureCity: string;
   arrivalCity: string;
   isOneWay: boolean;
   pickupDateAller: string;
   pickupTimeAller: string;
-  paymentMethod: InterCityPaymentMethod;
-  departureTime?: string;
-  arrivalTime?: string;
   pickupDateRetour?: string;
   pickupTimeRetour?: string;
-  departureTimeRetour?: string;
-  arrivalTimeRetour?: string;
-  adressePriseEnChargeDepartRetour?: string;
-  adressePriseEnChargeArriveeRetour?: string;
+  adressePriseEnChargeDepartAller?: string;
+  adressePriseEnChargeArriveeAller?: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  clientAddress: string;
+  siegeBebes?: number;
+  animalDeCompagnie?: boolean;
   siegeBebesRetour?: number;
   animalDeCompagnieRetour?: boolean;
-  adresseSupplementRetour?: string[];
-  discountAmount?: number;
-  discountPercent?: number;
+  smallBags?: number;
+  largeBags?: number;
+  specialRequests?: string;
+  paidBy: 'company' | 'client';
+  paymentMethod?: string;
+  companyCode?: string;
+  customerId?: number;
+  employeeId?: number;
 }
 
-export interface InterCityBooking {
-  id: number;
+export interface CreateVtcHourlyBookingDto {
+  country: string;
+  vehicleType: string;
+  package: string;
+  scheduledDatetime: string;
+  pickupAddress: string;
+  adressePriseEnCharge?: string;
   clientName: string;
-  clientEmail?: string;
   clientPhone: string;
-  status: string;
-  totalPrice: number;
-  createdAt: string;
-  updatedAt: string;
+  clientEmail?: string;
+  clientAddress: string;
+  notes?: string;
+  paidBy: 'company' | 'client';
+  paymentMethod?: string;
+  companyCode?: string;
+  customerId?: number;
+  employeeId?: number;
 }
-
-// ==================== VISA ASSISTANCE TYPES ====================
-export type VisaAssistancePaymentMethod = 'cash' | 'mobile_money' | 'company_account' | 'wallet';
 
 export interface CreateVisaAssistanceRequestDto {
-  flightTicket: boolean;
-  hotelReservation: boolean;
-  travelInsurance: boolean;
   clientName: string;
+  clientPhone: string;
   clientEmail?: string;
-  clientPhone?: string;
-  clientAddress?: string;
-  numeroPasseport: string;
-  dateNaissance: string;
-  nationalite: string;
-  paysDestination: string;
-  villeDestination: string;
-  dateDepart: string;
-  dateRetour?: string;
-  motifVoyage: string;
-  motifAutre?: string;
-  categorieHotel?: string;
-  nombrePersonnes?: number;
-  typeChambre?: string;
-  precisionsHotel?: string;
-  notes?: string;
-  doc?: string;
-  docCNI?: string;
-  docPassport?: string;
-  paymentMethod: VisaAssistancePaymentMethod;
-  discountAmount?: number;
-  discountPercent?: number;
+  clientAddress: string;
+  visaType?: string;
+  destinationCountry?: string;
+  specialRequests?: string;
+  paidBy: 'company' | 'client';
+  paymentMethod?: string;
 }
 
-export interface UpdateVisaAssistanceDto {
-  flightTicket?: boolean;
-  hotelReservation?: boolean;
-  travelInsurance?: boolean;
-  clientName?: string;
-  clientEmail?: string;
-  clientPhone?: string;
-  clientAddress?: string;
-  numeroPasseport?: string;
-  dateNaissance?: string;
-  nationalite?: string;
-  paysDestination?: string;
-  villeDestination?: string;
-  dateDepart?: string;
-  dateRetour?: string;
-  motifVoyage?: string;
-  motifAutre?: string;
-  categorieHotel?: string;
-  nombrePersonnes?: number;
-  typeChambre?: string;
-  precisionsHotel?: string;
-  notes?: string;
-  doc?: string;
-  docCNI?: string;
-  docPassport?: string;
-  paymentMethod?: VisaAssistancePaymentMethod;
-  discountAmount?: number;
-  discountPercent?: number;
-}
-
-export interface VisaAssistanceBooking {
+export interface BookingResponse {
   id: number;
-  flightTicket: boolean;
-  hotelReservation: boolean;
-  travelInsurance: boolean;
-  clientName: string;
-  clientEmail?: string;
+  reference?: string;
+  serviceType?: string;
+  status?: string;
+  totalPrice?: number;
+  clientName?: string;
   clientPhone?: string;
-  clientAddress?: string;
-  numeroPasseport: string;
-  nationalite: string;
-  paysDestination: string;
-  villeDestination: string;
-  dateDepart: string;
-  dateRetour?: string;
-  motifVoyage: string;
+  clientEmail?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+// ==================== TRAVEL DOCUMENT TYPES ====================
+export interface CreateTravelDocumentDto {
+  flightReservation: boolean;
+  hotelReservation: boolean;
+  travelInsurance?: boolean;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  passportNumber: string;
+  nationality: string;
+  birthDate: string;
+  departureCountry: string;
+  departureCity: string;
+  destinationCountry: string;
+  destinationCity: string;
+  departureDate: string;
+  returnDate?: string;
+  travelReason: 'tourisme' | 'affaires' | 'etudes' | 'visite' | 'autre';
+  hotelCategory?: string;
+  numberOfPeople?: number;
+  roomType?: string;
+  hotelDetails?: string;
+  notes?: string;
+  paidBy: 'company' | 'client';
+  paymentMethod?: string;
+  companyCode?: string;
+  employeeId?: number;
+}
+
+export interface TravelDocumentResponse {
+  id: number;
+  reference?: string;
+  status?: string;
+  firstName?: string;
+  lastName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+// ==================== INVOICE TYPES ====================
+export interface InvoiceResponse {
+  id: number;
+  invoiceNumber: string;
+  totalAmount: number;
   status: string;
-  totalPrice: number;
-  paymentMethod: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface InvoiceSummary {
+  totalPending: number;
+  totalPaid: number;
+  totalOverdue: number;
+  currentMonthTotal: number;
+  [key: string]: unknown;
+}
+
+export interface BillingStats {
+  byService: Record<string, number>;
+  byDepartment: Record<string, number>;
+  [key: string]: unknown;
+}
+
+// ==================== NOTIFICATION TYPES ====================
+export interface CompagnyNotification {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  data?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
 
-// ==================== TRAJET TYPES ====================
-export interface Ville {
-  id: number;
-  name: string;
-  pays?: string;
-  isAeroport?: boolean;
+export interface NotificationListResponse {
+  data: CompagnyNotification[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+  };
 }
 
-export interface TrajetAeroport {
-  id: number;
-  villeDepart: Ville;
-  villeArrivee: Ville;
-  prixAllerSimple: number;
-  prixAllerRetour?: number;
-  prixAdresseSupplementaire?: number;
-  prixSiegeBebe?: number;
-  prixAnimalCompagnie?: number;
-  statut?: string;
+// ==================== DASHBOARD / STATS TYPES ====================
+export interface DashboardData {
+  totalBookings: number;
+  activeBookings: number;
+  totalSpent: number;
+  byService: Record<string, number>;
+  [key: string]: unknown;
 }
 
-export interface TrajetInterVille {
+export interface StatsData {
+  totalBookings: number;
+  totalRevenue: number;
+  averagePrice: number;
+  byStatus: Record<string, number>;
+  [key: string]: unknown;
+}
+
+// ==================== PAYMENT REQUEST TYPES ====================
+export interface PaymentRequest {
   id: number;
-  villeDepart: Ville;
-  villeArrivee: Ville;
-  prixAllerSimple: number;
-  prixAllerRetour?: number;
-  prixAdresseSupplementaire?: number;
-  prixSiegeBebe?: number;
-  prixAnimalCompagnie?: number;
-  statut?: string;
+  bookingId?: number;
+  travelDocumentId?: number;
+  amount: number;
+  status: string;
+  serviceType?: string;
+  clientName?: string;
+  createdAt?: string;
+  [key: string]: unknown;
 }
 
 // ==================== API CLIENT ====================
@@ -326,6 +453,9 @@ class ApiClient {
       'Content-Type': 'application/json',
     };
 
+    const hasAuth = !!(options.headers && 'Authorization' in (options.headers as Record<string, string>));
+    console.log(`[API] ${options.method || 'GET'} ${endpoint} | auth: ${hasAuth}`);
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -334,386 +464,68 @@ class ApiClient {
       },
     });
 
+    console.log(`[API] ${endpoint} -> ${response.status}`);
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Une erreur est survenue' }));
 
-      // Handle 401 Unauthorized - session expired
-      if (response.status === 401) {
-        // Clear auth data from localStorage
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
+      // Format message: handle string, array, or fallback
+      const rawMsg = error.message;
+      const msg = Array.isArray(rawMsg) ? rawMsg.join(', ') : (rawMsg || `Erreur ${response.status}`);
 
-          // Redirect to login if not already there
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login?expired=true';
-          }
-        }
-        throw new Error('Session expirée. Veuillez vous reconnecter.');
+      if (response.status === 401) {
+        console.error(`[API] 401 on ${endpoint}:`, msg);
+        throw new Error(msg);
       }
 
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      console.error(`[API] ${response.status} on ${endpoint}:`, msg);
+      throw new Error(msg);
     }
 
     return response.json();
   }
 
-  // ==================== VTC HOURLY ====================
-  vtcHourly = {
-    create: (data: CreateVtcHourlyBookingDto) =>
-      this.request<VtcHourlyBooking>('/bookings/vtc-hourly', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+  // Helper: authenticated GET
+  private authGet<T>(endpoint: string) {
+    return this.request<T>(endpoint, {
+      headers: this.getAuthHeader(),
+    });
+  }
 
-    createByAdmin: (data: CreateVtcHourlyBookingDto) =>
-      this.request<VtcHourlyBooking>('/bookings/vtc-hourly/by-admin', {
-        method: 'POST',
-        headers: this.getAuthHeader(),
-        body: JSON.stringify(data),
-      }),
+  // Helper: authenticated POST
+  private authPost<T>(endpoint: string, body: unknown) {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      headers: this.getAuthHeader(),
+      body: JSON.stringify(body),
+    });
+  }
 
-    getAll: () => this.request<VtcHourlyBooking[]>('/bookings/vtc-hourly'),
+  // Helper: authenticated PUT
+  private authPut<T>(endpoint: string, body?: unknown) {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      headers: this.getAuthHeader(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
 
-    getById: (id: number) =>
-      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/${id}`),
+  // Helper: authenticated PATCH
+  private authPatch<T>(endpoint: string, body?: unknown) {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      headers: this.getAuthHeader(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
 
-    getDetail: (id: number) =>
-      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/${id}/detail`),
-
-    getPricing: (country?: string) =>
-      this.request<VtcPricing>(`/bookings/vtc-hourly/pricing${country ? `?country=${country}` : ''}`),
-
-    getStats: () => this.request('/bookings/vtc-hourly/stats'),
-
-    update: (id: number, data: Partial<CreateVtcHourlyBookingDto>) =>
-      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-
-    delete: (id: number) =>
-      this.request(`/bookings/vtc-hourly/${id}`, { method: 'DELETE' }),
-
-    assignDriver: (bookingId: number, driverId: number) =>
-      this.request(`/bookings/vtc-hourly/${bookingId}/assign-driver`, {
-        method: 'POST',
-        body: JSON.stringify({ driverId }),
-      }),
-  };
-
-  // ==================== AIRPORT SHUTTLE ====================
-  airportShuttle = {
-    create: (data: CreateAirportShuttleBookingDto) =>
-      this.request<AirportShuttleBooking>('/bookings/airport-shuttle', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-
-    createByAdmin: (data: CreateAirportShuttleBookingDto) =>
-      this.request<AirportShuttleBooking>('/bookings/airport-shuttle-by-admin', {
-        method: 'POST',
-        headers: this.getAuthHeader(),
-        body: JSON.stringify(data),
-      }),
-
-    getAll: () => this.request<AirportShuttleBooking[]>('/bookings/airport-shuttle'),
-
-    getById: (id: number) =>
-      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/${id}`),
-
-    getDetail: (id: number) =>
-      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/${id}/detail`),
-
-    update: (id: number, data: Partial<CreateAirportShuttleBookingDto>) =>
-      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-
-    delete: (id: number) =>
-      this.request(`/bookings/airport-shuttle/${id}`, { method: 'DELETE' }),
-
-    assignDriver: (bookingId: number, driverId: number) =>
-      this.request(`/bookings/airport-shuttle/${bookingId}/assign-driver`, {
-        method: 'POST',
-        body: JSON.stringify({ driverId }),
-      }),
-  };
-
-  // ==================== INTER CITY ====================
-  interCity = {
-    create: (data: CreateInterCityBookingDto) =>
-      this.request<InterCityBooking>('/bookings/inter-city', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-
-    createByAdmin: (data: CreateInterCityBookingDto) =>
-      this.request<InterCityBooking>('/bookings/inter-city-by-admin', {
-        method: 'POST',
-        headers: this.getAuthHeader(),
-        body: JSON.stringify(data),
-      }),
-
-    getAll: () => this.request<InterCityBooking[]>('/bookings/inter-city'),
-
-    getById: (id: number) =>
-      this.request<InterCityBooking>(`/bookings/inter-city/${id}`),
-
-    getDetail: (id: number) =>
-      this.request<InterCityBooking>(`/bookings/inter-city/${id}/detail`),
-
-    update: (id: number, data: Partial<CreateInterCityBookingDto>) =>
-      this.request<InterCityBooking>(`/bookings/inter-city/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-
-    delete: (id: number) =>
-      this.request(`/bookings/inter-city/${id}`, { method: 'DELETE' }),
-
-    assignDriver: (bookingId: number, driverId: number) =>
-      this.request(`/bookings/inter-city/${bookingId}/assign-driver`, {
-        method: 'POST',
-        body: JSON.stringify({ driverId }),
-      }),
-
-    getStats: () => this.request('/bookings/inter-city/stats/overview'),
-  };
-
-  // ==================== BOOKINGS GENERAL ====================
-  bookings = {
-    getAll: (params?: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      pays?: string;
-      date?: string;
-      statut?: string;
-      serviceType?: string;
-      customerId?: number;
-    }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request(`/bookings${query ? `?${query}` : ''}`);
-    },
-
-    getByCustomer: (customerId: number) =>
-      this.request(`/bookings/customer/${customerId}`),
-
-    updateStatus: (id: number, status: string) =>
-      this.request(`/bookings/update-status/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status }),
-      }),
-  };
-
-  // ==================== BOOKINGS COMPAGNY - GENERAL ====================
-  bookingsCompagny = {
-    getAll: (token: string, params?: { page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request(`/bookings/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    },
-
-    getById: (token: string, id: number) =>
-      this.request(`/bookings/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-
-    // cancel: (token: string, id: number) =>
-    //   this.request(`/bookings/compagny/${id}`, {
-    //     method: 'DELETE',
-    //     headers: { Authorization: `Bearer ${token}` },
-    //   }),
-  };
-
-  // ==================== AIRPORT SHUTTLE COMPAGNY ====================
-  airportShuttleCompagny = {
-    create: (token: string, data: CreateAirportShuttleBookingDto) =>
-      this.request<AirportShuttleBooking>('/bookings/airport-shuttle-by-compagny', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-
-    getAll: (token: string, params?: { page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request<AirportShuttleBooking[]>(`/bookings/airport-shuttle/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    },
-
-    getById: (token: string, id: number) =>
-      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-
-    update: (token: string, id: number, data: Partial<CreateAirportShuttleBookingDto>) =>
-      this.request<AirportShuttleBooking>(`/bookings/airport-shuttle/compagny/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-  };
-
-  // ==================== INTER CITY COMPAGNY ====================
-  interCityCompagny = {
-    create: (token: string, data: CreateInterCityBookingDto) =>
-      this.request<InterCityBooking>('/bookings/inter-city-by-compagny', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-
-    getAll: (token: string, params?: { page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request<InterCityBooking[]>(`/bookings/inter-city/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    },
-
-    getById: (token: string, id: number) =>
-      this.request<InterCityBooking>(`/bookings/inter-city/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-
-    update: (token: string, id: number, data: Partial<CreateInterCityBookingDto>) =>
-      this.request<InterCityBooking>(`/bookings/inter-city/compagny/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-  };
-
-  // ==================== VTC HOURLY COMPAGNY ====================
-  vtcHourlyCompagny = {
-    create: (token: string, data: CreateVtcHourlyBookingDto) =>
-      this.request<VtcHourlyBooking>('/bookings/vtc-hourly/by-compagny', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-
-    getAll: (token: string, params?: { page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request<VtcHourlyBooking[]>(`/bookings/vtc-hourly/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    },
-
-    getById: (token: string, id: number) =>
-      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-
-    update: (token: string, id: number, data: Partial<CreateVtcHourlyBookingDto>) =>
-      this.request<VtcHourlyBooking>(`/bookings/vtc-hourly/compagny/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-  };
-
-  // ==================== VISA ASSISTANCE COMPAGNY ====================
-  visaAssistanceCompagny = {
-    create: (token: string, data: CreateVisaAssistanceRequestDto) =>
-      this.request<VisaAssistanceBooking>('/bookings/visa-assistance/by-compagny', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-
-    getAll: (token: string, params?: { page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request<VisaAssistanceBooking[]>(`/bookings/visa-assistance/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    },
-
-    getById: (token: string, id: number) =>
-      this.request<VisaAssistanceBooking>(`/bookings/visa-assistance/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-
-    update: (token: string, id: number, data: UpdateVisaAssistanceDto) =>
-      this.request<VisaAssistanceBooking>(`/bookings/visa-assistance/compagny/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
-  };
-
-  // ==================== TRAJETS AEROPORT ====================
-  trajetsAeroport = {
-    getAll: () => this.request<TrajetAeroport[]>('/trajet-aeroport'),
-    getById: (id: number) => this.request<TrajetAeroport>(`/trajet-aeroport/${id}`),
-  };
-
-  // ==================== TRAJETS INTER VILLE ====================
-  trajetsInterVille = {
-    getAll: () => this.request<TrajetInterVille[]>('/trajet-inter-ville'),
-    getById: (id: number) => this.request<TrajetInterVille>(`/trajet-inter-ville/${id}`),
-  };
-
-  // ==================== VTC TARIFS ====================
-  vtcTarifs = {
-    getAll: (params?: { country?: string; vehicleType?: string; statut?: string }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, value);
-        });
-      }
-      const query = searchParams.toString();
-      return this.request(`/vtc-tarifs${query ? `?${query}` : ''}`);
-    },
-
-    getGrid: (country?: string) =>
-      this.request(`/vtc-tarifs/grid${country ? `?country=${country}` : ''}`),
-  };
-
-  // ==================== VILLES ====================
-  villes = {
-    getAll: () => this.request('/ville'),
-  };
+  // Helper: authenticated DELETE
+  private authDelete<T>(endpoint: string) {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+      headers: this.getAuthHeader(),
+    });
+  }
 
   // ==================== COMPAGNY AUTH ====================
   authCompagny = {
@@ -761,220 +573,241 @@ class ApiClient {
       }),
   };
 
-  // ==================== TRAVEL DOCUMENTS (public) ====================
-  travelDocuments = {
-    getTarifs: () =>
-      this.request<TravelDocumentTarif[]>('/travel-documents/tarifs'),
+  // ==================== REFERENCE DATA (PUBLIC) ====================
+  reference = {
+    getTrajetAeroport: () =>
+      this.authGet<TrajetAeroport[]>('/trajet-aeroport'),
+
+    getTrajetInterVille: () =>
+      this.authGet<{ list: TrajetInterVille[]; total: number; page: number; pageSize: number }>('/trajet-inter-ville'),
+
+    getVtcTarifs: (country: string) =>
+      this.authGet<VtcTarif[]>(`/vtc-tarifs?country=${country}`),
+
+    getVtcGrid: (country: string) =>
+      this.authGet<VtcPricingGrid>(`/vtc-tarifs/grid?country=${country}`),
+
+    getVilles: (pays?: string) =>
+      this.authGet<Ville[]>(`/villes${pays ? `?pays=${pays}` : ''}`),
+
+    getPays: () =>
+      this.authGet<string[]>('/villes/pays'),
+
+    getTravelDocumentTarifs: () =>
+      this.authGet<TravelDocumentTarif[]>('/travel-documents/admin/tarifs'),
   };
 
-  // ==================== TRAVEL DOCUMENTS COMPAGNY ====================
-  travelDocumentsCompagny = {
-    create: (token: string, data: CreateTravelDocumentDto) =>
-      this.request<TravelDocument>('/travel-documents/compagny', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
+  // ==================== BOOKINGS COMPANY ====================
+  bookings = {
+    // Create bookings
+    createAirportShuttle: (data: CreateAirportShuttleBookingDto) =>
+      this.authPost<BookingResponse>('/bookings/airport-shuttle-by-compagny', data),
 
-    getAll: (token: string, params?: { status?: TravelDocumentStatus; page?: number; limit?: number }) => {
-      const searchParams = new URLSearchParams();
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined) searchParams.append(key, String(value));
-        });
-      }
-      const query = searchParams.toString();
-      return this.request<TravelDocument[]>(`/travel-documents/compagny${query ? `?${query}` : ''}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    createInterCity: (data: CreateInterCityBookingDto) =>
+      this.authPost<BookingResponse>('/bookings/inter-city-by-compagny', data),
+
+    createVisaAssistance: (data: CreateVisaAssistanceRequestDto) =>
+      this.authPost<BookingResponse>('/bookings/visa-assistance/by-compagny', data),
+
+    createVtcHourly: (data: CreateVtcHourlyBookingDto) =>
+      this.authPost<BookingResponse>('/bookings/vtc-hourly/by-compagny', data),
+
+    // List all company bookings
+    list: (page = 1, limit = 10) =>
+      this.authGet<PaginatedData<BookingResponse>>(`/bookings/compagny?page=${page}&limit=${limit}`),
+
+    // Get single booking
+    get: (id: number) =>
+      this.authGet<BookingResponse>(`/bookings/compagny/${id}`),
+
+    // Cancel booking
+    cancel: (id: number) =>
+      this.authDelete<void>(`/bookings/compagny/${id}`),
+
+    // Airport shuttle bookings
+    airportShuttle: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<BookingResponse>>(`/bookings/airport-shuttle/compagny?page=${page}&limit=${limit}`),
+      get: (id: number) =>
+        this.authGet<BookingResponse>(`/bookings/airport-shuttle/compagny/${id}`),
+      update: (id: number, data: Partial<CreateAirportShuttleBookingDto>) =>
+        this.authPut<BookingResponse>(`/bookings/airport-shuttle/compagny/${id}`, data),
     },
 
-    getById: (token: string, id: number) =>
-      this.request<TravelDocument>(`/travel-documents/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    // Inter-city bookings
+    interCity: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<BookingResponse>>(`/bookings/inter-city/compagny?page=${page}&limit=${limit}`),
+      get: (id: number) =>
+        this.authGet<BookingResponse>(`/bookings/inter-city/compagny/${id}`),
+      update: (id: number, data: Partial<CreateInterCityBookingDto>) =>
+        this.authPut<BookingResponse>(`/bookings/inter-city/compagny/${id}`, data),
+    },
 
-    update: (token: string, id: number, data: CreateTravelDocumentDto) =>
-      this.request<TravelDocument>(`/travel-documents/compagny/${id}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      }),
+    // Visa assistance bookings
+    visaAssistance: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<BookingResponse>>(`/bookings/visa-assistance/compagny?page=${page}&limit=${limit}`),
+      get: (id: number) =>
+        this.authGet<BookingResponse>(`/bookings/visa-assistance/compagny/${id}`),
+      update: (id: number, data: Partial<CreateVisaAssistanceRequestDto>) =>
+        this.authPut<BookingResponse>(`/bookings/visa-assistance/compagny/${id}`, data),
+    },
 
-    cancel: (token: string, id: number) =>
-      this.request(`/travel-documents/compagny/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    // VTC hourly bookings
+    vtcHourly: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<BookingResponse>>(`/bookings/vtc-hourly/compagny?page=${page}&limit=${limit}`),
+      get: (id: number) =>
+        this.authGet<BookingResponse>(`/bookings/vtc-hourly/compagny/${id}`),
+      update: (id: number, data: Partial<CreateVtcHourlyBookingDto>) =>
+        this.authPut<BookingResponse>(`/bookings/vtc-hourly/compagny/${id}`, data),
+    },
+
+    // Dashboard & Stats
+    dashboard: () =>
+      this.authGet<DashboardData>('/bookings/compagny/dashboard'),
+
+    stats: (startDate: string, endDate: string) =>
+      this.authGet<StatsData>(`/bookings/compagny/stats?startDate=${startDate}&endDate=${endDate}`),
+
+    // Payment requests
+    paymentRequests: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<PaymentRequest>>(`/bookings/compagny/payment-requests?page=${page}&limit=${limit}`),
+      approve: (id: number) =>
+        this.authPut<void>(`/bookings/compagny/payment-requests/${id}/approve`),
+      pay: (id: number) =>
+        this.authPut<void>(`/bookings/compagny/payment-requests/${id}/pay`),
+      reject: (id: number) =>
+        this.authPut<void>(`/bookings/compagny/payment-requests/${id}/reject`),
+    },
   };
 
-  // ==================== NOTIFICATIONS COMPAGNY ====================
-  notificationsCompagny = {
-    getAll: (token: string) =>
-      this.request<CompagnyNotification[]>('/notifications/compagny', {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+  // ==================== TRAVEL DOCUMENTS COMPANY ====================
+  travelDocuments = {
+    create: (data: CreateTravelDocumentDto) =>
+      this.authPost<TravelDocumentResponse>('/travel-documents/compagny', data),
 
-    getUnreadCount: (token: string) =>
-      this.request<{ count: number }>('/notifications/compagny/unread-count', {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    list: (params?: { status?: string; page?: number; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.set('status', params.status);
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.limit) q.set('limit', params.limit.toString());
+      return this.authGet<PaginatedData<TravelDocumentResponse>>(`/travel-documents/compagny?${q.toString()}`);
+    },
 
-    getById: (token: string, id: number) =>
-      this.request<CompagnyNotification>(`/notifications/compagny/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    get: (id: number) =>
+      this.authGet<TravelDocumentResponse>(`/travel-documents/compagny/${id}`),
 
-    markAsRead: (token: string, id: number) =>
-      this.request<CompagnyNotification>(`/notifications/compagny/${id}/read`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    update: (id: number, data: Partial<CreateTravelDocumentDto>) =>
+      this.authPut<TravelDocumentResponse>(`/travel-documents/compagny/${id}`, data),
 
-    markAllAsRead: (token: string) =>
-      this.request('/notifications/compagny/read-all', {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+    delete: (id: number) =>
+      this.authDelete<void>(`/travel-documents/compagny/${id}`),
+
+    dashboard: () =>
+      this.authGet<DashboardData>('/travel-documents/compagny/dashboard'),
+
+    stats: (startDate: string, endDate: string) =>
+      this.authGet<StatsData>(`/travel-documents/compagny/stats?startDate=${startDate}&endDate=${endDate}`),
+
+    paymentRequests: {
+      list: (page = 1, limit = 10) =>
+        this.authGet<PaginatedData<PaymentRequest>>(`/travel-documents/compagny/payment-requests?page=${page}&limit=${limit}`),
+      approve: (id: number) =>
+        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/approve`),
+      pay: (id: number) =>
+        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/pay`),
+      reject: (id: number) =>
+        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/reject`),
+    },
   };
-}
 
-// ==================== AUTH TYPES ====================
-export interface LoginCompagnyDto {
-  email: string;
-  password: string;
-}
+  // ==================== DEPARTMENTS ====================
+  departments = {
+    create: (data: CreateDepartmentDto) =>
+      this.authPost<DepartmentResponse>('/departments', data),
 
-export interface AuthResponse {
-  access_token: string;
-  user: CompagnyUserProfile;
-}
+    list: (page = 1, limit = 50) =>
+      this.authGet<PaginatedData<DepartmentResponse>>(`/departments?page=${page}&limit=${limit}`),
 
-export interface CompagnyUserProfile {
-  id: number;
-  // Compagny fields (from GET /auth/compagny/profile)
-  nomCompagny?: string;
-  emailCompagny?: string;
-  telephoneCompagny?: string;
-  adresseCompagny?: string;
-  logo?: string;
-  statut?: string;
-  // User fields (may come from login response)
-  nom?: string;
-  prenom?: string;
-  email?: string;
-  role?: string;
-  telephone?: string;
-  adresse?: string;
-  compagnyId?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
+    get: (id: number) =>
+      this.authGet<DepartmentResponse>(`/departments/${id}`),
 
-export interface UpdateCompagnyProfileDto {
-  nomCompagny: string;
-  emailCompagny: string;
-  telephoneCompagny: string;
-  adresseCompagny: string;
-  logo?: string;
-}
+    update: (id: number, data: UpdateDepartmentDto) =>
+      this.authPut<DepartmentResponse>(`/departments/${id}`, data),
 
-export interface ChangePasswordCompagnyDto {
-  oldPassword: string;
-  newPassword: string;
-}
+    delete: (id: number) =>
+      this.authDelete<void>(`/departments/${id}`),
+  };
 
-export interface ResetPasswordCompagnyDto {
-  token: string;
-  newPassword: string;
-}
+  // ==================== EMPLOYEES ====================
+  employees = {
+    create: (data: CreateEmployeeDto) =>
+      this.authPost<EmployeeResponse>('/employees', data),
 
-// ==================== TRAVEL DOCUMENT TYPES ====================
-export type TravelDocumentPaymentMethod = 'mobile_money' | 'company_account';
-export type TravelDocumentStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
-export type TravelReason = 'tourisme' | 'affaires' | 'etudes' | 'visite' | 'autre';
-export type HotelCategory = 'economique' | 'standard' | 'haut-gamme';
-export type RoomType = 'single' | 'double' | 'twin' | 'suite';
+    list: (params?: { page?: number; limit?: number; departementId?: number; actif?: boolean }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.limit) q.set('limit', params.limit.toString());
+      if (params?.departementId) q.set('departementId', params.departementId.toString());
+      if (params?.actif !== undefined) q.set('actif', params.actif.toString());
+      return this.authGet<PaginatedData<EmployeeResponse>>(`/employees?${q.toString()}`);
+    },
 
-export interface CreateTravelDocumentDto {
-  flightReservation: boolean;
-  hotelReservation: boolean;
-  firstName: string;
-  lastName: string;
-  passportNumber: string;
-  nationality: string;
-  birthDate: string;
-  phone: string;
-  phoneCountryCode?: string;
-  email: string;
-  departureCountry: string;
-  departureCity: string;
-  destinationCountry: string;
-  destinationCity: string;
-  departureDate: string;
-  returnDate?: string;
-  travelReason: TravelReason;
-  hotelCategory?: HotelCategory;
-  numberOfPeople?: number;
-  roomType?: RoomType;
-  hotelDetails?: string;
-  paymentMethod: TravelDocumentPaymentMethod;
-}
+    get: (id: number) =>
+      this.authGet<EmployeeResponse>(`/employees/${id}`),
 
-export interface TravelDocument {
-  id: number;
-  reference: string;
-  flightReservation: boolean;
-  hotelReservation: boolean;
-  firstName: string;
-  lastName: string;
-  passportNumber: string;
-  nationality: string;
-  birthDate: string;
-  phone: string;
-  phoneCountryCode?: string;
-  email: string;
-  departureCountry: string;
-  departureCity: string;
-  destinationCountry: string;
-  destinationCity: string;
-  departureDate: string;
-  returnDate?: string;
-  travelReason: TravelReason;
-  hotelCategory?: HotelCategory;
-  numberOfPeople?: number;
-  roomType?: RoomType;
-  hotelDetails?: string;
-  paymentMethod: TravelDocumentPaymentMethod;
-  status: TravelDocumentStatus;
-  flightDocument?: string;
-  hotelDocument?: string;
-  adminNotes?: string;
-  paymentStatus?: string;
-  totalPrice: number;
-  createdAt: string;
-  updatedAt: string;
-}
+    update: (id: number, data: UpdateEmployeeDto) =>
+      this.authPut<EmployeeResponse>(`/employees/${id}`, data),
 
-export interface TravelDocumentTarif {
-  id: number;
-  serviceType: string;
-  serviceName: string;
-  description: string;
-  price: number;
-  isActive: boolean;
-}
+    delete: (id: number) =>
+      this.authDelete<void>(`/employees/${id}`),
+  };
 
-// ==================== NOTIFICATION TYPES ====================
-export interface CompagnyNotification {
-  id: number;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  data?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  // ==================== INVOICES COMPANY ====================
+  invoices = {
+    requestInvoice: (data?: Record<string, unknown>) =>
+      this.authPost<void>('/invoices/compagny/request', data || {}),
+
+    list: (params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.limit) q.set('limit', params.limit.toString());
+      if (params?.status) q.set('status', params.status);
+      if (params?.startDate) q.set('startDate', params.startDate);
+      if (params?.endDate) q.set('endDate', params.endDate);
+      return this.authGet<PaginatedData<InvoiceResponse>>(`/invoices/compagny?${q.toString()}`);
+    },
+
+    summary: () =>
+      this.authGet<InvoiceSummary>('/invoices/compagny/summary'),
+
+    billingStats: () =>
+      this.authGet<BillingStats>('/invoices/compagny/billing-stats'),
+
+    get: (id: number) =>
+      this.authGet<InvoiceResponse>(`/invoices/compagny/${id}`),
+  };
+
+  // ==================== NOTIFICATIONS COMPANY ====================
+  notifications = {
+    list: () =>
+      this.authGet<NotificationListResponse>('/notifications/compagny'),
+
+    unreadCount: () =>
+      this.authGet<{ count: number }>('/notifications/compagny/unread-count'),
+
+    get: (id: number) =>
+      this.authGet<CompagnyNotification>(`/notifications/compagny/${id}`),
+
+    markRead: (id: number) =>
+      this.authPatch<void>(`/notifications/compagny/${id}/read`),
+
+    markAllRead: () =>
+      this.authPatch<void>('/notifications/compagny/read-all'),
+  };
 }
 
 // Export singleton instance

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, PaymentRequest } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -14,7 +14,6 @@ import {
   MapPin,
   User,
   Calendar,
-  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,95 +28,99 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-interface Order {
-  id: string;
+interface PendingItem {
+  id: number;
+  type: 'booking' | 'travel-document';
   created_date: string;
   status: string;
   service_type?: string;
   service_category?: string;
   beneficiary_name?: string;
-  beneficiary_email?: string;
-  departure_address?: string;
-  arrival_address?: string;
-  department?: string;
-  estimated_cost?: number;
-  requested_by_employee?: string;
-}
-
-interface User {
-  id: string;
-  email: string;
+  amount?: number;
 }
 
 const serviceIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   transport: MapPin,
   livraison: Package,
-  assistance: AlertCircle,
+  travel_documents: Calendar,
 };
 
 export default function PendingValidations() {
   const queryClient = useQueryClient();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedItem, setSelectedItem] = useState<PendingItem | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ['pending-validations'],
-    queryFn: async () => {
-      const allOrders = await base44.entities.Order.list('-created_date', 100);
-      return allOrders.filter((o: Order) => o.status === 'pending_company_validation');
-    },
+  // Fetch booking payment requests
+  const { data: bookingPRResponse, isLoading: loadingBookings } = useQuery({
+    queryKey: ['booking-payment-requests'],
+    queryFn: () => api.bookings.paymentRequests.list(1, 100),
   });
 
-  const { data: user } = useQuery<User>({
-    queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+  // Fetch travel document payment requests
+  const { data: travelPRResponse, isLoading: loadingTravel } = useQuery({
+    queryKey: ['travel-payment-requests'],
+    queryFn: () => api.travelDocuments.paymentRequests.list(1, 100),
   });
 
-  const validateOrder = useMutation({
-    mutationFn: async ({ orderId, action, reason }: { orderId: string; action: string; reason?: string }) => {
-      const order = orders.find(o => o.id === orderId);
-      const updateData: Record<string, any> = {
-        status: action === 'approve' ? 'validated_by_company' : 'rejected_by_company',
-        validated_by: user?.email,
-        validated_at: new Date().toISOString(),
-        validation_channel: 'dashboard',
-      };
+  const isLoading = loadingBookings || loadingTravel;
 
-      if (action === 'reject' && reason) {
-        updateData.rejection_reason = reason;
-      }
+  // Combine both into a single list
+  const orders: PendingItem[] = [
+    ...(bookingPRResponse?.data?.items || []).map((pr: PaymentRequest) => ({
+      id: pr.id,
+      type: 'booking' as const,
+      created_date: pr.createdAt || '',
+      status: pr.status,
+      service_type: pr.serviceType,
+      service_category: pr.serviceType,
+      beneficiary_name: pr.clientName,
+      amount: pr.amount,
+    })),
+    ...(travelPRResponse?.data?.items || []).map((pr: PaymentRequest) => ({
+      id: pr.id,
+      type: 'travel-document' as const,
+      created_date: pr.createdAt || '',
+      status: pr.status,
+      service_type: 'Documents de voyage',
+      service_category: 'travel_documents',
+      beneficiary_name: pr.clientName,
+      amount: pr.amount,
+    })),
+  ];
 
-      await base44.entities.Order.update(orderId, updateData);
-
-      // Create notification for employee
-      if (order?.requested_by_employee) {
-        await base44.entities.Notification.create({
-          type: action === 'approve' ? 'order_accepted' : 'order_rejected',
-          title: action === 'approve' ? 'Commande validee' : 'Commande refusee',
-          message: action === 'approve'
-            ? `Votre demande ${order.service_type} a ete approuvee par ${user?.email}`
-            : `Votre demande ${order.service_type} a ete refusee${reason ? `: ${reason}` : ''}`,
-          order_id: orderId,
-          recipient_email: order.requested_by_employee,
-          action_url: '/tracking',
-        });
-      }
-
-      return updateData;
-    },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['pending-validations'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-
-      if (variables.action === 'approve') {
-        toast.success('Commande validee avec succes');
+  const approveMutation = useMutation({
+    mutationFn: async ({ item }: { item: PendingItem }) => {
+      if (item.type === 'booking') {
+        return api.bookings.paymentRequests.approve(item.id);
       } else {
-        toast.success('Commande refusee');
+        return api.travelDocuments.paymentRequests.approve(item.id);
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['booking-payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['travel-payment-requests'] });
+      toast.success('Demande approuvee avec succes');
+      setSelectedItem(null);
+    },
+    onError: () => {
+      toast.error('Une erreur est survenue');
+    }
+  });
 
-      setSelectedOrder(null);
+  const rejectMutation = useMutation({
+    mutationFn: async ({ item }: { item: PendingItem }) => {
+      if (item.type === 'booking') {
+        return api.bookings.paymentRequests.reject(item.id);
+      } else {
+        return api.travelDocuments.paymentRequests.reject(item.id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['booking-payment-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['travel-payment-requests'] });
+      toast.success('Demande refusee');
+      setSelectedItem(null);
       setShowRejectDialog(false);
       setRejectionReason("");
     },
@@ -126,22 +129,20 @@ export default function PendingValidations() {
     }
   });
 
-  const handleApprove = (order: Order) => {
-    validateOrder.mutate({ orderId: order.id, action: 'approve' });
+  const isMutating = approveMutation.isPending || rejectMutation.isPending;
+
+  const handleApprove = (order: PendingItem) => {
+    approveMutation.mutate({ item: order });
   };
 
-  const handleReject = (order: Order) => {
-    setSelectedOrder(order);
+  const handleReject = (order: PendingItem) => {
+    setSelectedItem(order);
     setShowRejectDialog(true);
   };
 
   const confirmReject = () => {
-    if (selectedOrder) {
-      validateOrder.mutate({
-        orderId: selectedOrder.id,
-        action: 'reject',
-        reason: rejectionReason
-      });
+    if (selectedItem) {
+      rejectMutation.mutate({ item: selectedItem });
     }
   };
 
@@ -181,7 +182,7 @@ export default function PendingValidations() {
             <span className="text-sm font-medium text-slate-900">Total du jour</span>
           </div>
           <p className="text-2xl font-bold text-slate-600">
-            {orders.reduce((sum, o) => sum + (o.estimated_cost || 0), 0).toLocaleString()} FCFA
+            {orders.reduce((sum, o) => sum + (o.amount || 0), 0).toLocaleString()} FCFA
           </p>
         </div>
         <div className="bg-green-50 rounded-xl p-4 border border-green-200">
@@ -216,7 +217,7 @@ export default function PendingValidations() {
 
               return (
                 <motion.div
-                  key={order.id}
+                  key={`${order.type}-${order.id}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -238,7 +239,7 @@ export default function PendingValidations() {
                           </h3>
                           <Badge className="bg-amber-100 text-amber-700 border-0">
                             <Clock className="w-3 h-3 mr-1" />
-                            En attente
+                            {order.status || 'En attente'}
                           </Badge>
                         </div>
 
@@ -246,12 +247,14 @@ export default function PendingValidations() {
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4 text-slate-400" />
                             <span className="text-slate-600">
-                              {order.beneficiary_name || order.requested_by_employee || 'Non specifie'}
+                              {order.beneficiary_name || 'Non specifie'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-slate-400" />
-                            <span className="text-slate-600">{order.department || 'General'}</span>
+                            <Package className="w-4 h-4 text-slate-400" />
+                            <span className="text-slate-600 capitalize">
+                              {order.type === 'travel-document' ? 'Document voyage' : 'Reservation'}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-slate-400" />
@@ -262,24 +265,10 @@ export default function PendingValidations() {
                           <div className="flex items-center gap-2">
                             <Package className="w-4 h-4 text-slate-400" />
                             <span className="text-slate-600 font-semibold text-subito">
-                              {(order.estimated_cost || 0).toLocaleString()} FCFA
+                              {(order.amount || 0).toLocaleString()} FCFA
                             </span>
                           </div>
                         </div>
-
-                        {/* Route details */}
-                        {order.departure_address && order.arrival_address && (
-                          <div className="p-3 rounded-lg bg-slate-50 text-sm">
-                            <div className="flex items-start gap-2 mb-1">
-                              <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
-                              <p className="text-slate-700">{order.departure_address}</p>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <MapPin className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                              <p className="text-slate-700">{order.arrival_address}</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -287,7 +276,7 @@ export default function PendingValidations() {
                     <div className="flex flex-col gap-2">
                       <Button
                         onClick={() => handleApprove(order)}
-                        disabled={validateOrder.isPending}
+                        disabled={isMutating}
                         className="gradient-subito text-white border-0 gap-2"
                       >
                         <CheckCircle2 className="w-4 h-4" />
@@ -296,7 +285,7 @@ export default function PendingValidations() {
                       <Button
                         variant="outline"
                         onClick={() => handleReject(order)}
-                        disabled={validateOrder.isPending}
+                        disabled={isMutating}
                         className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
                       >
                         <XCircle className="w-4 h-4" />
@@ -342,7 +331,7 @@ export default function PendingValidations() {
             </Button>
             <Button
               onClick={confirmReject}
-              disabled={validateOrder.isPending}
+              disabled={isMutating}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               Confirmer le refus

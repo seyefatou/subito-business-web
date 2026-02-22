@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { base44 } from "@/lib/base44Client";
+import { api, EmployeeResponse, CreateEmployeeDto, UpdateEmployeeDto, DepartmentResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -14,13 +14,21 @@ import {
   Phone,
   Building2,
   Shield,
-  DollarSign,
   UserCheck,
-  UserX
+  UserX,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -41,25 +49,6 @@ import {
 import { toast } from "sonner";
 import EmployeeForm from "@/components/employees/EmployeeForm";
 
-interface Employee {
-  id: string;
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  department?: string;
-  role?: 'admin' | 'manager' | 'user';
-  monthly_limit?: number;
-  current_month_spent?: number;
-  is_active?: boolean;
-  created_date: string;
-}
-
-interface Department {
-  id: string;
-  name: string;
-}
-
 interface RoleInfo {
   label: string;
   color: string;
@@ -67,88 +56,120 @@ interface RoleInfo {
 }
 
 const roleLabels: Record<string, RoleInfo> = {
-  admin: { label: "Admin Entreprise", color: "bg-purple-100 text-purple-700", icon: Shield },
+  admin: { label: "Admin", color: "bg-purple-100 text-purple-700", icon: Shield },
   manager: { label: "Manager", color: "bg-blue-100 text-blue-700", icon: UserCheck },
-  user: { label: "Employe", color: "bg-slate-100 text-slate-700", icon: Users },
+  employe: { label: "Employe", color: "bg-slate-100 text-slate-700", icon: Users },
 };
 
 export default function Employees() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+  const [filterDept, setFilterDept] = useState("all");
   const [showDialog, setShowDialog] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeResponse | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState<EmployeeResponse | null>(null);
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
-  const { data: employees = [], isLoading } = useQuery<Employee[]>({
-    queryKey: ['employees'],
-    queryFn: () => base44.entities.Employee.list('-created_date', 200),
+  // Fetch employees
+  const { data: employeesResponse, isLoading } = useQuery({
+    queryKey: ['employees', page],
+    queryFn: () => api.employees.list({ page, limit }),
   });
 
-  const { data: departments = [] } = useQuery<Department[]>({
+  // Fetch departments
+  const { data: departmentsResponse } = useQuery({
     queryKey: ['departments'],
-    queryFn: () => base44.entities.Department.list(),
+    queryFn: () => api.departments.list(1, 100),
   });
 
+  const empData = employeesResponse?.data;
+  const empNested = (empData as any)?.data || empData;
+  const employees: EmployeeResponse[] = Array.isArray(empNested)
+    ? empNested
+    : (empNested as any)?.items || (empNested as any)?.list || [];
+  const empMeta = (empData as any)?.meta || {};
+  const totalEmployees = empMeta.total || (empData as any)?.total || employees.length;
+  const totalPages = empMeta.totalPages || Math.ceil(totalEmployees / limit) || 1;
+
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
+
+  // Create employee
   const createEmployee = useMutation({
-    mutationFn: (data: Partial<Employee>) => base44.entities.Employee.create(data),
+    mutationFn: (data: CreateEmployeeDto) => api.employees.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      setShowDialog(false);
-      setEditingEmployee(null);
       toast.success("Employe ajoute avec succes");
-    },
-    onError: () => {
-      toast.error("Erreur lors de l'ajout");
-    }
-  });
-
-  const updateEmployee = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Employee> }) => base44.entities.Employee.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
       setShowDialog(false);
-      setEditingEmployee(null);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'ajout");
+    },
+  });
+
+  // Update employee
+  const updateEmployee = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateEmployeeDto }) =>
+      api.employees.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success("Employe modifie avec succes");
+      setShowDialog(false);
     },
-    onError: () => {
-      toast.error("Erreur lors de la modification");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la modification");
+    },
   });
 
+  // Delete employee
   const deleteEmployee = useMutation({
-    mutationFn: (id: string) => base44.entities.Employee.delete(id),
+    mutationFn: (id: number) => api.employees.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      setDeletingEmployee(null);
       toast.success("Employe supprime");
+      setDeletingEmployee(null);
     },
-    onError: () => {
-      toast.error("Erreur lors de la suppression");
-    }
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la suppression");
+    },
   });
 
+  // Toggle active
   const toggleActive = useMutation({
-    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => base44.entities.Employee.update(id, { is_active }),
+    mutationFn: ({ id, actif }: { id: number; actif: boolean }) =>
+      api.employees.update(id, { actif }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success("Statut mis a jour");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de la mise a jour");
     },
   });
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.department?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const fullName = `${emp.prenom || ''} ${emp.nom || ''}`.toLowerCase();
+    const deptName = emp.departement?.nom?.toLowerCase() || '';
+    const term = searchTerm.toLowerCase();
+    const matchSearch = fullName.includes(term) ||
+      emp.email?.toLowerCase().includes(term) ||
+      deptName.includes(term);
+    const matchRole = filterRole === 'all' || emp.role === filterRole;
+    const matchDept = filterDept === 'all' || emp.departementId?.toString() === filterDept;
+    return matchSearch && matchRole && matchDept;
+  });
 
   const stats = {
-    total: employees.length,
-    active: employees.filter(e => e.is_active).length,
+    total: totalEmployees,
+    active: employees.filter(e => e.actif).length,
     admins: employees.filter(e => e.role === 'admin').length,
     managers: employees.filter(e => e.role === 'manager').length,
   };
 
-  const handleSubmit = (data: Partial<Employee>) => {
+  const handleSubmit = (data: CreateEmployeeDto) => {
     if (editingEmployee) {
       updateEmployee.mutate({ id: editingEmployee.id, data });
     } else {
@@ -156,7 +177,7 @@ export default function Employees() {
     }
   };
 
-  const handleEdit = (employee: Employee) => {
+  const handleEdit = (employee: EmployeeResponse) => {
     setEditingEmployee(employee);
     setShowDialog(true);
   };
@@ -180,7 +201,7 @@ export default function Employees() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Gestion des employes</h1>
           <p className="text-slate-500 mt-1">
-            {filteredEmployees.length} employe{filteredEmployees.length > 1 ? 's' : ''}
+            {totalEmployees} employe{totalEmployees > 1 ? 's' : ''}
           </p>
         </div>
         <Button onClick={handleAdd} className="gradient-subito text-white border-0 gap-2">
@@ -202,16 +223,44 @@ export default function Employees() {
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search & Filters */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder="Rechercher par nom, email ou departement..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder="Rechercher par nom, email..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select value={filterRole} onValueChange={setFilterRole}>
+            <SelectTrigger className="w-full md:w-[180px]">
+              <Shield className="w-4 h-4 mr-2 text-slate-400" />
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les roles</SelectItem>
+              <SelectItem value="employe">Employe</SelectItem>
+              <SelectItem value="manager">Manager</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterDept} onValueChange={setFilterDept}>
+            <SelectTrigger className="w-full md:w-[200px]">
+              <Building2 className="w-4 h-4 mr-2 text-slate-400" />
+              <SelectValue placeholder="Departement" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les departements</SelectItem>
+              {departments.map(dept => (
+                <SelectItem key={dept.id} value={dept.id.toString()}>
+                  {dept.nom}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -223,9 +272,6 @@ export default function Employees() {
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
                   Employe
-                </th>
-                <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
-                  Societe
                 </th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
                   Departement
@@ -245,14 +291,15 @@ export default function Employees() {
             <tbody className="divide-y divide-slate-100">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     Aucun employe trouve
                   </td>
                 </tr>
               ) : (
                 filteredEmployees.map((employee, index) => {
-                  const roleInfo = roleLabels[employee.role || 'user'] || roleLabels.user;
+                  const roleInfo = roleLabels[employee.role || 'employe'] || roleLabels.employe;
                   const RoleIcon = roleInfo.icon;
+                  const fullName = `${employee.prenom || ''} ${employee.nom || ''}`.trim();
 
                   return (
                     <motion.tr
@@ -265,32 +312,26 @@ export default function Employees() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full gradient-subito flex items-center justify-center text-white font-semibold">
-                            {employee.full_name?.charAt(0) || 'E'}
+                            {(employee.prenom?.charAt(0) || employee.nom?.charAt(0) || 'E').toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium text-slate-800">{employee.full_name}</p>
+                            <p className="font-medium text-slate-800">{fullName || 'Sans nom'}</p>
                             <div className="flex items-center gap-1 text-xs text-slate-500">
                               <Mail className="w-3 h-3" />
                               {employee.email}
                             </div>
-                            {employee.phone && (
+                            {employee.telephone && (
                               <div className="flex items-center gap-1 text-xs text-slate-500">
                                 <Phone className="w-3 h-3" />
-                                {employee.phone}
+                                {employee.telephone}
                               </div>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-sm text-slate-700">
-                          <Building2 className="w-4 h-4 text-slate-400" />
-                          {employee.company || '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
                         <div className="text-sm text-slate-700">
-                          {employee.department || 'General'}
+                          {employee.departement?.nom || 'General'}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -300,16 +341,9 @@ export default function Employees() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">
-                            {employee.monthly_limit?.toLocaleString() || '-'} FCFA
-                          </p>
-                          {employee.monthly_limit && (
-                            <p className="text-xs text-slate-500">
-                              Depense: {(employee.current_month_spent || 0).toLocaleString()} FCFA
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-sm font-medium text-slate-800">
+                          {employee.plafondMensuel?.toLocaleString() || '-'} FCFA
+                        </p>
                       </td>
                       <td className="px-6 py-4">
                         <Button
@@ -317,11 +351,11 @@ export default function Employees() {
                           size="sm"
                           onClick={() => toggleActive.mutate({
                             id: employee.id,
-                            is_active: !employee.is_active
+                            actif: !employee.actif
                           })}
-                          className={employee.is_active ? 'text-green-600' : 'text-slate-400'}
+                          className={employee.actif ? 'text-green-600' : 'text-slate-400'}
                         >
-                          {employee.is_active ? (
+                          {employee.actif ? (
                             <>
                               <UserCheck className="w-4 h-4 mr-1" />
                               Actif
@@ -360,6 +394,34 @@ export default function Employees() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+            <p className="text-sm text-slate-500">
+              Page {page} sur {totalPages} ({totalEmployees} employes)
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-sm font-medium text-slate-700">{page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Dialog */}
@@ -393,9 +455,9 @@ export default function Employees() {
       <AlertDialog open={!!deletingEmployee} onOpenChange={() => setDeletingEmployee(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer l'employe ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer l&apos;employe ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Etes-vous sur de vouloir supprimer {deletingEmployee?.full_name} ?
+              Etes-vous sur de vouloir supprimer {deletingEmployee?.prenom} {deletingEmployee?.nom} ?
               Cette action est irreversible.
             </AlertDialogDescription>
           </AlertDialogHeader>

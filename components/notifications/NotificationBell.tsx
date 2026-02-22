@@ -5,44 +5,37 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, CompagnyNotification } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
 
 export default function NotificationBell() {
   const router = useRouter();
-  const { token } = useAuth();
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<CompagnyNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const fetchUnreadCount = useCallback(async () => {
-    if (!token) return;
     try {
-      const response = await api.notificationsCompagny.getUnreadCount(token);
-      const data = response.data || response;
-      const count = typeof data === 'object' && data !== null && 'count' in data
-        ? (data as { count: number }).count
-        : 0;
-      setUnreadCount(count);
+      const response = await api.notifications.unreadCount();
+      const data = response.data;
+      setUnreadCount(typeof data === 'object' && data !== null ? (data as { count: number }).count : 0);
     } catch {
-      // silently fail
+      // Silently fail for polling
     }
-  }, [token]);
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
-      const response = await api.notificationsCompagny.getAll(token);
-      const data = response.data || response;
-      const list = Array.isArray(data) ? data : [];
-      setNotifications(list);
+      const response = await api.notifications.list();
+      const data = response.data;
+      const items = Array.isArray(data) ? data : (data?.data || []);
+      setNotifications(items);
     } catch {
-      // silently fail
+      // Silently fail
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   // Poll unread count every 30s
   useEffect(() => {
@@ -59,15 +52,14 @@ export default function NotificationBell() {
   }, [isOpen, fetchNotifications]);
 
   const handleMarkAsRead = async (id: number) => {
-    if (!token) return;
     try {
-      await api.notificationsCompagny.markAsRead(token, id);
+      await api.notifications.markRead(id);
       setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, isRead: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch {
-      // silently fail
+      // Silently fail
     }
   };
 
