@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 interface Company {
   id?: string;
@@ -113,10 +114,11 @@ export default function CompanyForm({ company, onSubmit, onCancel, isSubmitting 
           </div>
           <div className="space-y-2">
             <Label>Telephone</Label>
-            <Input
-              placeholder="+221 XX XXX XX XX"
+            <PhoneInput
               value={formData.contact_phone}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => handleChange('contact_phone', e.target.value)}
+              onChange={(val) => handleChange('contact_phone', val)}
+              defaultCountryCode="+221"
+              placeholder="XX XXX XX XX"
             />
           </div>
         </div>

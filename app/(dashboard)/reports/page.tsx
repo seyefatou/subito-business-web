@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, BookingResponse, DepartmentResponse, TravelDocumentResponse } from "@/lib/api";
+import { api, BookingStatsData, DashboardData } from "@/lib/api";
 import { motion } from "framer-motion";
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   BarChart,
@@ -26,12 +26,11 @@ import {
   TrendingUp,
   Package,
   Wallet,
-  Users,
   Building2,
   FileText,
-  Filter,
-  X,
-  FileDown
+  FileDown,
+  Loader2,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,251 +42,160 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 
-interface Order {
-  id: string;
-  tracking_number?: string;
-  service_type?: string;
-  service_category?: string;
-  department?: string;
-  beneficiary_name?: string;
-  status?: string;
-  final_cost?: number;
-  estimated_cost?: number;
-  created_date: string;
-}
-
-interface Department {
-  id: string;
-  name: string;
-}
-
-interface Filters {
-  department: string;
-  serviceType: string;
-  serviceCategory: string;
-  minCost: string;
-  maxCost: string;
-  startDate: Date | null;
-  endDate: Date | null;
-}
-
-interface CategoryData {
-  name: string;
-  value: number;
-}
-
-interface MonthlyData {
-  month: string;
-  commandes: number;
-  depenses: number;
-}
-
 const COLORS = ['#FF6B35', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569'];
+
+const SERVICE_LABELS: Record<string, string> = {
+  airport_shuttle: 'Navette Aéroport',
+  inter_city: 'Inter-villes',
+  intercity: 'Inter-villes',
+  vtc_hourly: 'VTC à l\'heure',
+  visa_assistance: 'Visa / Assistance',
+  travel_document: 'Document de voyage',
+  flight_reservation: 'Réservation vol',
+  hotel_reservation: 'Réservation hôtel',
+  flight_and_hotel: 'Vol + Hôtel',
+};
+
+function extractData<T>(response: unknown): T | null {
+  if (!response) return null;
+  const r = response as Record<string, unknown>;
+  const payload = r.data ?? r;
+  return (payload as Record<string, unknown>)?.data
+    ? (payload as Record<string, unknown>).data as T
+    : payload as T;
+}
 
 export default function Reports() {
   const [period, setPeriod] = useState("month");
-  const [showFilters, setShowFilters] = useState(false);
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
-  // Advanced filters
-  const [filters, setFilters] = useState<Filters>({
-    department: "all",
-    serviceType: "all",
-    serviceCategory: "all",
-    minCost: "",
-    maxCost: "",
-    startDate: null,
-    endDate: null,
-  });
-
-  const { data: bookingsResponse } = useQuery({
-    queryKey: ['bookings-all'],
-    queryFn: () => api.bookings.list(1, 500),
-  });
-  const bookingOrders: Order[] = (bookingsResponse?.data?.items || []).map((b: BookingResponse) => ({
-    id: String(b.id),
-    tracking_number: b.reference,
-    service_type: b.serviceType,
-    service_category: b.serviceType,
-    department: undefined,
-    beneficiary_name: b.clientName,
-    status: b.status,
-    final_cost: b.totalPrice,
-    estimated_cost: b.totalPrice,
-    created_date: b.createdAt || '',
-  }));
-
-  // Fetch travel documents
-  const { data: travelDocsResponse } = useQuery({
-    queryKey: ['travel-docs-all'],
-    queryFn: () => api.travelDocuments.list({ page: 1, limit: 500 }),
-  });
-  const travelDocsRaw = travelDocsResponse?.data;
-  const travelDocsData = (travelDocsRaw as any)?.data || travelDocsRaw;
-  const travelDocsArray: TravelDocumentResponse[] = Array.isArray(travelDocsData)
-    ? travelDocsData
-    : (travelDocsData as any)?.items || (travelDocsData as any)?.list || [];
-
-  const travelDocOrders: Order[] = travelDocsArray.map((td: TravelDocumentResponse) => ({
-    id: `td-${td.id}`,
-    tracking_number: td.reference || `TD-${td.id}`,
-    service_type: 'visa_assistance',
-    service_category: 'visa_assistance',
-    department: undefined,
-    beneficiary_name: [td.firstName, td.lastName].filter(Boolean).join(' ') || (td as any).clientName || '-',
-    status: td.status || 'pending',
-    final_cost: (td as any).totalPrice || (td as any).amount || 0,
-    estimated_cost: (td as any).totalPrice || (td as any).amount || 0,
-    created_date: td.createdAt || '',
-  }));
-
-  // Merge bookings + travel documents
-  const orders: Order[] = [...bookingOrders, ...travelDocOrders].sort(
-    (a, b) => new Date(b.created_date || '').getTime() - new Date(a.created_date || '').getTime()
-  );
-
-  const { data: deptResponse } = useQuery({
-    queryKey: ['departments'],
-    queryFn: () => api.departments.list(1, 100),
-  });
-  const departments: Department[] = (deptResponse?.data?.items || []).map((d: DepartmentResponse) => ({
-    id: String(d.id),
-    name: d.nom,
-  }));
-
-  // Get unique service types and categories
-  const serviceTypes = [...new Set(orders.map(o => o.service_type).filter(Boolean))] as string[];
-  const serviceCategories = [...new Set(orders.map(o => o.service_category).filter(Boolean))] as string[];
-
-  // Filter by period
   const now = new Date();
-  const periodStart = period === "month"
-    ? startOfMonth(now)
-    : period === "quarter"
-      ? startOfMonth(subMonths(now, 2))
-      : startOfMonth(subMonths(now, 11));
 
-  // Apply all filters
-  const filteredOrders = orders.filter(o => {
-    const orderDate = new Date(o.created_date);
-    const orderCost = o.final_cost || o.estimated_cost || 0;
+  // Calculate date range based on period
+  const { startDate, endDate } = useMemo(() => {
+    if (customStart && customEnd) {
+      return { startDate: customStart, endDate: customEnd };
+    }
+    let s: Date, e: Date;
+    if (period === "month") {
+      s = startOfMonth(now);
+      e = endOfMonth(now);
+    } else if (period === "quarter") {
+      s = startOfMonth(subMonths(now, 2));
+      e = endOfMonth(now);
+    } else {
+      s = startOfMonth(subMonths(now, 11));
+      e = endOfMonth(now);
+    }
+    return {
+      startDate: format(s, 'yyyy-MM-dd'),
+      endDate: format(e, 'yyyy-MM-dd'),
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, customStart, customEnd]);
 
-    // Period filter
-    if (!filters.startDate && !filters.endDate) {
-      if (orderDate < periodStart) return false;
+  // ==================== API CALLS ====================
+
+  // 1. Booking stats (filtered by period) — primary data source for reports
+  const { data: bookingStatsRaw, isLoading: loadingBookingStats } = useQuery({
+    queryKey: ['booking-stats', startDate, endDate],
+    queryFn: () => api.bookings.stats(startDate, endDate),
+  });
+  const bookingStats = extractData<BookingStatsData>(bookingStatsRaw);
+
+  // 2. Booking dashboard (global KPIs)
+  const { data: bookingDashRaw } = useQuery({
+    queryKey: ['booking-dashboard'],
+    queryFn: () => api.bookings.dashboard(),
+  });
+  const bookingDash = extractData<DashboardData>(bookingDashRaw);
+
+  const isLoading = loadingBookingStats;
+
+  // ==================== COMPUTED DATA ====================
+
+  // KPIs — from bookings/compagny/stats
+  const kpis = bookingStats?.kpis;
+  const totalBookings = kpis?.totalOrders ?? bookingStats?.totalBookings ?? 0;
+  const totalRevenue = kpis?.totalExpenses ?? bookingStats?.totalRevenue ?? 0;
+  const avgPrice = kpis?.averageValue ?? bookingStats?.averagePrice ?? (totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0);
+  const completionRate = kpis?.completionRate ?? 0;
+
+  // By status (from booking stats)
+  const byStatus = bookingStats?.byStatus || {};
+
+  // By service — from bookingStats.expensesByCategory or fallback to bookingDash.byService
+  const byServiceData = useMemo(() => {
+    const map: Record<string, number> = {};
+
+    if (bookingStats?.expensesByCategory?.length) {
+      for (const item of bookingStats.expensesByCategory) {
+        const label = SERVICE_LABELS[item.category] || item.category?.replace(/_/g, ' ') || 'Autre';
+        map[label] = (map[label] || 0) + Number(item.total);
+      }
+    } else if (bookingDash?.byService) {
+      Object.entries(bookingDash.byService).forEach(([key, val]) => {
+        const label = SERVICE_LABELS[key] || key.replace(/_/g, ' ');
+        map[label] = (map[label] || 0) + val;
+      });
     }
 
-    // Custom date range
-    if (filters.startDate && orderDate < filters.startDate) return false;
-    if (filters.endDate && orderDate > filters.endDate) return false;
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [bookingStats, bookingDash]);
 
-    // Department filter
-    if (filters.department !== "all" && o.department !== filters.department) return false;
+  // By department (from bookingStats.expensesByDepartment)
+  const byDeptData = useMemo(() => {
+    if (!bookingStats?.expensesByDepartment?.length) return [];
+    return bookingStats.expensesByDepartment
+      .map(d => ({ name: d.departmentName || 'Sans département', value: Number(d.total) }))
+      .sort((a, b) => b.value - a.value);
+  }, [bookingStats]);
 
-    // Service type filter
-    if (filters.serviceType !== "all" && o.service_type !== filters.serviceType) return false;
+  // Monthly evolution (from bookingStats.monthlyEvolution)
+  const monthlyData = useMemo(() => {
+    if (!bookingStats?.monthlyEvolution?.length) {
+      // Fallback: generate empty months
+      const data = [];
+      for (let i = 5; i >= 0; i--) {
+        data.push({
+          month: format(subMonths(now, i), 'MMM', { locale: fr }),
+          total: 0,
+        });
+      }
+      return data;
+    }
+    return bookingStats.monthlyEvolution.map(m => ({
+      month: m.label || m.month,
+      total: Number(m.total) / 1000, // in thousands for readability
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingStats]);
 
-    // Service category filter
-    if (filters.serviceCategory !== "all" && o.service_category !== filters.serviceCategory) return false;
-
-    // Cost range filter
-    if (filters.minCost && orderCost < parseFloat(filters.minCost)) return false;
-    if (filters.maxCost && orderCost > parseFloat(filters.maxCost)) return false;
-
-    return true;
-  });
-
-  // Calculate stats
-  const totalSpending = filteredOrders.reduce((sum, o) => sum + (o.final_cost || o.estimated_cost || 0), 0);
-  const totalOrders = filteredOrders.length;
-  const completedOrders = filteredOrders.filter(o => o.status === 'completed').length;
-  const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0;
-
-  // Spending by category
-  const spendingByCategory = filteredOrders.reduce((acc, o) => {
-    const cat = o.service_category || 'other';
-    acc[cat] = (acc[cat] || 0) + (o.final_cost || o.estimated_cost || 0);
-    return acc;
-  }, {} as Record<string, number>);
-
-  const categoryData: CategoryData[] = Object.entries(spendingByCategory)
-    .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
-    .sort((a, b) => b.value - a.value);
-
-  // Spending by department
-  const spendingByDepartment = filteredOrders.reduce((acc, o) => {
-    const dept = o.department || 'General';
-    acc[dept] = (acc[dept] || 0) + (o.final_cost || o.estimated_cost || 0);
-    return acc;
-  }, {} as Record<string, number>);
-
-  const departmentData: CategoryData[] = Object.entries(spendingByDepartment)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  // Monthly trend (last 6 months)
-  const monthlyData: MonthlyData[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const monthStartDate = startOfMonth(subMonths(now, i));
-    const monthEndDate = endOfMonth(subMonths(now, i));
-    const monthOrders = orders.filter(o => {
-      const d = new Date(o.created_date);
-      return d >= monthStartDate && d <= monthEndDate;
-    });
-    monthlyData.push({
-      month: format(monthStartDate, 'MMM', { locale: fr }),
-      commandes: monthOrders.length,
-      depenses: monthOrders.reduce((sum, o) => sum + (o.final_cost || o.estimated_cost || 0), 0) / 1000,
-    });
-  }
-
-  const resetFilters = () => {
-    setFilters({
-      department: "all",
-      serviceType: "all",
-      serviceCategory: "all",
-      minCost: "",
-      maxCost: "",
-      startDate: null,
-      endDate: null,
-    });
-  };
-
-  const activeFiltersCount = Object.entries(filters).filter(([key, value]) => {
-    if (key === 'startDate' || key === 'endDate') return value !== null;
-    return value !== "all" && value !== "";
-  }).length;
+  // ==================== EXPORTS ====================
 
   const handleExportCSV = () => {
-    const headers = [
-      'Date',
-      'Numero',
-      'Service',
-      'Categorie',
-      'Departement',
-      'Beneficiaire',
-      'Statut',
-      'Cout (FCFA)',
+    const headers = ['Indicateur', 'Valeur'];
+    const rows = [
+      ['Total commandes', String(totalBookings)],
+      ['Revenus total (FCFA)', String(totalRevenue)],
+      ['Prix moyen (FCFA)', String(avgPrice)],
+      ['Taux de complétion (%)', String(completionRate)],
+      ['', ''],
+      ['--- Par statut ---', ''],
+      ...Object.entries(byStatus).map(([k, v]) => [k, String(v)]),
+      ['', ''],
+      ['--- Par service ---', ''],
+      ...byServiceData.map(s => [s.name, String(s.value)]),
+      ['', ''],
+      ['--- Par département ---', ''],
+      ...byDeptData.map(d => [d.name, String(d.value)]),
     ];
-
-    const rows = filteredOrders.map(o => [
-      format(new Date(o.created_date), 'dd/MM/yyyy HH:mm'),
-      o.tracking_number || '',
-      o.service_type || '',
-      o.service_category || '',
-      o.department || 'General',
-      o.beneficiary_name || '',
-      o.status || '',
-      (o.final_cost || o.estimated_cost || 0).toString(),
-    ]);
 
     const csv = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(';'))
@@ -297,150 +205,126 @@ export default function Reports() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `rapport-subito-${format(now, 'yyyy-MM-dd-HHmm')}.csv`;
+    a.download = `rapport-subito-${format(now, 'yyyy-MM-dd')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Rapport CSV telecharge');
+    toast.success('Rapport CSV téléchargé');
   };
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
 
-    // Title
     doc.setFontSize(20);
     doc.text('RAPPORT SUBITO BUSINESS', 20, 20);
 
-    // Date and period
     doc.setFontSize(10);
-    doc.text(`Genere le ${format(now, 'dd MMMM yyyy a HH:mm', { locale: fr })}`, 20, 30);
-    doc.text(`Periode: ${filters.startDate && filters.endDate
-      ? `${format(filters.startDate, 'dd/MM/yyyy')} - ${format(filters.endDate, 'dd/MM/yyyy')}`
-      : period === 'month' ? 'Ce mois' : period === 'quarter' ? 'Ce trimestre' : 'Cette annee'
-    }`, 20, 36);
+    doc.text(`Généré le ${format(now, 'dd MMMM yyyy à HH:mm', { locale: fr })}`, 20, 30);
+    doc.text(`Période: ${format(new Date(startDate), 'dd/MM/yyyy')} — ${format(new Date(endDate), 'dd/MM/yyyy')}`, 20, 36);
 
-    // Summary
     doc.setFontSize(14);
-    doc.text('RESUME EXECUTIF', 20, 50);
+    doc.text('RÉSUMÉ', 20, 50);
     doc.setFontSize(10);
-    doc.text(`Depenses totales: ${totalSpending.toLocaleString()} FCFA`, 20, 60);
-    doc.text(`Nombre de commandes: ${totalOrders}`, 20, 66);
-    doc.text(`Commandes completees: ${completedOrders} (${totalOrders > 0 ? Math.round(completedOrders / totalOrders * 100) : 0}%)`, 20, 72);
-    doc.text(`Valeur moyenne: ${Math.round(avgOrderValue).toLocaleString()} FCFA`, 20, 78);
+    doc.text(`Dépenses totales: ${totalRevenue.toLocaleString()} FCFA`, 20, 60);
+    doc.text(`Nombre de commandes: ${totalBookings}`, 20, 66);
+    doc.text(`Prix moyen: ${avgPrice.toLocaleString()} FCFA`, 20, 72);
+    doc.text(`Taux de complétion: ${completionRate}%`, 20, 78);
 
-    // Active filters
-    if (activeFiltersCount > 0) {
-      doc.setFontSize(12);
-      doc.text('FILTRES APPLIQUES', 20, 92);
-      doc.setFontSize(9);
-      let y = 100;
-      if (filters.department !== "all") {
-        doc.text(`- Departement: ${filters.department}`, 25, y);
-        y += 6;
-      }
-      if (filters.serviceType !== "all") {
-        doc.text(`- Type de service: ${filters.serviceType}`, 25, y);
-        y += 6;
-      }
-      if (filters.serviceCategory !== "all") {
-        doc.text(`- Categorie: ${filters.serviceCategory}`, 25, y);
-        y += 6;
-      }
-      if (filters.minCost || filters.maxCost) {
-        doc.text(`- Plage de cout: ${filters.minCost || '0'} - ${filters.maxCost || 'infini'} FCFA`, 25, y);
-        y += 6;
-      }
-    }
-
-    // By category
     doc.setFontSize(14);
-    doc.text('DEPENSES PAR CATEGORIE', 20, 110);
+    doc.text('PAR STATUT', 20, 94);
     doc.setFontSize(10);
-    let yPos = 120;
-    categoryData.slice(0, 8).forEach((cat, idx) => {
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
-      }
-      doc.text(`${cat.name}: ${cat.value.toLocaleString()} FCFA`, 25, yPos);
-      yPos += 8;
+    let y = 104;
+    Object.entries(byStatus).forEach(([k, v]) => {
+      doc.text(`${k}: ${v}`, 25, y);
+      y += 6;
     });
 
-    // By department
-    if (yPos > 220) {
-      doc.addPage();
-      yPos = 20;
-    }
     doc.setFontSize(14);
-    doc.text('DEPENSES PAR DEPARTEMENT', 20, yPos);
-    yPos += 10;
+    doc.text('PAR SERVICE', 20, y + 10);
     doc.setFontSize(10);
-    departmentData.slice(0, 10).forEach((dept, idx) => {
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
-      }
-      doc.text(`${dept.name}: ${dept.value.toLocaleString()} FCFA`, 25, yPos);
-      yPos += 8;
+    y += 20;
+    byServiceData.slice(0, 8).forEach(s => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.text(`${s.name}: ${s.value.toLocaleString()} FCFA`, 25, y);
+      y += 6;
     });
 
-    // Footer
+    doc.setFontSize(14);
+    doc.text('PAR DÉPARTEMENT', 20, y + 10);
+    doc.setFontSize(10);
+    y += 20;
+    byDeptData.slice(0, 10).forEach(d => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.text(`${d.name}: ${d.value.toLocaleString()} FCFA`, 25, y);
+      y += 6;
+    });
+
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.text(`Page ${i}/${pageCount}`, 180, 285);
-      doc.text('Subito Business - Confidentiel', 20, 285);
+      doc.text('Subito Business — Confidentiel', 20, 285);
     }
 
-    doc.save(`rapport-subito-${format(now, 'yyyy-MM-dd-HHmm')}.pdf`);
-    toast.success('Rapport PDF telecharge');
+    doc.save(`rapport-subito-${format(now, 'yyyy-MM-dd')}.pdf`);
+    toast.success('Rapport PDF téléchargé');
+  };
+
+  // ==================== RENDER ====================
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending: 'En attente',
+    confirmed: 'Confirmé',
+    completed: 'Terminé',
+    cancelled: 'Annulé',
+    in_progress: 'En cours',
   };
 
   const kpiItems = [
-    { label: "Depenses totales", value: `${totalSpending.toLocaleString()} FCFA`, icon: Wallet, color: "from-orange-500 to-red-500" },
-    { label: "Commandes", value: totalOrders, icon: Package, color: "from-blue-500 to-indigo-500" },
-    { label: "Taux de completion", value: `${totalOrders > 0 ? Math.round(completedOrders / totalOrders * 100) : 0}%`, icon: TrendingUp, color: "from-green-500 to-emerald-500" },
-    { label: "Valeur moyenne", value: `${Math.round(avgOrderValue).toLocaleString()} FCFA`, icon: FileText, color: "from-purple-500 to-pink-500" },
+    { label: "Dépenses totales", value: `${totalRevenue.toLocaleString()} FCFA`, icon: Wallet, color: "from-orange-500 to-red-500" },
+    { label: "Commandes", value: totalBookings, icon: Package, color: "from-blue-500 to-indigo-500" },
+    { label: "Taux de complétion", value: `${completionRate}%`, icon: TrendingUp, color: "from-green-500 to-emerald-500" },
+    { label: "Valeur moyenne", value: `${avgPrice.toLocaleString()} FCFA`, icon: FileText, color: "from-purple-500 to-pink-500" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-slate-500">Chargement des rapports...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Rapports & Analyses</h1>
-          <p className="text-slate-500 mt-1">
-            {filteredOrders.length} commande{filteredOrders.length > 1 ? 's' : ''}
-            {activeFiltersCount > 0 && ` - ${activeFiltersCount} filtre${activeFiltersCount > 1 ? 's' : ''} actif${activeFiltersCount > 1 ? 's' : ''}`}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl gradient-subito">
+            <BarChart3 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Rapports & Analyses</h1>
+            <p className="text-slate-500 mt-1">
+              Statistiques du {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <Button
-            variant={showFilters ? "default" : "outline"}
-            className={`gap-2 ${showFilters ? 'gradient-subito text-white border-0' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-4 h-4" />
-            Filtres
-            {activeFiltersCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white text-orange-600 text-xs font-bold">
-                {activeFiltersCount}
-              </span>
-            )}
-          </Button>
-          {!filters.startDate && !filters.endDate && (
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-40">
-                <Calendar className="w-4 h-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="month">Ce mois</SelectItem>
-                <SelectItem value="quarter">Ce trimestre</SelectItem>
-                <SelectItem value="year">Cette annee</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          <Select value={period} onValueChange={(v) => { setPeriod(v); setCustomStart(""); setCustomEnd(""); }}>
+            <SelectTrigger className="w-40">
+              <Calendar className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month">Ce mois</SelectItem>
+              <SelectItem value="quarter">Ce trimestre</SelectItem>
+              <SelectItem value="year">Cette année</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
             <FileDown className="w-4 h-4" />
             CSV
@@ -452,148 +336,38 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      {showFilters && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-slate-800">Filtres personnalises</h3>
-            {activeFiltersCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
-                <X className="w-4 h-4" />
-                Reinitialiser
-              </Button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Date Range */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Periode personnalisee</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start text-left font-normal">
-                      {filters.startDate ? format(filters.startDate, 'dd/MM/yy') : 'Debut'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={filters.startDate || undefined}
-                      onSelect={(date) => setFilters({ ...filters, startDate: date || null })}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start text-left font-normal">
-                      {filters.endDate ? format(filters.endDate, 'dd/MM/yy') : 'Fin'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={filters.endDate || undefined}
-                      onSelect={(date) => setFilters({ ...filters, endDate: date || null })}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {/* Department */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Departement</Label>
-              <Select value={filters.department} onValueChange={(v) => setFilters({ ...filters, department: v })}>
-                <SelectTrigger>
-                  <Building2 className="w-4 h-4 mr-2 text-slate-400" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les departements</SelectItem>
-                  {departments.map(dept => (
-                    <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Service Type */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Type de service</Label>
-              <Select value={filters.serviceType} onValueChange={(v) => setFilters({ ...filters, serviceType: v })}>
-                <SelectTrigger>
-                  <Package className="w-4 h-4 mr-2 text-slate-400" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les services</SelectItem>
-                  {serviceTypes.map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace(/_/g, ' ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Service Category */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Categorie</Label>
-              <Select value={filters.serviceCategory} onValueChange={(v) => setFilters({ ...filters, serviceCategory: v })}>
-                <SelectTrigger>
-                  <FileText className="w-4 h-4 mr-2 text-slate-400" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes categories</SelectItem>
-                  {serviceCategories.map(cat => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Cost Range */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Cout minimum (FCFA)</Label>
+      {/* Custom date range */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="flex flex-col md:flex-row items-end gap-4">
+          <div className="space-y-1 flex-1">
+            <Label className="text-sm text-slate-600">Période personnalisée</Label>
+            <div className="flex gap-2">
               <Input
-                type="number"
-                placeholder="0"
-                value={filters.minCost}
-                onChange={(e) => setFilters({ ...filters, minCost: e.target.value })}
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="flex-1"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Cout maximum (FCFA)</Label>
               <Input
-                type="number"
-                placeholder="Infini"
-                value={filters.maxCost}
-                onChange={(e) => setFilters({ ...filters, maxCost: e.target.value })}
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="flex-1"
               />
             </div>
           </div>
-
-          {/* Filter Summary */}
-          {activeFiltersCount > 0 && (
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <p className="text-sm text-slate-600">
-                <span className="font-medium">{filteredOrders.length}</span> commande{filteredOrders.length > 1 ? 's' : ''} trouvee{filteredOrders.length > 1 ? 's' : ''} -
-                <span className="font-medium ml-1">{totalSpending.toLocaleString()} FCFA</span> de depenses totales
-              </p>
-            </div>
+          {(customStart || customEnd) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setCustomStart(""); setCustomEnd(""); }}
+              className="text-slate-500"
+            >
+              Réinitialiser
+            </Button>
           )}
-        </motion.div>
-      )}
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -616,6 +390,27 @@ export default function Reports() {
         ))}
       </div>
 
+      {/* Status breakdown */}
+      {Object.keys(byStatus).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl border border-slate-200 p-6"
+        >
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Répartition par statut</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Object.entries(byStatus).map(([status, count]) => (
+              <div key={status} className="text-center p-4 rounded-xl bg-slate-50">
+                <p className="text-2xl font-bold text-slate-800">{count}</p>
+                <p className="text-sm text-slate-500 mt-1 capitalize">
+                  {STATUS_LABELS[status] || status.replace(/_/g, ' ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly trend */}
@@ -625,7 +420,9 @@ export default function Reports() {
           transition={{ delay: 0.2 }}
           className="bg-white rounded-2xl border border-slate-200 p-6"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Evolution mensuelle</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-6">
+            Évolution mensuelle <span className="text-sm font-normal text-slate-400">(en milliers FCFA)</span>
+          </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyData}>
@@ -633,71 +430,67 @@ export default function Reports() {
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
+                  formatter={(value: number) => [`${value.toLocaleString()}k FCFA`, 'Dépenses']}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
                 <Line
                   type="monotone"
-                  dataKey="commandes"
+                  dataKey="total"
                   stroke="#FF6B35"
                   strokeWidth={3}
                   dot={{ fill: '#FF6B35', strokeWidth: 2 }}
-                  name="Commandes"
+                  name="Dépenses"
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </motion.div>
 
-        {/* By category pie */}
+        {/* By service pie */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="bg-white rounded-2xl border border-slate-200 p-6"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Depenses par categorie</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => [`${value.toLocaleString()} FCFA`, '']}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            {categoryData.slice(0, 6).map((item, index) => (
-              <div key={item.name} className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                />
-                <span className="text-sm text-slate-600 truncate">{item.name}</span>
+          <h3 className="text-lg font-semibold text-slate-800 mb-6">Dépenses par service</h3>
+          {byServiceData.length === 0 ? (
+            <p className="text-slate-400 text-center py-12">Aucune donnée pour cette période</p>
+          ) : (
+            <>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={byServiceData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {byServiceData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${value.toLocaleString()} FCFA`, '']}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                {byServiceData.slice(0, 6).map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span className="text-sm text-slate-600 truncate">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </motion.div>
 
         {/* By department bar */}
@@ -707,25 +500,25 @@ export default function Reports() {
           transition={{ delay: 0.4 }}
           className="bg-white rounded-2xl border border-slate-200 p-6 lg:col-span-2"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Depenses par departement</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={departmentData.slice(0, 8)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} stroke="#94a3b8" width={100} />
-                <Tooltip
-                  formatter={(value: number) => [`${value.toLocaleString()} FCFA`, 'Depenses']}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                  }}
-                />
-                <Bar dataKey="value" fill="#FF6B35" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <h3 className="text-lg font-semibold text-slate-800 mb-6">Dépenses par département</h3>
+          {byDeptData.length === 0 ? (
+            <p className="text-slate-400 text-center py-12">Aucune donnée pour cette période</p>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={byDeptData.slice(0, 8)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} stroke="#94a3b8" width={120} />
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toLocaleString()} FCFA`, 'Dépenses']}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar dataKey="value" fill="#FF6B35" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -738,33 +531,33 @@ export default function Reports() {
       >
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold">Rapport Direction Generale</h3>
-            <p className="text-slate-400 mt-1">Synthese executive - {format(now, 'MMMM yyyy', { locale: fr })}</p>
+            <h3 className="text-xl font-bold">Rapport Direction Générale</h3>
+            <p className="text-slate-400 mt-1">
+              Synthèse — {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
+            </p>
           </div>
           <Button variant="secondary" size="sm" className="gap-2" onClick={handleExportPDF}>
             <Download className="w-4 h-4" />
-            Telecharger
+            Télécharger
           </Button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
-            <p className="text-slate-400 text-sm">Budget consomme</p>
-            <p className="text-2xl font-bold mt-1">{totalSpending.toLocaleString()} FCFA</p>
+            <p className="text-slate-400 text-sm">Budget consommé</p>
+            <p className="text-2xl font-bold mt-1">{totalRevenue.toLocaleString()} FCFA</p>
           </div>
           <div>
             <p className="text-slate-400 text-sm">Volume de commandes</p>
-            <p className="text-2xl font-bold mt-1">{totalOrders}</p>
+            <p className="text-2xl font-bold mt-1">{totalBookings}</p>
           </div>
           <div>
             <p className="text-slate-400 text-sm">Service principal</p>
-            <p className="text-2xl font-bold mt-1">{categoryData[0]?.name || '-'}</p>
+            <p className="text-2xl font-bold mt-1">{byServiceData[0]?.name || '—'}</p>
           </div>
           <div>
-            <p className="text-slate-400 text-sm">Economies estimees</p>
-            <p className="text-2xl font-bold mt-1 text-green-400">
-              {Math.round(totalSpending * 0.15).toLocaleString()} FCFA
-            </p>
+            <p className="text-slate-400 text-sm">Valeur moyenne</p>
+            <p className="text-2xl font-bold mt-1">{avgPrice.toLocaleString()} FCFA</p>
           </div>
         </div>
       </motion.div>

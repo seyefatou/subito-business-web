@@ -4,6 +4,7 @@ import React, { useState, ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -171,10 +172,11 @@ export default function DriverForm({
           </div>
           <div className="space-y-2">
             <Label>Telephone *</Label>
-            <Input
+            <PhoneInput
               value={formData.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              required
+              onChange={(val) => handleChange('phone', val)}
+              defaultCountryCode="+221"
+              placeholder="77 123 45 67"
             />
           </div>
           <div className="space-y-2">

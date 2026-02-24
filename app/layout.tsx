@@ -6,6 +6,8 @@ import { Providers } from './providers';
 
 const inter = Inter({ subsets: ['latin'] });
 
+
+
 export const metadata: Metadata = {
   title: 'Subito Business',
   description: 'Plateforme de gestion de flotte et services de transport',

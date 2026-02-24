@@ -25,7 +25,8 @@ import {
   Wrench,
   Clock,
   LucideIcon,
-  Loader2
+  Loader2,
+  ClipboardCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,7 @@ const navigation: NavigationItem[] = [
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
   { name: "Inter-villes", href: "/inter-city", icon: Car },
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
+  { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   // { name: "Livraison Colis", href: "/parcel-delivery", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },
@@ -74,12 +76,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  // // Redirect to login if not authenticated (TEMPORAIREMENT DESACTIVE)
-  // useEffect(() => {
-  //   if (!isLoading && !isAuthenticated) {
-  //     router.push('/login');
-  //   }
-  // }, [isLoading, isAuthenticated, router]);
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   const handleLogout = async () => {
     await logout();
@@ -104,19 +106,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Admin Business';
   };
 
-  // // Show loading state while checking auth (TEMPORAIREMENT DESACTIVE)
-  // if (isLoading) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-  //       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-  //     </div>
-  //   );
-  // }
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
-  // // Don't render dashboard if not authenticated (TEMPORAIREMENT DESACTIVE)
-  // if (!isAuthenticated) {
-  //   return null;
-  // }
+  // Don't render dashboard if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const isActive = (href: string): boolean => {
     if (href === "/") {

@@ -6,6 +6,27 @@ import { Bell, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, CompagnyNotification } from "@/lib/api";
 
+function getNotificationRoute(notif: CompagnyNotification): string | null {
+  const type = (notif.type || '').toLowerCase();
+  const title = (notif.title || '').toLowerCase();
+  const message = (notif.message || '').toLowerCase();
+  const text = `${type} ${title} ${message}`;
+
+  if (text.includes('prise en charge') || text.includes('payment_request') || text.includes('payment-request')) {
+    return '/pending-validations';
+  }
+  if (type.includes('booking') || text.includes('réservation') || text.includes('reservation')) {
+    return '/tracking';
+  }
+  if (type.includes('travel') || text.includes('document') || text.includes('voyage')) {
+    return '/travel-documents';
+  }
+  if (type.includes('invoice') || text.includes('facture')) {
+    return '/billing';
+  }
+  return null;
+}
+
 export default function NotificationBell() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -37,10 +58,10 @@ export default function NotificationBell() {
     }
   }, []);
 
-  // Poll unread count every 30s
+  // Poll unread count every 60s (reduced to avoid pressure on server)
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
 
@@ -138,6 +159,11 @@ export default function NotificationBell() {
                       }`}
                       onClick={() => {
                         if (!notif.isRead) handleMarkAsRead(notif.id);
+                        const route = getNotificationRoute(notif);
+                        if (route) {
+                          setIsOpen(false);
+                          router.push(route);
+                        }
                       }}
                     >
                       <div className="flex items-start gap-3">

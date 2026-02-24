@@ -76,31 +76,37 @@ export default function Tracking() {
     queryFn: () => api.travelDocuments.list({ page, limit }),
   });
 
-  console.log('[TRACKING] Raw bookings response:', JSON.stringify(bookingsResponse)?.substring(0, 800));
-  console.log('[TRACKING] Raw travel docs response:', JSON.stringify(travelDocsResponse)?.substring(0, 800));
+  // Parse bookings response: handle { list, page, pageSize, total } or { items, total, page, limit }
+  const rawData = bookingsResponse?.data as Record<string, unknown> | undefined;
+  const bookingsPayload = (rawData?.data ?? rawData) as Record<string, unknown> | undefined;
+  const regularBookings: BookingResponse[] = (() => {
+    if (Array.isArray(bookingsPayload?.list)) return bookingsPayload.list as BookingResponse[];
+    if (Array.isArray(bookingsPayload?.items)) return bookingsPayload.items as BookingResponse[];
+    if (Array.isArray(bookingsPayload)) return bookingsPayload as unknown as BookingResponse[];
+    return [];
+  })();
+  const bookingsTotal = Number(bookingsPayload?.total ?? regularBookings.length);
 
-  const rawData = bookingsResponse?.data;
-  const bookingsData = (rawData as any)?.data || rawData;
-  const regularBookings: BookingResponse[] = Array.isArray(bookingsData)
-    ? bookingsData
-    : (bookingsData as any)?.items || (bookingsData as any)?.list || [];
-
-  // Convert travel documents to BookingResponse-like format
-  const travelDocsRaw = travelDocsResponse?.data;
-  const travelDocsData = (travelDocsRaw as any)?.data || travelDocsRaw;
-  const travelDocsArray: TravelDocumentResponse[] = Array.isArray(travelDocsData)
-    ? travelDocsData
-    : (travelDocsData as any)?.items || (travelDocsData as any)?.list || [];
+  // Parse travel documents response
+  const travelDocsRaw = travelDocsResponse?.data as Record<string, unknown> | undefined;
+  const travelDocsPayload = (travelDocsRaw?.data ?? travelDocsRaw) as Record<string, unknown> | undefined;
+  const travelDocsArray: TravelDocumentResponse[] = (() => {
+    if (Array.isArray(travelDocsPayload?.list)) return travelDocsPayload.list as TravelDocumentResponse[];
+    if (Array.isArray(travelDocsPayload?.items)) return travelDocsPayload.items as TravelDocumentResponse[];
+    if (Array.isArray(travelDocsPayload)) return travelDocsPayload as unknown as TravelDocumentResponse[];
+    return [];
+  })();
+  const travelDocsTotal = Number(travelDocsPayload?.total ?? travelDocsArray.length);
 
   const travelDocsAsBookings: BookingResponse[] = travelDocsArray.map(td => ({
     id: td.id,
     reference: td.reference || `TD-${td.id}`,
     serviceType: 'visa_assistance',
     status: td.status || 'pending',
-    clientName: [td.firstName, td.lastName].filter(Boolean).join(' ') || (td as any).clientName || '-',
-    clientPhone: (td as any).phone || (td as any).clientPhone || '',
-    clientEmail: (td as any).email || (td as any).clientEmail || '',
-    totalPrice: (td as any).totalPrice || (td as any).amount || 0,
+    clientName: [td.firstName, td.lastName].filter(Boolean).join(' ') || '-',
+    clientPhone: (td as Record<string, unknown>).phone as string || '',
+    clientEmail: (td as Record<string, unknown>).email as string || '',
+    totalPrice: Number((td as Record<string, unknown>).totalPrice || 0),
     createdAt: td.createdAt,
     updatedAt: td.updatedAt,
   }));
@@ -110,9 +116,7 @@ export default function Tracking() {
     (a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
   );
 
-  const meta = (rawData as any)?.meta || {};
-  const travelDocsMeta = (travelDocsRaw as any)?.meta || {};
-  const totalBookingsCount = (meta.total || regularBookings.length) + (travelDocsMeta.total || travelDocsArray.length);
+  const totalBookingsCount = bookingsTotal + travelDocsTotal;
   const totalPages = Math.ceil(totalBookingsCount / limit) || 1;
 
   const isLoadingAll = isLoading || travelDocsLoading;
@@ -143,8 +147,7 @@ export default function Tracking() {
     const matchSearch = !searchTerm ||
       (b.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.reference || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ((b as any).bookingCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ((b as any).customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (b.bookingCode || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchService = filterService === 'all' || b.serviceType === filterService;
     const matchStatus = filterStatus === 'all' || b.status === filterStatus;
     return matchSearch && matchService && matchStatus;
@@ -258,6 +261,7 @@ export default function Tracking() {
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Reference</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Service</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Client</th>
+                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Canal</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Montant</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Statut</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Date</th>
@@ -270,9 +274,9 @@ export default function Tracking() {
                       const service = getServiceInfo(booking.serviceType);
                       const status = getStatusInfo(booking.status);
                       const ServiceIcon = service.icon;
-                      const name = booking.clientName || (booking as any).customerName || '-';
-                      const code = (booking as any).bookingCode || booking.reference || `#${booking.id}`;
-                      const price = booking.totalPrice || (booking as any).totalPrice;
+                      const name = booking.clientName || '-';
+                      const code = booking.bookingCode || booking.reference || `#${booking.id}`;
+                      const price = booking.totalPrice;
 
                       return (
                         <motion.tr
@@ -295,8 +299,15 @@ export default function Tracking() {
                           <td className="px-6 py-4">
                             <div>
                               <p className="font-medium text-slate-800 text-sm">{name}</p>
-                              <p className="text-xs text-slate-500">{booking.clientPhone || (booking as any).customerPhone || ''}</p>
+                              <p className="text-xs text-slate-500">{booking.clientPhone || ''}</p>
                             </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {booking.canal ? (
+                              <Badge className="bg-slate-100 text-slate-700 border-0 text-xs capitalize">{booking.canal}</Badge>
+                            ) : (
+                              <span className="text-sm text-slate-400">—</span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <span className="font-semibold text-slate-800">
@@ -323,31 +334,45 @@ export default function Tracking() {
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
-                <p className="text-sm text-slate-500">
-                  Page {page} sur {totalPages} ({meta.total || filtered.length} resultats)
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => setPage(p => p - 1)}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(p => p + 1)}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+              <p className="text-sm text-slate-500">
+                Page {page} sur {totalPages} — {totalBookingsCount} resultat{totalBookingsCount > 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => p - 1)}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                  const p = start + i;
+                  if (p > totalPages) return null;
+                  return (
+                    <Button
+                      key={p}
+                      variant={p === page ? 'default' : 'outline'}
+                      size="sm"
+                      className={p === page ? 'gradient-subito text-white border-0' : ''}
+                      onClick={() => setPage(p)}
+                    >
+                      {p}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>
@@ -360,7 +385,7 @@ export default function Tracking() {
               Detail de la reservation
               {bookingDetail && (
                 <span className="font-mono text-sm text-slate-500">
-                  {(bookingDetail as any).bookingCode || bookingDetail.reference || `#${bookingDetail.id}`}
+                  {bookingDetail.bookingCode || bookingDetail.reference || `#${bookingDetail.id}`}
                 </span>
               )}
             </DialogTitle>
@@ -387,12 +412,20 @@ export default function Tracking() {
               {/* Client */}
               <div className="p-4 rounded-xl bg-slate-50 space-y-2">
                 <p className="text-sm font-semibold text-slate-600">Client</p>
-                <p className="font-medium text-slate-800">{bookingDetail.clientName || (bookingDetail as any).customerName}</p>
-                {(bookingDetail.clientPhone || (bookingDetail as any).customerPhone) && (
-                  <p className="text-sm text-slate-500">{bookingDetail.clientPhone || (bookingDetail as any).customerPhone}</p>
+                <p className="font-medium text-slate-800">{bookingDetail.clientName}</p>
+                {bookingDetail.clientPhone && (
+                  <p className="text-sm text-slate-500">{bookingDetail.clientPhone}</p>
                 )}
-                {(bookingDetail.clientEmail || (bookingDetail as any).customerEmail) && (
-                  <p className="text-sm text-slate-500">{bookingDetail.clientEmail || (bookingDetail as any).customerEmail}</p>
+                {bookingDetail.clientEmail && (
+                  <p className="text-sm text-slate-500">{bookingDetail.clientEmail}</p>
+                )}
+                {bookingDetail.paidBy && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-xs text-slate-500">Paye par :</span>
+                    <Badge className={`text-xs border-0 ${bookingDetail.paidBy === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {bookingDetail.paidBy === 'company' ? 'Entreprise' : 'Client'}
+                    </Badge>
+                  </div>
                 )}
               </div>
 
@@ -465,16 +498,37 @@ export default function Tracking() {
                     <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).passengers}</span>
                   </div>
                 )}
-                {(bookingDetail as any).paymentMethod && (
+                {bookingDetail.paymentMethod && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Paiement</span>
-                    <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).paymentMethod}</span>
+                    <span className="text-sm text-slate-500">Mode de paiement</span>
+                    <span className="text-sm font-medium text-slate-800">
+                      {bookingDetail.paymentMethod === 'cash' ? 'Especes' :
+                       bookingDetail.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                       bookingDetail.paymentMethod === 'wallet' ? 'Portefeuille' :
+                       bookingDetail.paymentMethod === 'bank_transfer' ? 'Virement bancaire' :
+                       bookingDetail.paymentMethod}
+                    </span>
                   </div>
                 )}
-                {(bookingDetail as any).canal && (
+                {bookingDetail.canal && (
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-500">Canal</span>
-                    <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).canal}</span>
+                    <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{bookingDetail.canal}</Badge>
+                  </div>
+                )}
+                {bookingDetail.tag && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-slate-500">Tag</span>
+                    <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">{bookingDetail.tag}</Badge>
+                  </div>
+                )}
+                {bookingDetail.discountAmount != null && bookingDetail.discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-slate-500">Remise</span>
+                    <span className="text-sm font-medium text-green-600">
+                      -{Number(bookingDetail.discountAmount).toLocaleString()} FCFA
+                      {bookingDetail.discountPercent ? ` (${bookingDetail.discountPercent}%)` : ''}
+                    </span>
                   </div>
                 )}
                 {bookingDetail.createdAt && (

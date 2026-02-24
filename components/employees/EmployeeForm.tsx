@@ -5,6 +5,7 @@ import { CreateEmployeeDto, EmployeeResponse, DepartmentResponse } from "@/lib/a
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ interface EmployeeFormData {
   prenom: string;
   email: string;
   telephone: string;
+  adresse: string;
   departementId: string;
   role: string;
   plafondMensuel: string;
@@ -44,6 +46,7 @@ export default function EmployeeForm({
     prenom: employee?.prenom || "",
     email: employee?.email || "",
     telephone: employee?.telephone || "",
+    adresse: employee?.adresse || "",
     departementId: employee?.departementId?.toString() || employee?.departement?.id?.toString() || "",
     role: employee?.role || "employe",
     plafondMensuel: employee?.plafondMensuel?.toString() || "",
@@ -58,6 +61,7 @@ export default function EmployeeForm({
       prenom: formData.prenom,
       email: formData.email,
       telephone: formData.telephone || undefined,
+      adresse: formData.adresse,
       departementId: formData.departementId && formData.departementId !== 'none' ? parseInt(formData.departementId) : undefined,
       role: formData.role || undefined,
       plafondMensuel: formData.plafondMensuel ? parseFloat(formData.plafondMensuel) : undefined,
@@ -109,14 +113,25 @@ export default function EmployeeForm({
         />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="adresse">Adresse *</Label>
+        <Input
+          id="adresse"
+          value={formData.adresse}
+          onChange={(e) => handleChange('adresse', e.target.value)}
+          placeholder="123 Rue Example, Dakar"
+          required
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="telephone">Telephone</Label>
-          <Input
-            id="telephone"
+          <PhoneInput
             value={formData.telephone}
-            onChange={(e) => handleChange('telephone', e.target.value)}
-            placeholder="+221 77 123 45 67"
+            onChange={(val) => handleChange('telephone', val)}
+            defaultCountryCode="+221"
+            placeholder="77 123 45 67"
           />
         </div>
 

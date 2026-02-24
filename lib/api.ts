@@ -173,6 +173,7 @@ export interface EmployeeResponse {
   prenom: string;
   email: string;
   telephone?: string;
+  adresse?: string;
   departementId?: number;
   departement?: { id: number; nom: string };
   role?: string;
@@ -187,6 +188,7 @@ export interface CreateEmployeeDto {
   prenom: string;
   email: string;
   telephone?: string;
+  adresse?: string;
   departementId?: number;
   role?: string;
   plafondMensuel?: number;
@@ -198,6 +200,7 @@ export interface UpdateEmployeeDto {
   prenom?: string;
   email?: string;
   telephone?: string;
+  adresse?: string;
   departementId?: number;
   role?: string;
   plafondMensuel?: number;
@@ -295,12 +298,21 @@ export interface CreateVisaAssistanceRequestDto {
 export interface BookingResponse {
   id: number;
   reference?: string;
+  bookingCode?: string;
   serviceType?: string;
   status?: string;
   totalPrice?: number;
   clientName?: string;
   clientPhone?: string;
   clientEmail?: string;
+  clientAddress?: string;
+  paidBy?: 'client' | 'company';
+  canal?: string;
+  tag?: string;
+  paymentMethod?: 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer' | string;
+  companyCode?: string;
+  discountAmount?: number;
+  discountPercent?: number;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
@@ -348,29 +360,101 @@ export interface TravelDocumentResponse {
 }
 
 // ==================== INVOICE TYPES ====================
-export interface InvoiceResponse {
+export interface InvoiceBooking {
   id: number;
-  invoiceNumber: string;
-  totalAmount: number;
-  status: string;
-  startDate?: string;
-  endDate?: string;
-  dueDate?: string;
+  bookingCode?: string;
+  serviceType?: string;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  totalPrice?: number;
+  status?: string;
+  paidBy?: string;
+  canal?: string;
+  paymentMethod?: string;
   createdAt?: string;
   [key: string]: unknown;
 }
 
-export interface InvoiceSummary {
-  totalPending: number;
-  totalPaid: number;
-  totalOverdue: number;
-  currentMonthTotal: number;
+export interface InvoiceTravelDocument {
+  id: number;
+  reference?: string;
+  firstName?: string;
+  lastName?: string;
+  status?: string;
+  totalPrice?: number;
+  createdAt?: string;
   [key: string]: unknown;
 }
 
+export interface InvoiceCompagny {
+  id: number;
+  nomCompagny?: string;
+  emailCompagny?: string;
+  telephoneCompagny?: string;
+}
+
+export interface InvoiceResponse {
+  id: number;
+  reference?: string;
+  invoiceNumber?: string;
+  compagnyId?: number;
+  companyCode?: string;
+  compagnyName?: string;
+  totalAmount?: number | string;
+  status: string;
+  startDate?: string;
+  endDate?: string;
+  bookingsCount?: number;
+  paymentMethod?: string | null;
+  paidAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  compagny?: InvoiceCompagny;
+  bookings?: InvoiceBooking[];
+  travelDocuments?: InvoiceTravelDocument[];
+  [key: string]: unknown;
+}
+
+export interface InvoiceSummary {
+  totalInvoices: number;
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  totalPendingAmount?: number;
+  totalPaidAmount?: number;
+  [key: string]: unknown;
+}
+
+export interface BillingStatsServiceItem {
+  serviceType: string;
+  total: number | string;
+  count: number;
+}
+
+export interface BillingStatsDeptItem {
+  departmentName: string;
+  total: number | string;
+  count: number;
+}
+
 export interface BillingStats {
-  byService: Record<string, number>;
-  byDepartment: Record<string, number>;
+  byService: Record<string, number> | BillingStatsServiceItem[];
+  byDepartment: Record<string, number> | BillingStatsDeptItem[];
+  currentMonth: {
+    total: number;
+    count?: number;
+    bookingsCount?: number;
+  };
+  facturePrevisionnelle?: {
+    count: number;
+    total: number;
+  };
+  invoices?: {
+    total: number;
+    paid: number;
+    pending: number;
+  };
   [key: string]: unknown;
 }
 
@@ -404,13 +488,40 @@ export interface DashboardData {
   [key: string]: unknown;
 }
 
-export interface StatsData {
-  totalBookings: number;
-  totalRevenue: number;
-  averagePrice: number;
-  byStatus: Record<string, number>;
+// Booking stats from GET /bookings/compagny/stats
+export interface BookingStatsData {
+  totalBookings?: number;
+  totalRevenue?: number;
+  averagePrice?: number;
+  byStatus?: Record<string, number>;
+  kpis?: {
+    totalExpenses: number;
+    totalOrders: number;
+    completionRate: number;
+    averageValue: number;
+  };
+  monthlyEvolution?: { month: string; label: string; total: number }[];
+  expensesByCategory?: { category: string; total: number }[];
+  expensesByDepartment?: { departmentId: number; departmentName: string; total: number }[];
   [key: string]: unknown;
 }
+
+// Travel document stats from GET /travel-documents/compagny/stats
+export interface TravelDocStatsData {
+  kpis: {
+    totalExpenses: number;
+    totalOrders: number;
+    completionRate: number;
+    averageValue: number;
+  };
+  monthlyEvolution: { month: string; label: string; total: number }[];
+  expensesByCategory: { category: string; total: number }[];
+  expensesByDepartment: { departmentId: number; departmentName: string; total: number }[];
+  [key: string]: unknown;
+}
+
+// Backward compat alias
+export type StatsData = BookingStatsData;
 
 // ==================== PAYMENT REQUEST TYPES ====================
 export interface PaymentRequest {
@@ -423,6 +534,88 @@ export interface PaymentRequest {
   clientName?: string;
   createdAt?: string;
   [key: string]: unknown;
+}
+
+// ==================== ERROR TRANSLATION ====================
+const ERROR_TRANSLATIONS: Record<string, string> = {
+  // Auth
+  'Unauthorized': 'Non autorisé',
+  'Invalid credentials': 'Identifiants incorrects',
+  'Invalid email or password': 'Email ou mot de passe incorrect',
+  'Token expired': 'Session expirée',
+  'Access denied': 'Accès refusé',
+  'Forbidden': 'Accès interdit',
+  'Not found': 'Ressource introuvable',
+  'Not Found': 'Ressource introuvable',
+  'Internal server error': 'Erreur interne du serveur',
+  'Internal Server Error': 'Erreur interne du serveur',
+  'Bad Request': 'Requête invalide',
+  'Conflict': 'Conflit — cette ressource existe déjà',
+  'Too Many Requests': 'Trop de requêtes, veuillez réessayer plus tard',
+  'Service Unavailable': 'Service temporairement indisponible',
+};
+
+// Common NestJS validation patterns (regex → French)
+const VALIDATION_PATTERNS: [RegExp, string][] = [
+  [/^(\w+) should not be empty$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » est requis`],
+  [/^(\w+) must be an? email$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » doit être un email valide`],
+  [/^(\w+) must be a string$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » doit être du texte`],
+  [/^(\w+) must be a number/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » doit être un nombre`],
+  [/^(\w+) must be longer than or equal to (\d+)/i, (m: string) => {
+    const match = m.match(/^(\w+) must be longer than or equal to (\d+)/i);
+    return `Le champ « ${fieldToFrench(match?.[1] || '')} » doit contenir au moins ${match?.[2]} caractères`;
+  }],
+  [/^(\w+) must be shorter than or equal to (\d+)/i, (m: string) => {
+    const match = m.match(/^(\w+) must be shorter than or equal to (\d+)/i);
+    return `Le champ « ${fieldToFrench(match?.[1] || '')} » ne doit pas dépasser ${match?.[2]} caractères`;
+  }],
+  [/^(\w+) must be a valid/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » est invalide`],
+  [/^(\w+) is not allowed$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » n'est pas autorisé`],
+  [/already exists/i, () => 'Cette entrée existe déjà'],
+  [/duplicate/i, () => 'Un doublon a été détecté'],
+] as unknown as [RegExp, string][];
+
+const FIELD_NAMES: Record<string, string> = {
+  email: 'email',
+  password: 'mot de passe',
+  nom: 'nom',
+  prenom: 'prénom',
+  telephone: 'téléphone',
+  adresse: 'adresse',
+  departementId: 'département',
+  role: 'rôle',
+  name: 'nom',
+  phone: 'téléphone',
+  address: 'adresse',
+  clientName: 'nom du client',
+  clientPhone: 'téléphone du client',
+  clientEmail: 'email du client',
+  clientAddress: 'adresse du client',
+};
+
+function fieldToFrench(field: string): string {
+  return FIELD_NAMES[field] || field;
+}
+
+function translateErrorMessage(msg: string): string {
+  // Direct match
+  if (ERROR_TRANSLATIONS[msg]) return ERROR_TRANSLATIONS[msg];
+
+  // Pattern match (NestJS validations)
+  for (const [pattern, replacer] of VALIDATION_PATTERNS) {
+    if (pattern.test(msg)) {
+      return typeof replacer === 'function' ? (replacer as (m: string) => string)(msg) : replacer;
+    }
+  }
+
+  return msg;
+}
+
+function translateErrors(raw: string | string[]): string {
+  if (Array.isArray(raw)) {
+    return raw.map(translateErrorMessage).join(', ');
+  }
+  return translateErrorMessage(raw);
 }
 
 // ==================== API CLIENT ====================
@@ -456,25 +649,51 @@ class ApiClient {
     const hasAuth = !!(options.headers && 'Authorization' in (options.headers as Record<string, string>));
     console.log(`[API] ${options.method || 'GET'} ${endpoint} | auth: ${hasAuth}`);
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers,
+        },
+      });
+    } catch (networkError) {
+      // Network error = server down, no internet, etc. — NOT a token issue
+      console.error(`[API] Network error on ${endpoint}:`, networkError);
+      throw new Error('Erreur réseau — le serveur est peut-être indisponible');
+    }
 
     console.log(`[API] ${endpoint} -> ${response.status}`);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Une erreur est survenue' }));
 
-      // Format message: handle string, array, or fallback
+      // Format message: handle string, array, or fallback — and translate to French
       const rawMsg = error.message;
-      const msg = Array.isArray(rawMsg) ? rawMsg.join(', ') : (rawMsg || `Erreur ${response.status}`);
+      const msg = rawMsg ? translateErrors(rawMsg) : `Erreur ${response.status}`;
+
+      // 5xx = server error, don't logout — server is restarting
+      if (response.status >= 500) {
+        console.error(`[API] ${response.status} on ${endpoint}:`, msg);
+        throw new Error('Le serveur est temporairement indisponible, réessayez dans un instant');
+      }
 
       if (response.status === 401) {
         console.error(`[API] 401 on ${endpoint}:`, msg);
+
+        // Don't clear auth on login/auth endpoints (they don't need a valid token)
+        const isAuthEndpoint = endpoint.startsWith('/auth/');
+        if (!isAuthEndpoint && typeof window !== 'undefined') {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+          // Clear the cookie too
+          document.cookie = 'subito_token=; path=/; max-age=0';
+          window.location.href = '/login?expired=true';
+          // Return a never-resolving promise to stop further execution
+          return new Promise<never>(() => {});
+        }
+
         throw new Error(msg);
       }
 
@@ -773,8 +992,8 @@ class ApiClient {
 
     list: (params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string }) => {
       const q = new URLSearchParams();
-      if (params?.page) q.set('page', params.page.toString());
-      if (params?.limit) q.set('limit', params.limit.toString());
+      q.set('page', (params?.page || 1).toString());
+      q.set('limit', (params?.limit || 10).toString());
       if (params?.status) q.set('status', params.status);
       if (params?.startDate) q.set('startDate', params.startDate);
       if (params?.endDate) q.set('endDate', params.endDate);

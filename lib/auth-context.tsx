@@ -18,6 +18,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'subito_compagny_token';
 const USER_KEY = 'subito_compagny_user';
+const COOKIE_NAME = 'subito_token';
+
+function setTokenCookie(token: string) {
+  document.cookie = `${COOKIE_NAME}=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+}
+
+function removeTokenCookie() {
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0`;
+}
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -53,18 +62,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setToken(storedToken);
             setUser(profile as CompagnyUserProfile);
             localStorage.setItem(USER_KEY, JSON.stringify(profile));
+            setTokenCookie(storedToken);
             console.log('[AUTH] Token valid, profile loaded OK');
           } else {
             // Profile response is empty/invalid
             console.warn('[AUTH] Profile response invalid, clearing auth');
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(USER_KEY);
+            removeTokenCookie();
           }
         } catch {
           // Token is expired/invalid — clean up
           console.warn('[AUTH] Token validation failed (401 or error), clearing auth');
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USER_KEY);
+          removeTokenCookie();
         }
       } catch (error) {
         console.error('[AUTH] Error loading auth state:', error);
@@ -95,6 +107,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log(`[AUTH] Token received: ${accessToken.substring(0, 30)}...`);
     setToken(accessToken);
     localStorage.setItem(TOKEN_KEY, accessToken);
+    setTokenCookie(accessToken);
 
     // If user data is in the login response, use it temporarily
     const userData = rawData.user as CompagnyUserProfile | undefined;
@@ -141,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      removeTokenCookie();
       router.push('/login');
     }
   }, [token, router]);

@@ -55,7 +55,6 @@ export default function Departments() {
     queryFn: () => api.departments.list(1, 100),
   });
 
-  console.log('[DEPARTMENTS] Raw API response:', JSON.stringify(departmentsResponse).substring(0, 500));
   const deptData = departmentsResponse?.data;
   const departments: DepartmentResponse[] = Array.isArray(deptData)
     ? deptData
@@ -65,7 +64,6 @@ export default function Departments() {
   const createDepartment = useMutation({
     mutationFn: (data: CreateDepartmentDto) => api.departments.create(data),
     onSuccess: (response) => {
-      console.log('[DEPARTMENTS] Create response:', JSON.stringify(response).substring(0, 500));
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       toast.success("Departement cree avec succes");
       setIsDialogOpen(false);

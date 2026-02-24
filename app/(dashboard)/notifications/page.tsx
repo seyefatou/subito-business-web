@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   BellOff,
@@ -9,6 +10,7 @@ import {
   CheckCheck,
   Loader2,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +23,29 @@ import {
 import { api, CompagnyNotification } from "@/lib/api";
 import { toast } from "sonner";
 
+function getNotificationRoute(notif: CompagnyNotification): string | null {
+  const type = (notif.type || '').toLowerCase();
+  const title = (notif.title || '').toLowerCase();
+  const message = (notif.message || '').toLowerCase();
+  const text = `${type} ${title} ${message}`;
+
+  if (text.includes('prise en charge') || text.includes('payment_request') || text.includes('payment-request')) {
+    return '/pending-validations';
+  }
+  if (type.includes('booking') || text.includes('réservation') || text.includes('reservation')) {
+    return '/tracking';
+  }
+  if (type.includes('travel') || text.includes('document') || text.includes('voyage')) {
+    return '/travel-documents';
+  }
+  if (type.includes('invoice') || text.includes('facture')) {
+    return '/billing';
+  }
+  return null;
+}
+
 export default function Notifications() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<CompagnyNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
@@ -199,12 +223,18 @@ export default function Notifications() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {filteredNotifications.map((notif) => (
+          {filteredNotifications.map((notif) => {
+            const route = getNotificationRoute(notif);
+            return (
             <div
               key={notif.id}
+              onClick={() => {
+                if (!notif.isRead) handleMarkAsRead(notif.id);
+                if (route) router.push(route);
+              }}
               className={`p-5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors ${
-                !notif.isRead ? 'bg-orange-50/30' : ''
-              }`}
+                route ? 'cursor-pointer' : ''
+              } ${!notif.isRead ? 'bg-orange-50/30' : ''}`}
             >
               <div className="flex items-start gap-4">
                 <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${
@@ -219,11 +249,19 @@ export default function Notifications() {
                       <p className="text-sm text-slate-500 mt-1">
                         {notif.message}
                       </p>
-                      {notif.type && (
-                        <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                          {notif.type}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        {notif.type && (
+                          <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            {notif.type}
+                          </span>
+                        )}
+                        {route && (
+                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
+                            <ExternalLink className="w-3 h-3" />
+                            Voir
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-slate-400 whitespace-nowrap">
@@ -231,7 +269,7 @@ export default function Notifications() {
                       </span>
                       {!notif.isRead && (
                         <button
-                          onClick={() => handleMarkAsRead(notif.id)}
+                          onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
                           className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="Marquer comme lu"
                         >
@@ -243,7 +281,8 @@ export default function Notifications() {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>
