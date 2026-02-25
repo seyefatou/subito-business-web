@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
+import jsPDF from 'jspdf';
 import {
   Download,
   CreditCard,
@@ -236,6 +237,259 @@ export default function Billing() {
 
   // Use detail from API if available, or fallback to list data
   const selectedInvoice = invoiceDetail || invoices.find(i => i.id === selectedInvoiceId) || null;
+
+  // --- PDF Generation ---
+
+  function loadImageAsBase64(url: string): Promise<string> {
+    return fetch(url)
+      .then(res => res.blob())
+      .then(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }));
+  }
+
+  function numberToFrenchWords(n: number): string {
+    if (n === 0) return 'zéro';
+    const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+      'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+    const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
+
+    function convertBelow1000(num: number): string {
+      if (num === 0) return '';
+      if (num < 20) return units[num];
+      if (num < 100) {
+        const t = Math.floor(num / 10);
+        const u = num % 10;
+        if (t === 7 || t === 9) {
+          const base = tens[t];
+          const rest = num - (t === 7 ? 60 : 80);
+          if (rest === 1 && t === 7) return base + ' et onze';
+          return base + '-' + units[rest];
+        }
+        if (u === 0) return tens[t] + (t === 8 ? 's' : '');
+        if (u === 1 && t !== 8) return tens[t] + ' et un';
+        return tens[t] + '-' + units[u];
+      }
+      const h = Math.floor(num / 100);
+      const rest = num % 100;
+      let result = h === 1 ? 'cent' : units[h] + ' cent';
+      if (rest === 0 && h > 1) result += 's';
+      else if (rest > 0) result += ' ' + convertBelow1000(rest);
+      return result;
+    }
+
+    const num = Math.floor(Math.abs(n));
+    if (num === 0) return 'zéro';
+
+    const milliards = Math.floor(num / 1_000_000_000);
+    const millions = Math.floor((num % 1_000_000_000) / 1_000_000);
+    const milliers = Math.floor((num % 1_000_000) / 1_000);
+    const reste = num % 1_000;
+
+    const parts: string[] = [];
+    if (milliards > 0) parts.push((milliards === 1 ? 'un milliard' : convertBelow1000(milliards) + ' milliards'));
+    if (millions > 0) parts.push((millions === 1 ? 'un million' : convertBelow1000(millions) + ' millions'));
+    if (milliers > 0) parts.push((milliers === 1 ? 'mille' : convertBelow1000(milliers) + ' mille'));
+    if (reste > 0) parts.push(convertBelow1000(reste));
+
+    return parts.join(' ');
+  }
+
+  async function handleDownloadPDF(invoice: Invoice) {
+    try {
+      const [logoBase64, tamponBase64] = await Promise.all([
+        loadImageAsBase64('/logo-subito.jpeg'),
+        loadImageAsBase64('/tamponSubito.jpeg'),
+      ]);
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      // 1. Header: Logo + RECU
+      doc.addImage(logoBase64, 'JPEG', margin, y, 35, 18);
+      doc.setFontSize(28);
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RECU', pageWidth - margin, y + 12, { align: 'right' });
+      y += 25;
+
+      // 2. Metadata (right-aligned under RECU)
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'normal');
+      const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
+      doc.text(`N° Reçu: ${invoiceNum}`, pageWidth - margin, y, { align: 'right' });
+      y += 5;
+      const invoiceDate = invoice.created_date
+        ? format(new Date(invoice.created_date), 'dd/MM/yyyy')
+        : format(new Date(), 'dd/MM/yyyy');
+      doc.text(`Date: ${invoiceDate}`, pageWidth - margin, y, { align: 'right' });
+      y += 5;
+      if (invoice.period_start && invoice.period_end) {
+        doc.text(`Période: ${format(new Date(invoice.period_start), 'dd/MM/yyyy')} - ${format(new Date(invoice.period_end), 'dd/MM/yyyy')}`, pageWidth - margin, y, { align: 'right' });
+        y += 5;
+      }
+      y += 5;
+
+      // 3. Bloc émetteur (gauche)
+      const col1X = margin;
+      const col2X = pageWidth / 2 + 5;
+      const blockTopY = y;
+
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Émetteur', col1X, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('SUBITO INTERNATIONAL SUARL', col1X, y); y += 4.5;
+      doc.text('Abidjan, Cocody Angré', col1X, y); y += 4.5;
+      doc.text('Côte d\'Ivoire', col1X, y); y += 4.5;
+      doc.text('Email: contact@subitoservices.com', col1X, y); y += 4.5;
+      doc.text('Tél: +225 07 89 36 31 41', col1X, y); y += 4.5;
+
+      // 4. Bloc client (droite, same height)
+      let yRight = blockTopY;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Client', col2X, yRight);
+      yRight += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const companyName = invoice.company_name || invoice.compagny?.nomCompagny || 'N/A';
+      doc.text(companyName, col2X, yRight); yRight += 4.5;
+      if (invoice.compagny?.emailCompagny) {
+        doc.text(`Email: ${invoice.compagny.emailCompagny}`, col2X, yRight); yRight += 4.5;
+      }
+      if (invoice.compagny?.telephoneCompagny) {
+        doc.text(`Tél: ${invoice.compagny.telephoneCompagny}`, col2X, yRight); yRight += 4.5;
+      }
+
+      y = Math.max(y, yRight) + 10;
+
+      // 5. Tableau des lignes
+      // Header
+      const colDesignation = margin;
+      const colDetails = margin + 65;
+      const colMontant = pageWidth - margin - 30;
+
+      doc.setFillColor(37, 99, 235);
+      doc.rect(margin, y, contentWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('Désignation', colDesignation + 2, y + 5.5);
+      doc.text('Détails', colDetails + 2, y + 5.5);
+      doc.text('Montant', colMontant + 2, y + 5.5);
+      y += 8;
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+
+      type PdfLine = { designation: string; details: string; montant: number };
+      const lines: PdfLine[] = [];
+
+      // Bookings
+      if (invoice.bookings) {
+        for (const b of invoice.bookings) {
+          lines.push({
+            designation: SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Réservation',
+            details: [b.clientName, b.bookingCode].filter(Boolean).join(' - '),
+            montant: Number(b.totalPrice) || 0,
+          });
+        }
+      }
+
+      // Travel documents
+      if (invoice.travelDocuments) {
+        for (const td of invoice.travelDocuments) {
+          lines.push({
+            designation: 'Document de voyage',
+            details: [td.reference, [td.firstName, td.lastName].filter(Boolean).join(' ')].filter(Boolean).join(' - '),
+            montant: Number(td.totalPrice) || 0,
+          });
+        }
+      }
+
+      let rowIndex = 0;
+      for (const line of lines) {
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(245, 247, 250);
+          doc.rect(margin, y, contentWidth, 7, 'F');
+        }
+        doc.setFontSize(8);
+        doc.text(line.designation, colDesignation + 2, y + 5);
+        doc.text(line.details.substring(0, 40), colDetails + 2, y + 5);
+        doc.text(line.montant.toLocaleString('fr-FR') + ' F CFA', colMontant + 2, y + 5);
+        y += 7;
+        rowIndex++;
+      }
+
+      // Bottom border of table
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+
+      // 6. Totaux
+      const sousTotal = lines.reduce((sum, l) => sum + l.montant, 0);
+      const totalAmount = invoice.total_amount || sousTotal;
+      const totalHT = Math.round(totalAmount / 1.18);
+      const tva = totalAmount - totalHT;
+
+      const totalsX = pageWidth - margin - 70;
+      const totalsValX = pageWidth - margin;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sous-total HT:', totalsX, y);
+      doc.text(totalHT.toLocaleString('fr-FR') + ' F CFA', totalsValX, y, { align: 'right' });
+      y += 6;
+
+      doc.text('TVA (18%):', totalsX, y);
+      doc.text(tva.toLocaleString('fr-FR') + ' F CFA', totalsValX, y, { align: 'right' });
+      y += 6;
+
+      // Total TTC highlighted
+      doc.setFillColor(37, 99, 235);
+      doc.rect(totalsX - 2, y - 4, 72, 9, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Total TTC:', totalsX, y + 2);
+      doc.text(totalAmount.toLocaleString('fr-FR') + ' F CFA', totalsValX, y + 2, { align: 'right' });
+      y += 15;
+
+      // 7. Footer
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      const montantEnLettres = numberToFrenchWords(totalAmount);
+      const footerText = `Arrêtée cette facture à la somme de: ${montantEnLettres} francs CFA (${totalAmount.toLocaleString('fr-FR')} F CFA)`;
+      const splitFooter = doc.splitTextToSize(footerText, contentWidth);
+      doc.text(splitFooter, margin, y);
+      y += splitFooter.length * 5 + 10;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('L\'équipe Commerciale', pageWidth - margin - 45, y);
+      y += 3;
+
+      // Tampon
+      doc.addImage(tamponBase64, 'JPEG', pageWidth - margin - 50, y, 40, 40);
+
+      doc.save(`Recu_${invoiceNum}.pdf`);
+    } catch (err) {
+      console.error('Erreur génération PDF:', err);
+      toast.error('Erreur lors de la génération du PDF');
+    }
+  }
 
   const statsRaw = (billingStatsResponse?.data ?? billingStatsResponse) as Record<string, unknown> | undefined;
   const currentMonthData = statsRaw?.currentMonth as Record<string, unknown> | undefined;
@@ -889,7 +1143,7 @@ export default function Billing() {
                 )}
 
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <Button variant="outline" className="flex-1 gap-2">
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => handleDownloadPDF(selectedInvoice!)}>
                     <Download className="w-4 h-4" />
                     Telecharger PDF
                   </Button>

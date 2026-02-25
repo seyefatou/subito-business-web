@@ -38,7 +38,14 @@ export default function NotificationBell() {
     try {
       const response = await api.notifications.unreadCount();
       const data = response.data;
-      setUnreadCount(typeof data === 'object' && data !== null ? (data as { count: number }).count : 0);
+      // Handle various response shapes
+      let count = 0;
+      if (typeof data === 'number') {
+        count = data;
+      } else if (typeof data === 'object' && data !== null) {
+        count = (data as any).count ?? (data as any).unreadCount ?? 0;
+      }
+      setUnreadCount(count);
     } catch {
       // Silently fail for polling
     }
@@ -58,10 +65,10 @@ export default function NotificationBell() {
     }
   }, []);
 
-  // Poll unread count every 60s (reduced to avoid pressure on server)
+  // Poll unread count every 30s
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60000);
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
 
@@ -97,21 +104,30 @@ export default function NotificationBell() {
     return `Il y a ${diffD}j`;
   };
 
+  const hasUnread = unreadCount > 0;
+
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+        className={`relative p-2 rounded-xl transition-colors ${
+          hasUnread
+            ? 'text-orange-600 bg-orange-50 hover:bg-orange-100'
+            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+        }`}
       >
-        <Bell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white"
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </motion.span>
+        <Bell className={`w-5 h-5 ${hasUnread ? 'animate-[bell-ring_4s_ease-in-out_infinite]' : ''}`} />
+        {hasUnread && (
+          <>
+            <span
+              className="absolute -top-1.5 -right-1.5 z-10 min-w-[22px] h-[22px] px-1 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-md ring-2 ring-white"
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] bg-red-500 rounded-full animate-[badge-ping_2s_ease-out_infinite]"
+            />
+          </>
         )}
       </button>
 
@@ -133,8 +149,8 @@ export default function NotificationBell() {
             >
               <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="font-semibold text-slate-800">Notifications</h3>
-                {unreadCount > 0 && (
-                  <span className="text-xs text-orange-600 font-medium">
+                {hasUnread && (
+                  <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-0.5 rounded-full">
                     {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
                   </span>
                 )}
