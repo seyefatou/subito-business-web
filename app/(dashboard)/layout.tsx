@@ -47,7 +47,7 @@ interface NavigationItem {
 }
 
 const navigation: NavigationItem[] = [
-  { name: "Tableau de bord", href: "/", icon: LayoutDashboard },
+  { name: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Navette Aéroport", href: "/airport-shuttle", icon: MapPin },
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
@@ -121,8 +121,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   const isActive = (href: string): boolean => {
-    if (href === "/") {
-      return pathname === "/";
+    if (href === "/dashboard") {
+      return pathname === "/dashboard";
     }
     return pathname === href || pathname.startsWith(href + "/");
   };

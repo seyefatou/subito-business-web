@@ -6,6 +6,11 @@ const PUBLIC_PATHS = ['/login', '/api', '/_next', '/favicon.ico', '/logo-subito.
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Allow the landing page (exact match)
+  if (pathname === '/') {
+    return NextResponse.next();
+  }
+
   // Allow public paths and static files
   if (
     PUBLIC_PATHS.some((path) => pathname.startsWith(path)) ||

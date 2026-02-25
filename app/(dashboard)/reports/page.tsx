@@ -281,10 +281,10 @@ export default function Reports() {
   };
 
   const kpiItems = [
-    { label: "Dépenses totales", value: `${totalRevenue.toLocaleString()} FCFA`, icon: Wallet, color: "from-orange-500 to-red-500" },
-    { label: "Commandes", value: totalBookings, icon: Package, color: "from-blue-500 to-indigo-500" },
-    { label: "Taux de complétion", value: `${completionRate}%`, icon: TrendingUp, color: "from-green-500 to-emerald-500" },
-    { label: "Valeur moyenne", value: `${avgPrice.toLocaleString()} FCFA`, icon: FileText, color: "from-purple-500 to-pink-500" },
+    { label: "Dépenses totales", value: totalRevenue.toLocaleString(), suffix: "FCFA", icon: Wallet, color: "from-orange-500 to-red-500" },
+    { label: "Commandes", value: totalBookings, suffix: "", icon: Package, color: "from-blue-500 to-indigo-500" },
+    { label: "Taux de complétion", value: `${completionRate}%`, suffix: "", icon: TrendingUp, color: "from-green-500 to-emerald-500" },
+    { label: "Valeur moyenne", value: avgPrice.toLocaleString(), suffix: "FCFA", icon: FileText, color: "from-purple-500 to-pink-500" },
   ];
 
   if (isLoading) {
@@ -370,22 +370,22 @@ export default function Reports() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {kpiItems.map((kpi, index) => (
           <motion.div
             key={kpi.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl border border-slate-200 p-6"
+            className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className={`p-3 rounded-xl bg-gradient-to-br ${kpi.color}`}>
-                <kpi.icon className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`p-2 rounded-xl bg-gradient-to-br ${kpi.color}`}>
+                <kpi.icon className="w-4 h-4 text-white" />
               </div>
+              <span className="text-xs sm:text-sm text-slate-500">{kpi.label}</span>
             </div>
-            <p className="text-sm text-slate-500">{kpi.label}</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{kpi.value}</p>
+            <p className="text-base sm:text-lg font-bold text-slate-800 mt-1">{kpi.value}{kpi.suffix && <span className="text-xs sm:text-sm font-semibold text-slate-500"> {kpi.suffix}</span>}</p>
           </motion.div>
         ))}
       </div>
@@ -400,8 +400,8 @@ export default function Reports() {
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Répartition par statut</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(byStatus).map(([status, count]) => (
-              <div key={status} className="text-center p-4 rounded-xl bg-slate-50">
-                <p className="text-2xl font-bold text-slate-800">{count}</p>
+              <div key={status} className="text-center p-3 sm:p-4 rounded-xl bg-slate-50">
+                <p className="text-base sm:text-lg font-bold text-slate-800">{count}</p>
                 <p className="text-sm text-slate-500 mt-1 capitalize">
                   {STATUS_LABELS[status] || status.replace(/_/g, ' ')}
                 </p>
@@ -542,22 +542,22 @@ export default function Reports() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div>
-            <p className="text-slate-400 text-sm">Budget consommé</p>
-            <p className="text-2xl font-bold mt-1">{totalRevenue.toLocaleString()} FCFA</p>
+            <p className="text-slate-400 text-xs sm:text-sm">Budget consommé</p>
+            <p className="text-base sm:text-lg font-bold mt-1">{totalRevenue.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-400">FCFA</span></p>
           </div>
           <div>
-            <p className="text-slate-400 text-sm">Volume de commandes</p>
-            <p className="text-2xl font-bold mt-1">{totalBookings}</p>
+            <p className="text-slate-400 text-xs sm:text-sm">Volume de commandes</p>
+            <p className="text-base sm:text-lg font-bold mt-1">{totalBookings}</p>
           </div>
           <div>
-            <p className="text-slate-400 text-sm">Service principal</p>
-            <p className="text-2xl font-bold mt-1">{byServiceData[0]?.name || '—'}</p>
+            <p className="text-slate-400 text-xs sm:text-sm">Service principal</p>
+            <p className="text-sm sm:text-lg font-bold mt-1">{byServiceData[0]?.name || '—'}</p>
           </div>
           <div>
-            <p className="text-slate-400 text-sm">Valeur moyenne</p>
-            <p className="text-2xl font-bold mt-1">{avgPrice.toLocaleString()} FCFA</p>
+            <p className="text-slate-400 text-xs sm:text-sm">Valeur moyenne</p>
+            <p className="text-base sm:text-lg font-bold mt-1">{avgPrice.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-400">FCFA</span></p>
           </div>
         </div>
       </motion.div>

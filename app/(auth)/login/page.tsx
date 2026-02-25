@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, authLoading, router]);
 
@@ -45,7 +45,7 @@ export default function LoginPage() {
       await login(email, password);
       toast.success('Connexion reussie');
       // Force navigation using window.location for reliable redirect
-      window.location.href = '/';
+      window.location.href = '/dashboard';
     } catch (error: unknown) {
       const err = error as { message?: string };
       toast.error(err.message || 'Identifiants incorrects');

@@ -684,36 +684,36 @@ export default function Billing() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-orange-100">
-              <Wallet className="w-5 h-5 text-subito" />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2 rounded-xl bg-orange-100">
+              <Wallet className="w-4 h-4 text-subito" />
             </div>
-            <span className="text-slate-600">Mois en cours</span>
+            <span className="text-slate-600 text-xs sm:text-sm">Mois en cours</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{currentMonthTotal.toLocaleString()} FCFA</p>
-          <p className="text-sm text-slate-500 mt-1">{currentMonthCount} réservation{currentMonthCount > 1 ? 's' : ''} ce mois</p>
+          <p className="text-base sm:text-lg font-bold text-slate-800">{currentMonthTotal.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
+          <p className="text-xs text-slate-500 mt-1">{currentMonthCount} réservation{currentMonthCount > 1 ? 's' : ''} ce mois</p>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-amber-100">
-              <Clock className="w-5 h-5 text-amber-600" />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2 rounded-xl bg-amber-100">
+              <Clock className="w-4 h-4 text-amber-600" />
             </div>
-            <span className="text-slate-600">En attente</span>
+            <span className="text-slate-600 text-xs sm:text-sm">En attente</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{totalPending.toLocaleString()} FCFA</p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base sm:text-lg font-bold text-slate-800">{totalPending.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
+          <p className="text-xs text-slate-500 mt-1">
             {invoices.filter(i => i.status === 'pending').length} facture(s)
           </p>
         </motion.div>
@@ -722,16 +722,16 @@ export default function Billing() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-green-100">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2 rounded-xl bg-green-100">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
             </div>
-            <span className="text-slate-600">Total paye</span>
+            <span className="text-slate-600 text-xs sm:text-sm">Total paye</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{totalPaid.toLocaleString()} FCFA</p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base sm:text-lg font-bold text-slate-800">{totalPaid.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
+          <p className="text-xs text-slate-500 mt-1">
             {invoices.filter(i => i.status === 'paid').length} facture(s)
           </p>
         </motion.div>
@@ -740,16 +740,16 @@ export default function Billing() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
         >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-blue-100">
-              <FileText className="w-5 h-5 text-blue-600" />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="p-2 rounded-xl bg-blue-100">
+              <FileText className="w-4 h-4 text-blue-600" />
             </div>
-            <span className="text-slate-600">Total factures</span>
+            <span className="text-slate-600 text-xs sm:text-sm">Total factures</span>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{Number(summaryRaw?.totalInvoices ?? invoicesMeta?.total ?? invoices.length)}</p>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base sm:text-lg font-bold text-slate-800">{Number(summaryRaw?.totalInvoices ?? invoicesMeta?.total ?? invoices.length)}</p>
+          <p className="text-xs text-slate-500 mt-1">
             {currentMonthCount} réservation{currentMonthCount > 1 ? 's' : ''} ce mois
           </p>
         </motion.div>
@@ -775,9 +775,9 @@ export default function Billing() {
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Par service</h3>
               <div className="space-y-3">
                 {Object.entries(byCategory).map(([cat, amount]) => (
-                  <div key={cat} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-600 capitalize">{cat}</span>
-                    <span className="font-semibold text-slate-800">{amount.toLocaleString()} FCFA</span>
+                  <div key={cat} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0">
+                    <span className="text-slate-600 capitalize text-sm truncate">{cat}</span>
+                    <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">{amount.toLocaleString()} FCFA</span>
                   </div>
                 ))}
                 {Object.keys(byCategory).length === 0 && (
@@ -796,9 +796,9 @@ export default function Billing() {
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Par departement</h3>
               <div className="space-y-3">
                 {Object.entries(byDepartment).map(([dept, amount]) => (
-                  <div key={dept} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-600">{dept}</span>
-                    <span className="font-semibold text-slate-800">{amount.toLocaleString()} FCFA</span>
+                  <div key={dept} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0">
+                    <span className="text-slate-600 text-sm truncate">{dept}</span>
+                    <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">{amount.toLocaleString()} FCFA</span>
                   </div>
                 ))}
                 {Object.keys(byDepartment).length === 0 && (
@@ -809,16 +809,16 @@ export default function Billing() {
           </div>
 
           {/* Preview invoice */}
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
-            <div className="flex items-center justify-between">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 sm:p-6 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-slate-400 text-sm">Facture previsionnelle - {format(now, 'MMMM yyyy', { locale: fr })}</p>
-                <p className="text-3xl font-bold mt-2">{prevTotal.toLocaleString()} FCFA</p>
-                <p className="text-slate-400 text-sm mt-1">{prevCount} reservation{prevCount > 1 ? 's' : ''} non facturee{prevCount > 1 ? 's' : ''}</p>
+                <p className="text-slate-400 text-xs sm:text-sm">Facture previsionnelle - {format(now, 'MMMM yyyy', { locale: fr })}</p>
+                <p className="text-lg sm:text-xl font-bold mt-2">{prevTotal.toLocaleString()} <span className="text-sm font-semibold text-slate-400">FCFA</span></p>
+                <p className="text-slate-400 text-xs sm:text-sm mt-1">{prevCount} reservation{prevCount > 1 ? 's' : ''} non facturee{prevCount > 1 ? 's' : ''}</p>
               </div>
-              <div className="text-right">
-                <p className="text-slate-400 text-sm">Date de facturation</p>
-                <p className="font-medium mt-1">{format(monthEnd, 'dd MMMM yyyy', { locale: fr })}</p>
+              <div className="sm:text-right">
+                <p className="text-slate-400 text-xs sm:text-sm">Date de facturation</p>
+                <p className="font-medium mt-1 text-sm sm:text-base">{format(monthEnd, 'dd MMMM yyyy', { locale: fr })}</p>
               </div>
             </div>
           </div>
@@ -882,31 +882,32 @@ export default function Billing() {
               </div>
             ) : (
               <>
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-3 sm:px-6 py-4">
                         Facture
                       </th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-3 sm:px-6 py-4 hidden sm:table-cell">
                         Période
                       </th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-3 sm:px-6 py-4 hidden md:table-cell">
                         Réservations
                       </th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-3 sm:px-6 py-4">
                         Montant
                       </th>
-                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">
+                      <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-3 sm:px-6 py-4">
                         Statut
                       </th>
-                      <th className="px-6 py-4"></th>
+                      <th className="px-3 sm:px-6 py-4"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredInvoices.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                        <td colSpan={6} className="px-3 sm:px-6 py-12 text-center text-slate-400">
                           {searchTerm ? 'Aucune facture trouvée' : 'Aucune facture — cliquez sur "Demander une facture" pour en générer une'}
                         </td>
                       </tr>
@@ -919,17 +920,17 @@ export default function Billing() {
                             className="hover:bg-slate-50 cursor-pointer"
                             onClick={() => setSelectedInvoiceId(invoice.id)}
                           >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-slate-100">
+                            <td className="px-3 sm:px-6 py-4">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="p-2 rounded-lg bg-slate-100 hidden sm:block">
                                   <FileText className="w-4 h-4 text-slate-500" />
                                 </div>
-                                <span className="font-medium text-slate-800">
+                                <span className="font-medium text-slate-800 text-sm">
                                   {invoice.invoice_number || `#${invoice.id}`}
                                 </span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-slate-600 text-sm">
+                            <td className="px-3 sm:px-6 py-4 text-slate-600 text-sm hidden sm:table-cell">
                               {invoice.period_start && invoice.period_end ? (
                                 <>
                                   {format(new Date(invoice.period_start), 'dd MMM', { locale: fr })}
@@ -938,18 +939,18 @@ export default function Billing() {
                                 </>
                               ) : invoice.created_date ? format(new Date(invoice.created_date), 'dd MMM yyyy', { locale: fr }) : '—'}
                             </td>
-                            <td className="px-6 py-4 text-slate-600">
+                            <td className="px-3 sm:px-6 py-4 text-slate-600 hidden md:table-cell">
                               {invoice.bookings_count || 0}
                             </td>
-                            <td className="px-6 py-4 font-semibold text-slate-800">
+                            <td className="px-3 sm:px-6 py-4 font-semibold text-slate-800 text-sm whitespace-nowrap">
                               {(invoice.total_amount || 0).toLocaleString()} FCFA
                             </td>
-                            <td className="px-6 py-4">
-                              <Badge className={`${status.color} border-0`}>
+                            <td className="px-3 sm:px-6 py-4">
+                              <Badge className={`${status.color} border-0 text-xs`}>
                                 {status.label}
                               </Badge>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 sm:px-6 py-4">
                               <ChevronRight className="w-4 h-4 text-slate-400" />
                             </td>
                           </tr>
@@ -958,6 +959,7 @@ export default function Billing() {
                     )}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Pagination */}
                 {invoicesMeta && (
@@ -1084,14 +1086,14 @@ export default function Billing() {
 
               <div className="space-y-5 mt-4">
                 {/* Montant + statut */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
-                  <div>
+                <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-slate-50">
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-sm">Montant total</span>
-                    <p className="text-xl font-bold text-slate-800">
+                    <p className="text-lg sm:text-xl font-bold text-slate-800 break-all">
                       {(selectedInvoice.total_amount || 0).toLocaleString()} FCFA
                     </p>
                   </div>
-                  <Badge className={`${(statusConfig[selectedInvoice.status] || statusConfig.pending).color} border-0`}>
+                  <Badge className={`${(statusConfig[selectedInvoice.status] || statusConfig.pending).color} border-0 shrink-0`}>
                     {(statusConfig[selectedInvoice.status] || statusConfig.pending).label}
                   </Badge>
                 </div>

@@ -181,7 +181,7 @@ export default function TravelDocuments() {
     firstName: "",
     lastName: "",
     passport: "",
-    nationality: "",
+    nationality: "Sénégalaise",
     birthDate: null,
     phone: "",
     email: "",
@@ -410,7 +410,7 @@ export default function TravelDocuments() {
       firstName: "",
       lastName: "",
       passport: "",
-      nationality: "",
+      nationality: "Sénégalaise",
       birthDate: null,
       phone: "",
       email: "",
@@ -748,34 +748,75 @@ export default function TravelDocuments() {
               </div>
 
               <div className="space-y-2">
-                <Label>Nationalite *</Label>
-                <Input
+                <Label>Nationalité *</Label>
+                <Select
                   value={formData.nationality}
-                  onChange={(e) => handleChange('nationality', e.target.value)}
-                  placeholder="Votre nationalite"
-                />
+                  onValueChange={(v) => handleChange('nationality', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      "Sénégalaise", "Ivoirienne", "Malienne", "Guinéenne", "Burkinabè",
+                      "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Gabonaise",
+                      "Congolaise", "Tchadienne", "Mauritanienne", "Gambienne", "Bissau-Guinéenne",
+                      "Cap-Verdienne", "Libérienne", "Sierra-Léonaise", "Ghanéenne", "Nigériane",
+                      "Centrafricaine", "Équato-Guinéenne", "Comorienne", "Malgache", "Djiboutienne",
+                      "Française", "Américaine", "Canadienne", "Autre",
+                    ].map((nat) => (
+                      <SelectItem key={nat} value={nat}>{nat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
                 <Label>Date de naissance *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                    >
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {formData.birthDate ? format(formData.birthDate, "dd/MM/yyyy") : "Selectionner"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={formData.birthDate || undefined}
-                      onSelect={(date) => handleChange('birthDate', date || null)}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select
+                    value={formData.birthDate ? String(formData.birthDate.getDate()) : ""}
+                    onValueChange={(day) => {
+                      const current = formData.birthDate || new Date(2000, 0, 1);
+                      handleChange('birthDate', new Date(current.getFullYear(), current.getMonth(), Number(day)));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Jour" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <SelectItem key={i + 1} value={String(i + 1)}>{String(i + 1).padStart(2, '0')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={formData.birthDate ? String(formData.birthDate.getMonth()) : ""}
+                    onValueChange={(month) => {
+                      const current = formData.birthDate || new Date(2000, 0, 1);
+                      handleChange('birthDate', new Date(current.getFullYear(), Number(month), current.getDate()));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Mois" /></SelectTrigger>
+                    <SelectContent>
+                      {["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"].map((m, i) => (
+                        <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={formData.birthDate ? String(formData.birthDate.getFullYear()) : ""}
+                    onValueChange={(year) => {
+                      const current = formData.birthDate || new Date(2000, 0, 1);
+                      handleChange('birthDate', new Date(Number(year), current.getMonth(), current.getDate()));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Année" /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
