@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse } from "@/lib/api";
+import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-type InterCityPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
+type InterCityPaymentMethod = string;
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -12,7 +12,7 @@ import { fr } from "date-fns/locale";
 import {
   MapPin,
   ArrowRightLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Car,
   CreditCard,
   Check,
@@ -29,7 +29,9 @@ import {
   User,
   Phone,
   Mail,
-  Home
+  Home,
+  Search,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,19 +47,23 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import EmployeeForm from "@/components/employees/EmployeeForm";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
 interface Step {
   id: number;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-interface TripOption {
-  id: string;
-  label: string;
-  price: number;
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -70,6 +76,7 @@ interface FormData {
   employeeId: number | null;
   // Trip info
   trajetInterVilleId: number | null;
+  vehiculeId: number | null;
   departureCity: string;
   arrivalCity: string;
   pickupDateAller: string;
@@ -92,20 +99,15 @@ interface FormData {
   siegeBebesRetour: number;
   animalDeCompagnieRetour: boolean;
   // Payment
-  paymentMethod: InterCityPaymentMethod;
+  paymentMethod: InterCityPaymentMethod | '';
 }
 
 const steps: Step[] = [
   { id: 1, title: "Trajet", icon: MapPin },
   { id: 2, title: "Client", icon: User },
-  { id: 3, title: "Paiement", icon: CreditCard },
-  { id: 4, title: "Confirmation", icon: Check },
-];
-
-const tripOptions: TripOption[] = [
-  { id: "extra_stop", label: "Arret supplementaire", price: 5000, icon: Plus },
-  { id: "baby_seat", label: "Siege bebe", price: 5000, icon: Baby },
-  { id: "pet", label: "Animal de compagnie", price: 5000, icon: PawPrint },
+  { id: 3, title: "Vehicule", icon: Car },
+  { id: 4, title: "Paiement", icon: CreditCard },
+  { id: 5, title: "Confirmation", icon: Check },
 ];
 
 export default function InterCity() {
@@ -123,6 +125,7 @@ export default function InterCity() {
     clientAddress: "",
     employeeId: null,
     trajetInterVilleId: null,
+    vehiculeId: null,
     departureCity: "",
     arrivalCity: "",
     pickupDateAller: "",
@@ -141,17 +144,59 @@ export default function InterCity() {
     pickupTimeRetour: "",
     siegeBebesRetour: 0,
     animalDeCompagnieRetour: false,
-    paymentMethod: "cash",
+    paymentMethod: "",
   };
 
   const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [selectedPays, setSelectedPays] = useState<string>("");
+  const [selectedDepartId, setSelectedDepartId] = useState<number | null>(null);
+  const [selectedArriveeId, setSelectedArriveeId] = useState<number | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [departPopoverOpen, setDepartPopoverOpen] = useState(false);
+  const [arriveePopoverOpen, setArriveePopoverOpen] = useState(false);
+
+  // Fetch payment options from API
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ value: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+  const paymentMethods = [
+    ...apiMethods,
+    { value: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+  ];
+
+  // Fetch countries
+  const { data: paysResponse } = useQuery({
+    queryKey: ['pays'],
+    queryFn: () => api.reference.getPays(),
+  });
+  const paysRaw = paysResponse?.data;
+  const pays: string[] = Array.isArray(paysRaw)
+    ? paysRaw.map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || String(p)).filter(Boolean)
+    : [];
+
+  // Fetch villes for selected country (only non-airport cities)
+  const { data: villesResponse } = useQuery({
+    queryKey: ['villes', selectedPays],
+    queryFn: () => api.reference.getVilles(selectedPays),
+    enabled: !!selectedPays,
+  });
+  const villesRaw = villesResponse?.data;
+  const allVilles: Ville[] = Array.isArray(villesRaw)
+    ? villesRaw
+    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
+  const villes = allVilles.filter(v => !v.isAeroport);
 
   // Fetch inter-city routes
   const { data: trajetsResponse, isLoading: trajetsLoading } = useQuery({
     queryKey: ['trajet-inter-ville'],
     queryFn: () => api.reference.getTrajetInterVille(),
   });
-
   const trajets: TrajetInterVille[] = trajetsResponse?.data?.list || [];
 
   // Fetch employees for company bookings
@@ -164,16 +209,31 @@ export default function InterCity() {
     ? employeesRaw
     : (employeesRaw as any)?.items || (employeesRaw as any)?.list || (employeesRaw as any)?.data || [];
 
-  // Get unique cities from routes
-  const departureCities = [...new Set(trajets.map(t => t.villeDepart?.name).filter(Boolean))];
-  const arrivalCities = formData.departureCity
-    ? [...new Set(trajets.filter(t => t.villeDepart?.name === formData.departureCity).map(t => t.villeArrivee?.name).filter(Boolean))]
+  // Fetch departments (for EmployeeForm)
+  const { data: departmentsResponse } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => api.departments.list(1, 100),
+  });
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
+
+  // Helper to get ville display name (API returns nom or name)
+  const getVilleName = (v?: Ville | null): string => v?.nom || v?.name || '';
+
+  // Find ALL matching trajets for a given depart+arrivee (each has a different vehicule)
+  const findMatchingTrajets = (departId: number, arriveeId: number): TrajetInterVille[] => {
+    return trajets.filter(t => t.villeDepart?.id === departId && t.villeArrivee?.id === arriveeId);
+  };
+
+  // Trajets matching current route selection (for vehicle step)
+  const matchingTrajets: TrajetInterVille[] = (selectedDepartId && selectedArriveeId)
+    ? findMatchingTrajets(selectedDepartId, selectedArriveeId)
     : [];
 
-  // Get selected route
-  const selectedRoute = trajets.find(
-    t => t.villeDepart?.name === formData.departureCity && t.villeArrivee?.name === formData.arrivalCity
-  );
+  // The trajet selected by the user (when they pick a vehicle)
+  const selectedTrajet = trajets.find(t => t.id === formData.trajetInterVilleId);
 
   // Create booking mutation
   const createBooking = useMutation({
@@ -189,26 +249,40 @@ export default function InterCity() {
     },
   });
 
+  // Create employee
+  const createEmployee = useMutation({
+    mutationFn: (data: CreateEmployeeDto) => api.employees.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      const emp = response.data;
+      if (emp) {
+        handleChange('employeeId', emp.id);
+        handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+        if (emp.email) handleChange('clientEmail', emp.email);
+        if (emp.telephone) handleChange('clientPhone', emp.telephone);
+      }
+      setShowAddEmployee(false);
+      toast.success("Employe ajoute avec succes");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'ajout de l'employe");
+    },
+  });
+
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSwapCities = () => {
-    const newDepartureCity = formData.arrivalCity;
-    const newArrivalCity = formData.departureCity;
+    const newDepartId = selectedArriveeId;
+    const newArriveeId = selectedDepartId;
+    setSelectedDepartId(newDepartId);
+    setSelectedArriveeId(newArriveeId);
     setFormData(prev => ({
       ...prev,
-      departureCity: newDepartureCity,
-      arrivalCity: newArrivalCity,
       trajetInterVilleId: null,
+      vehiculeId: null,
     }));
-    // Find the new route
-    const newRoute = trajets.find(
-      t => t.villeDepart?.name === newDepartureCity && t.villeArrivee?.name === newArrivalCity
-    );
-    if (newRoute) {
-      setFormData(prev => ({ ...prev, trajetInterVilleId: newRoute.id }));
-    }
   };
 
   // Validate & format phone number
@@ -230,28 +304,26 @@ export default function InterCity() {
   const phoneError = formData.clientPhone && !isValidPhone(formData.clientPhone);
 
   const calculateTotal = (): number => {
-    let total = 0;
-
-    if (selectedRoute) {
-      total += selectedRoute.prixAllerSimple;
-    }
+    if (!selectedTrajet) return 0;
+    const basePrice = selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0;
+    let total = basePrice;
 
     // Options
     if (formData.siegeBebes > 0) {
-      total += formData.siegeBebes * 5000;
+      total += formData.siegeBebes * (selectedTrajet.prixSiegeBebe ?? 5000);
     }
     if (formData.animalDeCompagnie) {
-      total += 5000;
+      total += selectedTrajet.prixAnimalCompagnie ?? 5000;
     }
 
     // Return trip
-    if (!formData.isOneWay && selectedRoute) {
-      total += selectedRoute.prixAllerSimple;
+    if (!formData.isOneWay) {
+      total += selectedTrajet.prixAllerRetour || basePrice;
       if (formData.siegeBebesRetour > 0) {
-        total += formData.siegeBebesRetour * 5000;
+        total += formData.siegeBebesRetour * (selectedTrajet.prixSiegeBebe ?? 5000);
       }
       if (formData.animalDeCompagnieRetour) {
-        total += 5000;
+        total += selectedTrajet.prixAnimalCompagnie ?? 5000;
       }
     }
 
@@ -261,11 +333,15 @@ export default function InterCity() {
   const handleNext = () => {
     // Validate current step before proceeding
     if (currentStep === 1) {
-      if (!formData.departureCity) {
+      if (!selectedPays) {
+        toast.error("Veuillez selectionner un pays");
+        return;
+      }
+      if (!selectedDepartId) {
         toast.error("Veuillez selectionner une ville de depart");
         return;
       }
-      if (!formData.arrivalCity) {
+      if (!selectedArriveeId) {
         toast.error("Veuillez selectionner une ville d'arrivee");
         return;
       }
@@ -311,13 +387,17 @@ export default function InterCity() {
     }
 
     if (currentStep === 3) {
-      if (!formData.paymentMethod) {
-        toast.error("Veuillez selectionner un mode de paiement");
+      if (!formData.trajetInterVilleId) {
+        toast.error("Veuillez selectionner un vehicule");
         return;
       }
     }
 
-    if (currentStep < 4) setCurrentStep(currentStep + 1);
+    if (currentStep === 4) {
+      // Payment method is optional
+    }
+
+    if (currentStep < 5) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -325,7 +405,7 @@ export default function InterCity() {
   };
 
   const handleSubmit = () => {
-    if (!selectedRoute) {
+    if (!selectedTrajet) {
       toast.error("Veuillez selectionner un trajet valide");
       return;
     }
@@ -340,14 +420,15 @@ export default function InterCity() {
       adressePriseEnChargeDepartAller: formData.adressePriseEnChargeDepartAller,
       adressePriseEnChargeArriveeAller: formData.adressePriseEnChargeArriveeAller,
       serviceType: formData.isOneWay ? 'one_way' : 'round_trip',
-      trajetInterVilleId: selectedRoute.id,
-      departureCity: formData.departureCity,
-      arrivalCity: formData.arrivalCity,
+      trajetInterVilleId: selectedTrajet.id,
+      vehiculeId: formData.vehiculeId || undefined,
+      departureCity: getVilleName(selectedTrajet.villeDepart),
+      arrivalCity: getVilleName(selectedTrajet.villeArrivee),
       isOneWay: formData.isOneWay,
       pickupDateAller: formData.pickupDateAller,
       pickupTimeAller: formData.pickupTimeAller,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       customerId: formData.employeeId || undefined,
@@ -376,19 +457,24 @@ export default function InterCity() {
     setBookingSuccess(false);
     setCurrentStep(1);
     setFormData(initialFormData);
+    setSelectedPays("");
+    setSelectedDepartId(null);
+    setSelectedArriveeId(null);
   };
 
   const canContinue = (): boolean => {
     switch (currentStep) {
       case 1: {
-        const baseValid = !!(formData.departureCity && formData.arrivalCity && formData.adressePriseEnChargeDepartAller && formData.adressePriseEnChargeArriveeAller && formData.pickupDateAller && formData.pickupTimeAller);
+        const baseValid = !!(selectedPays && selectedDepartId && selectedArriveeId && formData.adressePriseEnChargeDepartAller && formData.adressePriseEnChargeArriveeAller && formData.pickupDateAller && formData.pickupTimeAller);
         if (!formData.isOneWay) return baseValid && !!(formData.pickupDateRetour && formData.pickupTimeRetour);
         return baseValid;
       }
       case 2:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 3:
-        return !!formData.paymentMethod;
+        return !!formData.trajetInterVilleId;
+      case 4:
+        return true;
       default:
         return false;
     }
@@ -427,13 +513,18 @@ export default function InterCity() {
             <div>
               <p className="text-slate-600 mb-1">Trajet</p>
               <p className="font-bold text-slate-800 text-lg">
-                {formData.departureCity} → {formData.arrivalCity}
+                {getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}
               </p>
             </div>
             <p className="text-2xl font-bold text-subito">
               {calculateTotal().toLocaleString()} FCFA
             </p>
           </div>
+          {selectedTrajet?.vehicule && (
+            <p className="text-slate-600 mb-1">
+              Vehicule : {selectedTrajet.vehicule.categorie || selectedTrajet.vehicule.marque} {selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model || ''}
+            </p>
+          )}
           <p className="text-slate-600">
             {formData.pickupDateAller && format(new Date(formData.pickupDateAller), "EEEE d MMMM yyyy", { locale: fr })}
             {' a '}
@@ -528,37 +619,93 @@ export default function InterCity() {
                 </div>
               ) : (
                 <>
+                  {/* Pays */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Pays</Label>
+                    <Select
+                      value={selectedPays}
+                      onValueChange={(v) => {
+                        setSelectedPays(v);
+                        setSelectedDepartId(null);
+                        setSelectedArriveeId(null);
+                        handleChange('trajetInterVilleId', null);
+                        handleChange('vehiculeId', null);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <MapPin className="w-4 h-4 mr-2" />
+                        <SelectValue placeholder="Choisir un pays" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pays.map(p => (
+                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Cities with swap button */}
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
                     <div className="space-y-2">
                       <Label>Ville de depart</Label>
-                      <Select
-                        value={formData.departureCity}
-                        onValueChange={(v) => {
-                          handleChange('departureCity', v);
-                          handleChange('arrivalCity', '');
-                          handleChange('trajetInterVilleId', null);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <MapPin className="w-4 h-4 mr-2" />
-                          <SelectValue placeholder="Choisir une ville" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {departureCities.map(city => (
-                            <SelectItem key={city} value={city}>
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={departPopoverOpen} onOpenChange={setDepartPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            disabled={!selectedPays}
+                            className="w-full justify-between font-normal h-10"
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <MapPin className="w-4 h-4 shrink-0" />
+                              {selectedDepartId
+                                ? getVilleName(villes.find(v => v.id === selectedDepartId))
+                                : (!selectedPays ? "Selectionnez un pays" : "Choisir une ville")
+                              }
+                            </span>
+                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Rechercher une ville..." />
+                            <CommandList>
+                              <CommandEmpty>Aucune ville trouvee</CommandEmpty>
+                              <CommandGroup>
+                                {villes.map(v => (
+                                  <CommandItem
+                                    key={v.id}
+                                    value={getVilleName(v)}
+                                    onSelect={() => {
+                                      setSelectedDepartId(v.id);
+                                      // Reset arrival if same city was selected
+                                      if (selectedArriveeId === v.id) setSelectedArriveeId(null);
+                                      handleChange('trajetInterVilleId', null);
+                                      handleChange('vehiculeId', null);
+                                      setDepartPopoverOpen(false);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                                    {getVilleName(v)}
+                                    {selectedDepartId === v.id && (
+                                      <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={handleSwapCities}
-                      disabled={!formData.departureCity || !formData.arrivalCity}
+                      disabled={!selectedDepartId || !selectedArriveeId}
                       className="mb-1"
                     >
                       <ArrowRightLeft className="w-4 h-4" />
@@ -566,44 +713,57 @@ export default function InterCity() {
 
                     <div className="space-y-2">
                       <Label>Ville d&apos;arrivee</Label>
-                      <Select
-                        value={formData.arrivalCity}
-                        onValueChange={(v) => {
-                          handleChange('arrivalCity', v);
-                          const route = trajets.find(t => t.villeDepart?.name === formData.departureCity && t.villeArrivee?.name === v);
-                          if (route) {
-                            handleChange('trajetInterVilleId', route.id);
-                          }
-                        }}
-                        disabled={!formData.departureCity}
-                      >
-                        <SelectTrigger>
-                          <MapPin className="w-4 h-4 mr-2" />
-                          <SelectValue placeholder="Choisir une ville" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {arrivalCities.map(city => (
-                            <SelectItem key={city} value={city}>
-                              {city}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={arriveePopoverOpen} onOpenChange={setArriveePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            disabled={!selectedPays}
+                            className="w-full justify-between font-normal h-10"
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <MapPin className="w-4 h-4 shrink-0" />
+                              {selectedArriveeId
+                                ? getVilleName(villes.find(v => v.id === selectedArriveeId))
+                                : (!selectedPays ? "Selectionnez un pays" : "Choisir une ville")
+                              }
+                            </span>
+                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Rechercher une ville..." />
+                            <CommandList>
+                              <CommandEmpty>Aucune ville trouvee</CommandEmpty>
+                              <CommandGroup>
+                                {villes.filter(v => v.id !== selectedDepartId).map(v => (
+                                  <CommandItem
+                                    key={v.id}
+                                    value={getVilleName(v)}
+                                    onSelect={() => {
+                                      setSelectedArriveeId(v.id);
+                                      handleChange('trajetInterVilleId', null);
+                                      handleChange('vehiculeId', null);
+                                      setArriveePopoverOpen(false);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                                    {getVilleName(v)}
+                                    {selectedArriveeId === v.id && (
+                                      <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
-
-                  {/* Route info */}
-                  {selectedRoute && (
-                    <div className="flex justify-center gap-4">
-                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-base px-4 py-2">
-                        {selectedRoute.prixAllerSimple.toLocaleString()} FCFA
-                      </Badge>
-                      <Badge className="bg-green-100 text-green-700 border-green-200 text-base px-4 py-2">
-                        <Clock className="w-4 h-4 mr-1" />
-                        ~{selectedRoute.duree} min
-                      </Badge>
-                    </div>
-                  )}
 
                   {/* Pickup addresses */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -633,21 +793,36 @@ export default function InterCity() {
 
                   {/* Date and time */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Date de depart</Label>
-                      <Input
-                        type="date"
-                        value={formData.pickupDateAller}
-                        onChange={(e) => handleChange('pickupDateAller', e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
-                      />
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                      <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                            {formData.pickupDateAller
+                              ? format(new Date(formData.pickupDateAller + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                              : "Selectionner une date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : undefined}
+                            onSelect={(date) => handleChange('pickupDateAller', date ? format(date, 'yyyy-MM-dd') : '')}
+                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Heure de depart</Label>
-                      <Input
-                        type="time"
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                      <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
+                      <TimePicker
                         value={formData.pickupTimeAller}
-                        onChange={(e) => handleChange('pickupTimeAller', e.target.value)}
+                        onChange={(v) => handleChange('pickupTimeAller', v)}
+                        placeholder="Choisir une heure"
                       />
                     </div>
                   </div>
@@ -779,21 +954,39 @@ export default function InterCity() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Date de retour</Label>
-                          <Input
-                            type="date"
-                            value={formData.pickupDateRetour}
-                            onChange={(e) => handleChange('pickupDateRetour', e.target.value)}
-                            min={formData.pickupDateAller || new Date().toISOString().split('T')[0]}
-                          />
+                        <div className="bg-slate-50 rounded-2xl p-4">
+                          <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                              >
+                                <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                                {formData.pickupDateRetour
+                                  ? format(new Date(formData.pickupDateRetour + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                                  : "Selectionner une date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={formData.pickupDateRetour ? new Date(formData.pickupDateRetour + 'T00:00:00') : undefined}
+                                onSelect={(date) => handleChange('pickupDateRetour', date ? format(date, 'yyyy-MM-dd') : '')}
+                                disabled={(date) => {
+                                  const minDate = formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                                  return date < minDate;
+                                }}
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Heure de retour</Label>
-                          <Input
-                            type="time"
+                        <div className="bg-slate-50 rounded-2xl p-4">
+                          <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
+                          <TimePicker
                             value={formData.pickupTimeRetour}
-                            onChange={(e) => handleChange('pickupTimeRetour', e.target.value)}
+                            onChange={(v) => handleChange('pickupTimeRetour', v)}
+                            placeholder="Choisir une heure"
                           />
                         </div>
                       </div>
@@ -864,41 +1057,107 @@ export default function InterCity() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations du client</h3>
 
-              {/* Employee selector */}
+              {/* Employee selector with search */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Voyageur (employe) *
-                </Label>
-                <Select
-                  value={formData.employeeId?.toString() || ""}
-                  onValueChange={(v) => {
-                    const empId = parseInt(v);
-                    handleChange('employeeId', empId);
-                    const emp = employees.find(e => e.id === empId);
-                    if (emp) {
-                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
-                      if (emp.email) handleChange('clientEmail', emp.email);
-                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <Users className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Selectionner un employe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id.toString()}>
-                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {employees.length === 0 && (
-                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
-                )}
+                <Label>Voyageur (employe) *</Label>
+                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={employeePopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Users className="w-4 h-4 shrink-0" />
+                        {formData.employeeId
+                          ? (() => {
+                              const emp = employees.find(e => e.id === formData.employeeId);
+                              return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
+                            })()
+                          : 'Selectionner un employe'}
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Rechercher un employe..."
+                        value={employeeSearch}
+                        onValueChange={setEmployeeSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => {
+                              setShowAddEmployee(true);
+                              setEmployeePopoverOpen(false);
+                            }}
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Ajouter &quot;{employeeSearch}&quot;
+                          </Button>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {employees.map(emp => {
+                            const deptName = emp.departement
+                              ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
+                              : '';
+                            return (
+                              <CommandItem
+                                key={emp.id}
+                                value={`${emp.prenom} ${emp.nom}`}
+                                onSelect={() => {
+                                  handleChange('employeeId', emp.id);
+                                  handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                                  if (emp.email) handleChange('clientEmail', emp.email);
+                                  if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                                  setEmployeeSearch("");
+                                  setEmployeePopoverOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                                  {emp.prenom?.[0]}{emp.nom?.[0]}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                                  {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
+                                </div>
+                                {formData.employeeId === emp.id && (
+                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
+
+              {/* Add employee dialog */}
+              <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Ajouter un employe</DialogTitle>
+                  </DialogHeader>
+                  <EmployeeForm
+                    departments={departments}
+                    onSubmit={(data) => createEmployee.mutate(data)}
+                    onCancel={() => setShowAddEmployee(false)}
+                    isSubmitting={createEmployee.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -958,9 +1217,9 @@ export default function InterCity() {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <h4 className="font-medium text-slate-800 mb-2">Resume du trajet</h4>
                 <div className="flex items-center gap-3 text-slate-600">
-                  <span className="font-semibold">{formData.departureCity}</span>
+                  <span className="font-semibold">{getVilleName(villes.find(v => v.id === selectedDepartId))}</span>
                   <ArrowRight className="w-4 h-4" />
-                  <span className="font-semibold">{formData.arrivalCity}</span>
+                  <span className="font-semibold">{getVilleName(villes.find(v => v.id === selectedArriveeId))}</span>
                 </div>
                 <p className="text-sm text-slate-500 mt-1">
                   {formData.pickupDateAller && format(new Date(formData.pickupDateAller), "EEEE d MMMM yyyy", { locale: fr })}
@@ -972,7 +1231,7 @@ export default function InterCity() {
             </motion.div>
           )}
 
-          {/* Step 3: Payment */}
+          {/* Step 3: Vehicle selection */}
           {currentStep === 3 && (
             <motion.div
               key="step3"
@@ -981,13 +1240,97 @@ export default function InterCity() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
+              <h3 className="text-lg font-semibold text-slate-800">Choisissez votre vehicule</h3>
+
+              <div className="space-y-3">
+                {matchingTrajets.map(trajet => {
+                  const v = trajet.vehicule;
+                  const vehiculeName = v?.categorie || v?.marque || `Vehicule`;
+                  const vehiculeModel = `${v?.marque || ''} ${v?.modele || v?.model || ''}`.trim();
+                  const price = trajet.prixAllerSimple ?? trajet.prix ?? 0;
+                  const places = v?.places ?? v?.nombrePlace;
+                  const imageUrl = Array.isArray(v?.image) ? v.image[0] : v?.image;
+                  const isSelected = formData.trajetInterVilleId === trajet.id;
+                  return (
+                    <div
+                      key={trajet.id}
+                      onClick={() => {
+                        handleChange('trajetInterVilleId', trajet.id);
+                        handleChange('vehiculeId', v?.id || null);
+                      }}
+                      className={`
+                        flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
+                        ${isSelected
+                          ? 'border-orange-400 bg-orange-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                        }
+                      `}
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt={vehiculeName} className="w-10 h-10 object-contain rounded" />
+                        ) : (
+                          <Car className="w-7 h-7 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 capitalize">{vehiculeName}</p>
+                        {vehiculeModel && <p className="text-sm text-slate-500">{vehiculeModel}</p>}
+                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                          {places != null && (
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> {places} places
+                            </span>
+                          )}
+                          {v?.petitBagage != null && (
+                            <span>{v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''} bagage{Number(v.petitBagage) > 1 ? 's' : ''}</span>
+                          )}
+                          {v?.grandBagage != null && (
+                            <span>{v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''} bagage{Number(v.grandBagage) > 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-slate-800 text-lg">{Number(price).toLocaleString()} FCFA</p>
+                      </div>
+                      <div className={`
+                        w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
+                        ${isSelected
+                          ? 'border-orange-500 bg-orange-500'
+                          : 'border-slate-300'
+                        }
+                      `}>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {matchingTrajets.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                  <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Aucun vehicule disponible</p>
+                  <p className="text-sm mt-1">Selectionnez un trajet valide pour voir les vehicules</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Step 4: Payment */}
+          {currentStep === 4 && (
+            <motion.div
+              key="step4"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
               <h3 className="text-lg font-semibold text-slate-800">Mode de paiement</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { value: "cash" as const, label: "Especes", icon: "💵", desc: "Paiement au chauffeur" },
-                  { value: "mobile_money" as const, label: "Mobile Money", icon: "📱", desc: "Orange Money, Wave, Free Money" },
-                  { value: "company_account" as const, label: "Compte entreprise", icon: "🏢", desc: "Facturation sur le compte" },
-                ].map((option) => (
+                {paymentMethods.map((option) => (
                   <div
                     key={option.value}
                     onClick={() => handleChange('paymentMethod', option.value)}
@@ -1015,40 +1358,40 @@ export default function InterCity() {
               <div className="p-6 rounded-xl bg-slate-50 space-y-3">
                 <h4 className="font-medium text-slate-800">Detail du prix</h4>
                 <div className="space-y-2 text-sm">
-                  {selectedRoute && (
+                  {selectedTrajet && (
                     <div className="flex justify-between">
-                      <span>Trajet aller ({selectedRoute.villeDepart?.name} → {selectedRoute.villeArrivee?.name})</span>
-                      <span className="font-medium">{selectedRoute.prixAllerSimple.toLocaleString()} FCFA</span>
+                      <span>Trajet aller ({getVilleName(selectedTrajet.villeDepart)} → {getVilleName(selectedTrajet.villeArrivee)})</span>
+                      <span className="font-medium">{(selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0).toLocaleString()} FCFA</span>
                     </div>
                   )}
                   {formData.siegeBebes > 0 && (
                     <div className="flex justify-between">
                       <span>Sieges bebe (x{formData.siegeBebes})</span>
-                      <span className="font-medium">{(formData.siegeBebes * 5000).toLocaleString()} FCFA</span>
+                      <span className="font-medium">{(formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
                     </div>
                   )}
                   {formData.animalDeCompagnie && (
                     <div className="flex justify-between">
                       <span>Animal de compagnie</span>
-                      <span className="font-medium">5 000 FCFA</span>
+                      <span className="font-medium">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
                     </div>
                   )}
-                  {!formData.isOneWay && selectedRoute && (
+                  {!formData.isOneWay && selectedTrajet && (
                     <>
                       <div className="flex justify-between pt-2 border-t border-slate-200">
                         <span>Trajet retour</span>
-                        <span className="font-medium">{selectedRoute.prixAllerSimple.toLocaleString()} FCFA</span>
+                        <span className="font-medium">{(selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0)).toLocaleString()} FCFA</span>
                       </div>
                       {formData.siegeBebesRetour > 0 && (
                         <div className="flex justify-between">
                           <span>Sieges bebe retour (x{formData.siegeBebesRetour})</span>
-                          <span className="font-medium">{(formData.siegeBebesRetour * 5000).toLocaleString()} FCFA</span>
+                          <span className="font-medium">{(formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
                         </div>
                       )}
                       {formData.animalDeCompagnieRetour && (
                         <div className="flex justify-between">
                           <span>Animal retour</span>
-                          <span className="font-medium">5 000 FCFA</span>
+                          <span className="font-medium">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
                         </div>
                       )}
                     </>
@@ -1062,10 +1405,10 @@ export default function InterCity() {
             </motion.div>
           )}
 
-          {/* Step 4: Summary */}
-          {currentStep === 4 && (
+          {/* Step 5: Summary */}
+          {currentStep === 5 && (
             <motion.div
-              key="step4"
+              key="step5"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1077,9 +1420,9 @@ export default function InterCity() {
               <div className="p-6 rounded-xl bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-800">{formData.departureCity}</span>
+                    <span className="font-bold text-slate-800">{getVilleName(selectedTrajet?.villeDepart)}</span>
                     <ArrowRight className="w-5 h-5 text-slate-400" />
-                    <span className="font-bold text-slate-800">{formData.arrivalCity}</span>
+                    <span className="font-bold text-slate-800">{getVilleName(selectedTrajet?.villeArrivee)}</span>
                   </div>
                   {!formData.isOneWay && (
                     <Badge className="bg-blue-100 text-blue-700 border-0">
@@ -1093,6 +1436,30 @@ export default function InterCity() {
                 </div>
               </div>
 
+              {/* Vehicle info */}
+              {selectedTrajet?.vehicule && (
+                <div className="p-6 rounded-xl border border-slate-200 space-y-2">
+                  <p className="text-sm text-slate-500">Vehicule</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                      {Array.isArray(selectedTrajet.vehicule.image) && selectedTrajet.vehicule.image[0] ? (
+                        <img src={selectedTrajet.vehicule.image[0]} alt="" className="w-8 h-8 object-contain rounded" />
+                      ) : (
+                        <Car className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-800">
+                        {selectedTrajet.vehicule.categorie || selectedTrajet.vehicule.marque}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {`${selectedTrajet.vehicule.marque || ''} ${selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model || ''}`.trim()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Trip details */}
               <div className="p-6 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1104,9 +1471,9 @@ export default function InterCity() {
                       {formData.pickupTimeAller}
                     </p>
                   </div>
-                  {selectedRoute && (
+                  {selectedTrajet && (
                     <span className="font-semibold text-slate-800">
-                      {selectedRoute.prixAllerSimple.toLocaleString()} FCFA
+                      {(selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0).toLocaleString()} FCFA
                     </span>
                   )}
                 </div>
@@ -1139,9 +1506,9 @@ export default function InterCity() {
                         {formData.pickupTimeRetour}
                       </p>
                     </div>
-                    {selectedRoute && (
+                    {selectedTrajet && (
                       <span className="font-semibold text-slate-800">
-                        {selectedRoute.prixAllerSimple.toLocaleString()} FCFA
+                        {(selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0)).toLocaleString()} FCFA
                       </span>
                     )}
                   </div>
@@ -1182,12 +1549,12 @@ export default function InterCity() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span>Trajet aller</span>
-                    <span>{selectedRoute?.prixAllerSimple.toLocaleString()} FCFA</span>
+                    <span>{(selectedTrajet?.prixAllerSimple ?? selectedTrajet?.prix ?? 0).toLocaleString()} FCFA</span>
                   </div>
                   {!formData.isOneWay && (
                     <div className="flex items-center justify-between text-sm">
                       <span>Trajet retour</span>
-                      <span>{selectedRoute?.prixAllerSimple.toLocaleString()} FCFA</span>
+                      <span>{(selectedTrajet?.prixAllerRetour || (selectedTrajet?.prixAllerSimple ?? selectedTrajet?.prix ?? 0)).toLocaleString()} FCFA</span>
                     </div>
                   )}
                   {(formData.siegeBebes > 0 || formData.animalDeCompagnie || formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour) && (
@@ -1195,10 +1562,10 @@ export default function InterCity() {
                       <span>Options</span>
                       <span>
                         {(
-                          (formData.siegeBebes * 5000) +
-                          (formData.animalDeCompagnie ? 5000 : 0) +
-                          (formData.siegeBebesRetour * 5000) +
-                          (formData.animalDeCompagnieRetour ? 5000 : 0)
+                          (formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
+                          (formData.animalDeCompagnie ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0) +
+                          (formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
+                          (formData.animalDeCompagnieRetour ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0)
                         ).toLocaleString()} FCFA
                       </span>
                     </div>
@@ -1227,7 +1594,7 @@ export default function InterCity() {
           {currentStep === 1 ? 'Annuler' : 'Retour'}
         </Button>
 
-        {currentStep < 4 ? (
+        {currentStep < 5 ? (
           <Button
             onClick={handleNext}
             disabled={!canContinue()}

@@ -80,29 +80,64 @@ export interface ResetPasswordCompagnyDto {
 // ==================== REFERENCE DATA TYPES ====================
 export interface Ville {
   id: number;
-  name: string;
+  nom?: string;
+  name?: string;
   pays?: string;
+  isAeroport?: boolean;
+  statut?: string;
+  image?: string[];
+}
+
+export interface VehiculeNavette {
+  id: number;
+  marque?: string;
+  modele?: string;
+  model?: string;
+  immatriculation?: string;
+  categorie?: string;
+  places?: number;
+  nombrePlace?: number;
+  petitBagage?: number;
+  grandBagage?: number;
+  climatisation?: boolean;
+  transmission?: string;
+  statut?: string;
+  ordre?: number;
+  image?: string[];
+  [key: string]: unknown;
 }
 
 export interface TrajetAeroport {
   id: number;
   villeDepart: Ville;
   villeArrivee: Ville;
+  vehicule?: VehiculeNavette;
+  prix?: number;
   prixAllerSimple?: number;
   prixAllerRetour?: number;
   prixAdresseSupplementaire?: number;
   prixSiegeBebe?: number;
   prixAnimalCompagnie?: number;
+  duree?: string;
+  statut?: string;
+  [key: string]: unknown;
 }
 
 export interface TrajetInterVille {
   id: number;
   villeDepart: Ville;
   villeArrivee: Ville;
-  prixAllerSimple: number;
+  vehicule?: VehiculeNavette;
+  prixAllerSimple?: number;
   prixAllerRetour?: number;
+  prix?: number;
+  prixSiegeBebe?: number;
+  prixAnimalCompagnie?: number;
+  prixAdresseSupplementaire?: number;
   duree?: number;
   distance?: number;
+  statut?: string;
+  [key: string]: unknown;
 }
 
 export interface VtcTarif {
@@ -237,6 +272,7 @@ export interface CreateAirportShuttleBookingDto {
 export interface CreateInterCityBookingDto {
   serviceType: 'one_way' | 'round_trip';
   trajetInterVilleId: number;
+  vehiculeId?: number;
   departureCity: string;
   arrivalCity: string;
   isOneWay: boolean;
@@ -523,6 +559,17 @@ export interface TravelDocStatsData {
 // Backward compat alias
 export type StatsData = BookingStatsData;
 
+// ==================== PAYMENT OPTION TYPES ====================
+export interface PaymentOption {
+  id: number;
+  name: string;
+  type: string;
+  description?: string;
+  icon?: string;
+  isActive?: boolean;
+  [key: string]: unknown;
+}
+
 // ==================== PAYMENT REQUEST TYPES ====================
 export interface PaymentRequest {
   id: number;
@@ -797,6 +844,9 @@ class ApiClient {
     getTrajetAeroport: () =>
       this.authGet<TrajetAeroport[]>('/trajet-aeroport'),
 
+    getTrajetsWithVehicules: (pays?: string) =>
+      this.authGet<TrajetAeroport[]>(`/trajets/with-vehicules${pays ? `?pays=${encodeURIComponent(pays)}` : ''}`),
+
     getTrajetInterVille: () =>
       this.authGet<{ list: TrajetInterVille[]; total: number; page: number; pageSize: number }>('/trajet-inter-ville'),
 
@@ -807,13 +857,16 @@ class ApiClient {
       this.authGet<VtcPricingGrid>(`/vtc-tarifs/grid?country=${country}`),
 
     getVilles: (pays?: string) =>
-      this.authGet<Ville[]>(`/villes${pays ? `?pays=${pays}` : ''}`),
+      this.authGet<Ville[]>(`/villes${pays ? `?pays=${encodeURIComponent(pays)}` : ''}`),
 
     getPays: () =>
       this.authGet<string[]>('/villes/pays'),
 
     getTravelDocumentTarifs: () =>
-      this.authGet<TravelDocumentTarif[]>('/travel-documents/admin/tarifs'),
+      this.authGet<TravelDocumentTarif[]>('/travel-documents/compagny/tarifs'),
+
+    getPaymentOptions: () =>
+      this.request<PaymentOption[]>('/payment-options'),
   };
 
   // ==================== BOOKINGS COMPANY ====================
@@ -842,6 +895,10 @@ class ApiClient {
     // Cancel booking
     cancel: (id: number) =>
       this.authDelete<void>(`/bookings/compagny/${id}`),
+
+    // Pay individual booking
+    payIndividual: (id: number, data?: { paymentMethod?: string }) =>
+      this.authPut<BookingResponse>(`/bookings/compagny/${id}/pay-individual`, data || {}),
 
     // Airport shuttle bookings
     airportShuttle: {
@@ -1008,6 +1065,9 @@ class ApiClient {
 
     get: (id: number) =>
       this.authGet<InvoiceResponse>(`/invoices/compagny/${id}`),
+
+    pay: (id: number, data?: { paymentMethod?: string }) =>
+      this.authPut<InvoiceResponse>(`/invoices/compagny/${id}/pay`, data || {}),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================

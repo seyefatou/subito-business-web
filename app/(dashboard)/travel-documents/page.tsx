@@ -3,9 +3,9 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateTravelDocumentDto, TravelDocumentTarif, EmployeeResponse } from "@/lib/api";
+import { api, CreateTravelDocumentDto, TravelDocumentTarif, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-type TravelDocumentPaymentMethod = 'mobile_money' | 'company_account';
+type TravelDocumentPaymentMethod = string;
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -24,7 +24,9 @@ import {
   Phone,
   Mail,
   Loader2,
-  Users
+  Users,
+  Search,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,14 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import EmployeeForm from "@/components/employees/EmployeeForm";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -189,6 +199,22 @@ export default function TravelDocuments() {
     paymentMethod: "mobile_money",
     employeeId: null,
   });
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+
+  // Fetch payment options from API
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ value: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+  const paymentMethods = [
+    ...apiMethods,
+    { value: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+  ];
 
   // Fetch tarifs
   const { data: tarifsResponse } = useQuery({
@@ -209,6 +235,16 @@ export default function TravelDocuments() {
     ? employeesRaw
     : (employeesRaw as any)?.items || (employeesRaw as any)?.list || (employeesRaw as any)?.data || [];
 
+  // Fetch departments (for EmployeeForm)
+  const { data: departmentsResponse } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => api.departments.list(1, 100),
+  });
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
+
   // Create travel document mutation
   const createBooking = useMutation({
     mutationFn: (data: CreateTravelDocumentDto) => api.travelDocuments.create(data),
@@ -220,6 +256,27 @@ export default function TravelDocuments() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Erreur lors de l'envoi");
+    },
+  });
+
+  // Create employee
+  const createEmployee = useMutation({
+    mutationFn: (data: CreateEmployeeDto) => api.employees.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      const emp = response.data;
+      if (emp) {
+        handleChange('employeeId', emp.id);
+        handleChange('firstName', emp.prenom);
+        handleChange('lastName', emp.nom);
+        if (emp.email) handleChange('email', emp.email);
+        if (emp.telephone) handleChange('phone', emp.telephone);
+      }
+      setShowAddEmployee(false);
+      toast.success("Employe ajoute avec succes");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'ajout de l'employe");
     },
   });
 
@@ -287,7 +344,7 @@ export default function TravelDocuments() {
         }
         return baseValid;
       case 4:
-        return !!formData.paymentMethod;
+        return true;
       case 5:
         return true;
       default:
@@ -331,7 +388,7 @@ export default function TravelDocuments() {
       returnDate: formData.returnDate ? formData.returnDate.toISOString() : undefined,
       travelReason: formData.reason as CreateTravelDocumentDto['travelReason'],
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       hotelCategory: hasHotel ? formData.category : undefined,
@@ -558,39 +615,108 @@ export default function TravelDocuments() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Employee selector */}
+              {/* Employee selector with search */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Voyageur (employe)
-                </Label>
-                <Select
-                  value={formData.employeeId?.toString() || ""}
-                  onValueChange={(v) => {
-                    const empId = parseInt(v);
-                    handleChange('employeeId', empId);
-                    const emp = employees.find(e => e.id === empId);
-                    if (emp) {
-                      handleChange('firstName', emp.prenom);
-                      handleChange('lastName', emp.nom);
-                      if (emp.email) handleChange('email', emp.email);
-                      if (emp.telephone) handleChange('phone', emp.telephone);
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <Users className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Selectionner un employe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id.toString()}>
-                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Voyageur (employe)</Label>
+                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={employeePopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Users className="w-4 h-4 shrink-0" />
+                        {formData.employeeId
+                          ? (() => {
+                              const emp = employees.find(e => e.id === formData.employeeId);
+                              return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
+                            })()
+                          : 'Selectionner un employe'}
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Rechercher un employe..."
+                        value={employeeSearch}
+                        onValueChange={setEmployeeSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => {
+                              setShowAddEmployee(true);
+                              setEmployeePopoverOpen(false);
+                            }}
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Ajouter &quot;{employeeSearch}&quot;
+                          </Button>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {employees.map(emp => {
+                            const deptName = emp.departement
+                              ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
+                              : '';
+                            return (
+                              <CommandItem
+                                key={emp.id}
+                                value={`${emp.prenom} ${emp.nom}`}
+                                onSelect={() => {
+                                  handleChange('employeeId', emp.id);
+                                  handleChange('firstName', emp.prenom);
+                                  handleChange('lastName', emp.nom);
+                                  if (emp.email) handleChange('email', emp.email);
+                                  if (emp.telephone) handleChange('phone', emp.telephone);
+                                  setEmployeeSearch("");
+                                  setEmployeePopoverOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                                  {emp.prenom?.[0]}{emp.nom?.[0]}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                                  {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
+                                </div>
+                                {formData.employeeId === emp.id && (
+                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
+
+              {/* Add employee dialog */}
+              <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Ajouter un employe</DialogTitle>
+                  </DialogHeader>
+                  <EmployeeForm
+                    departments={departments}
+                    onSubmit={(data) => createEmployee.mutate(data)}
+                    onCancel={() => setShowAddEmployee(false)}
+                    isSubmitting={createEmployee.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -898,10 +1024,7 @@ export default function TravelDocuments() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Mode de paiement</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { value: "mobile_money" as const, label: "Mobile Money", icon: "phone", desc: "Orange Money, Wave, Free Money" },
-                  { value: "company_account" as const, label: "Compte entreprise", icon: "building", desc: "Facturation sur le compte" },
-                ].map((option) => (
+                {paymentMethods.map((option) => (
                   <div
                     key={option.value}
                     onClick={() => handleChange('paymentMethod', option.value)}

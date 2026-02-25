@@ -8,6 +8,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   Plane,
+  PlaneTakeoff,
+  PlaneLanding,
   MapPin,
   Users,
   ArrowRight,
@@ -20,8 +22,12 @@ import {
   CheckCircle2,
   User,
   ArrowRightLeft,
-  Phone,
-  Mail
+  Mail,
+  Search,
+  UserPlus,
+  Car,
+  Calendar as CalendarIcon,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +43,20 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import EmployeeForm from "@/components/employees/EmployeeForm";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { api, TrajetAeroport, CreateAirportShuttleBookingDto, EmployeeResponse } from "@/lib/api";
+import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 interface StepDef {
@@ -48,7 +65,7 @@ interface StepDef {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-type PaymentChoice = 'cash' | 'mobile_money' | 'company_account';
+type PaymentChoice = string;
 
 interface FormData {
   direction: string;
@@ -61,7 +78,7 @@ interface FormData {
   passengers: number;
   flight_number: string;
   address: string;
-  payment_method: PaymentChoice;
+  payment_method: PaymentChoice | '';
   clientName: string;
   clientEmail: string;
   clientPhone: string;
@@ -71,6 +88,7 @@ interface FormData {
   adresseSupplement: number;
   specialRequests: string;
   employeeId: number | null;
+  vehiculeId: number | null;
 }
 
 const initialFormData: FormData = {
@@ -84,7 +102,7 @@ const initialFormData: FormData = {
   passengers: 1,
   flight_number: "",
   address: "",
-  payment_method: "cash",
+  payment_method: "",
   clientName: "",
   clientEmail: "",
   clientPhone: "",
@@ -94,20 +112,18 @@ const initialFormData: FormData = {
   adresseSupplement: 0,
   specialRequests: "",
   employeeId: null,
+  vehiculeId: null,
 };
 
 const steps: StepDef[] = [
   { id: 1, title: "Trajet", icon: MapPin },
   { id: 2, title: "Client", icon: User },
-  { id: 3, title: "Paiement", icon: CreditCard },
-  { id: 4, title: "Confirmation", icon: Check },
+  { id: 3, title: "Vehicule", icon: Car },
+  { id: 4, title: "Paiement", icon: CreditCard },
+  { id: 5, title: "Confirmation", icon: Check },
 ];
 
-const paymentMethods: { id: PaymentChoice; label: string; icon: string; desc: string }[] = [
-  { id: "cash", label: "Especes", icon: "💵", desc: "Paiement au chauffeur" },
-  { id: "mobile_money", label: "Mobile Money", icon: "📱", desc: "Orange Money, Wave, Free Money" },
-  { id: "company_account", label: "Compte entreprise", icon: "🏢", desc: "Facturation sur le compte" },
-];
+// Payment methods fetched from API (see useQuery inside component)
 
 export default function AirportShuttle() {
   const router = useRouter();
@@ -118,6 +134,27 @@ export default function AirportShuttle() {
   const [bookingRef, setBookingRef] = useState("");
 
   const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [selectedPays, setSelectedPays] = useState<string>("");
+  const [selectedDepartId, setSelectedDepartId] = useState<number | null>(null);
+  const [selectedArriveeId, setSelectedArriveeId] = useState<number | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [departPopoverOpen, setDepartPopoverOpen] = useState(false);
+  const [arriveePopoverOpen, setArriveePopoverOpen] = useState(false);
+
+  // Fetch payment options from API
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+  const paymentMethods = [
+    ...apiMethods,
+    { id: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+  ];
 
   // Fetch employees for company bookings
   const { data: employeesResponse } = useQuery({
@@ -129,7 +166,46 @@ export default function AirportShuttle() {
     ? employeesRaw
     : (employeesRaw as any)?.items || (employeesRaw as any)?.list || [];
 
-  // Fetch airport routes
+  // Fetch departments (for EmployeeForm)
+  const { data: departmentsResponse } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => api.departments.list(1, 100),
+  });
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
+
+  // Fetch countries
+  const { data: paysResponse } = useQuery({
+    queryKey: ['pays'],
+    queryFn: () => api.reference.getPays(),
+  });
+  const paysRaw = paysResponse?.data;
+  const pays: string[] = Array.isArray(paysRaw)
+    ? paysRaw.map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || String(p)).filter(Boolean)
+    : [];
+
+  // Fetch villes for selected country
+  const { data: villesResponse } = useQuery({
+    queryKey: ['villes', selectedPays],
+    queryFn: () => api.reference.getVilles(selectedPays),
+    enabled: !!selectedPays,
+  });
+  const villesRaw = villesResponse?.data;
+  const allVilles: Ville[] = Array.isArray(villesRaw)
+    ? villesRaw
+    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
+
+  // Separate cities and airports based on isAeroport
+  const villes = allVilles.filter(v => !v.isAeroport);
+  const aeroports = allVilles.filter(v => v.isAeroport);
+
+  // Based on direction: depart list and arrivee list
+  const departOptions = formData.direction === 'from_airport' ? aeroports : villes;
+  const arriveeOptions = formData.direction === 'from_airport' ? villes : aeroports;
+
+  // Fetch airport routes (each trajet = 1 route + 1 vehicule + 1 prix)
   const { data: trajetsResponse } = useQuery({
     queryKey: ['trajet-aeroport'],
     queryFn: () => api.reference.getTrajetAeroport(),
@@ -138,6 +214,26 @@ export default function AirportShuttle() {
   const trajets: TrajetAeroport[] = Array.isArray(trajetsRaw)
     ? trajetsRaw
     : (trajetsRaw as any)?.list || (trajetsRaw as any)?.items || [];
+
+  // Helper to get ville display name (API returns nom or name)
+  const getVilleName = (v?: Ville | null): string => v?.nom || v?.name || '';
+
+  // Find ALL matching trajets for a given depart+arrivee (each has a different vehicule)
+  const findMatchingTrajets = (departId: number, arriveeId: number): TrajetAeroport[] => {
+    if (formData.direction === 'to_airport') {
+      return trajets.filter(t => t.villeDepart?.id === departId && t.villeArrivee?.id === arriveeId);
+    } else {
+      return trajets.filter(t => t.villeArrivee?.id === departId && t.villeDepart?.id === arriveeId);
+    }
+  };
+
+  // Trajets matching current route selection (for vehicle step)
+  const matchingTrajets: TrajetAeroport[] = (selectedDepartId && selectedArriveeId)
+    ? findMatchingTrajets(selectedDepartId, selectedArriveeId)
+    : [];
+
+  // The trajet selected by the user (when they pick a vehicle)
+  const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
 
   // Create booking mutation
   const createBooking = useMutation({
@@ -153,17 +249,37 @@ export default function AirportShuttle() {
     },
   });
 
+  // Create employee
+  const createEmployee = useMutation({
+    mutationFn: (data: CreateEmployeeDto) => api.employees.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      const emp = response.data;
+      if (emp) {
+        handleChange('employeeId', emp.id);
+        handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+        if (emp.email) handleChange('clientEmail', emp.email);
+        if (emp.telephone) handleChange('clientPhone', emp.telephone);
+      }
+      setShowAddEmployee(false);
+      toast.success("Employe ajoute avec succes");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'ajout de l'employe");
+    },
+  });
+
   const handleChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
 
   const calculateTotal = (): number => {
     if (!selectedTrajet) return 0;
+    const basePrice = selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0;
     let total = formData.is_round_trip
-      ? (selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple || 0) * 2)
-      : (selectedTrajet.prixAllerSimple || 0);
+      ? (selectedTrajet.prixAllerRetour || basePrice * 2)
+      : basePrice;
     if (formData.siegeBebes > 0 && selectedTrajet.prixSiegeBebe) {
       total += selectedTrajet.prixSiegeBebe * formData.siegeBebes;
     }
@@ -194,7 +310,8 @@ export default function AirportShuttle() {
 
   const handleNext = () => {
     if (currentStep === 1) {
-      if (!formData.trajetAeroportId) { toast.error("Veuillez selectionner un trajet"); return; }
+      if (!selectedDepartId || !selectedArriveeId) { toast.error("Veuillez selectionner le depart et l'arrivee"); return; }
+      if (matchingTrajets.length === 0) { toast.error("Aucun trajet disponible pour cette route"); return; }
       if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
       if (!formData.departure_time) { toast.error("Veuillez selectionner une heure de depart"); return; }
       if (!formData.address) { toast.error("Veuillez entrer une adresse"); return; }
@@ -213,10 +330,14 @@ export default function AirportShuttle() {
     }
 
     if (currentStep === 3) {
-      if (!formData.payment_method) { toast.error("Veuillez selectionner un mode de paiement"); return; }
+      if (!formData.trajetAeroportId) { toast.error("Veuillez choisir un vehicule"); return; }
     }
 
-    if (currentStep < 4) setCurrentStep(currentStep + 1);
+    if (currentStep === 4) {
+      // Payment method is optional
+    }
+
+    if (currentStep < 5) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -248,7 +369,7 @@ export default function AirportShuttle() {
       adresseSupplement: formData.adresseSupplement || undefined,
       specialRequests: formData.specialRequests || undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment ? undefined : formData.payment_method,
+      paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : formData.payment_method,
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
     };
@@ -260,14 +381,16 @@ export default function AirportShuttle() {
   const canContinue = (): boolean => {
     switch (currentStep) {
       case 1: {
-        const baseValid = !!(formData.trajetAeroportId && formData.departure_date && formData.departure_time && formData.address);
+        const baseValid = !!(selectedDepartId && selectedArriveeId && matchingTrajets.length > 0 && formData.departure_date && formData.departure_time && formData.address);
         if (formData.is_round_trip) return baseValid && !!(formData.return_date && formData.return_time);
         return baseValid;
       }
       case 2:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 3:
-        return !!formData.payment_method;
+        return !!formData.trajetAeroportId;
+      case 4:
+        return true;
       default:
         return false;
     }
@@ -377,17 +500,46 @@ export default function AirportShuttle() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
+              {/* Pays */}
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Pays</Label>
+                <Select
+                  value={selectedPays}
+                  onValueChange={(v) => {
+                    setSelectedPays(v);
+                    setSelectedDepartId(null);
+                    setSelectedArriveeId(null);
+                    handleChange('trajetAeroportId', null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Choisir un pays" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pays.map(p => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Direction */}
               <div className="space-y-3">
-                <Label className="text-base font-semibold">Direction du voyage</Label>
+                <Label className="text-base font-semibold">Direction</Label>
                 <RadioGroup
                   value={formData.direction}
-                  onValueChange={(v) => handleChange('direction', v)}
+                  onValueChange={(v) => {
+                    handleChange('direction', v);
+                    setSelectedDepartId(null);
+                    setSelectedArriveeId(null);
+                    handleChange('trajetAeroportId', null);
+                  }}
                   className="grid grid-cols-2 gap-3"
                 >
                   {[
-                    { value: "to_airport", label: "Vers l'aeroport", icon: "✈️→" },
-                    { value: "from_airport", label: "Depuis l'aeroport", icon: "←✈️" },
+                    { value: "to_airport", label: "Vers l'aeroport", Icon: PlaneTakeoff },
+                    { value: "from_airport", label: "Depuis l'aeroport", Icon: PlaneLanding },
                   ].map((option) => (
                     <Label
                       key={option.value}
@@ -401,32 +553,133 @@ export default function AirportShuttle() {
                       `}
                     >
                       <RadioGroupItem value={option.value} id={option.value} className="sr-only" />
-                      <span className="text-xl">{option.icon}</span>
+                      <option.Icon className={`w-6 h-6 ${formData.direction === option.value ? 'text-orange-600' : 'text-slate-500'}`} />
                       <span className="font-medium">{option.label}</span>
                     </Label>
                   ))}
                 </RadioGroup>
               </div>
 
-              {/* Trajet Selection */}
+              {/* Depart */}
               <div className="space-y-2">
-                <Label>Trajet</Label>
-                <Select
-                  value={formData.trajetAeroportId?.toString() || ""}
-                  onValueChange={(v) => handleChange('trajetAeroportId', parseInt(v))}
-                >
-                  <SelectTrigger>
-                    <Plane className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Choisir un trajet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {trajets.map(trajet => (
-                      <SelectItem key={trajet.id} value={trajet.id.toString()}>
-                        {trajet.villeDepart?.name} → {trajet.villeArrivee?.name} {trajet.prixAllerSimple ? `- ${trajet.prixAllerSimple.toLocaleString()} FCFA` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-base font-semibold">Depart</Label>
+                <Popover open={departPopoverOpen} onOpenChange={setDepartPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      disabled={!selectedPays}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        {formData.direction === 'from_airport'
+                          ? <Plane className="w-4 h-4 shrink-0" />
+                          : <MapPin className="w-4 h-4 shrink-0" />
+                        }
+                        {selectedDepartId
+                          ? getVilleName(departOptions.find(v => v.id === selectedDepartId))
+                          : (!selectedPays ? "Selectionnez un pays" :
+                             formData.direction === 'from_airport' ? "Choisir un aeroport" : "Choisir une ville")
+                        }
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Rechercher..." />
+                      <CommandList>
+                        <CommandEmpty>Aucun resultat</CommandEmpty>
+                        <CommandGroup>
+                          {departOptions.map(v => (
+                            <CommandItem
+                              key={v.id}
+                              value={getVilleName(v)}
+                              onSelect={() => {
+                                setSelectedDepartId(v.id);
+                                handleChange('trajetAeroportId', null);
+                                handleChange('vehiculeId', null);
+                                setDepartPopoverOpen(false);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {formData.direction === 'from_airport'
+                                ? <Plane className="w-4 h-4 mr-2 shrink-0" />
+                                : <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                              }
+                              {getVilleName(v)}
+                              {selectedDepartId === v.id && (
+                                <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Arrivee */}
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Arrivee</Label>
+                <Popover open={arriveePopoverOpen} onOpenChange={setArriveePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      disabled={!selectedPays}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        {formData.direction === 'to_airport'
+                          ? <Plane className="w-4 h-4 shrink-0" />
+                          : <MapPin className="w-4 h-4 shrink-0" />
+                        }
+                        {selectedArriveeId
+                          ? getVilleName(arriveeOptions.find(v => v.id === selectedArriveeId))
+                          : (!selectedPays ? "Selectionnez un pays" :
+                             formData.direction === 'to_airport' ? "Choisir un aeroport" : "Choisir une ville")
+                        }
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Rechercher..." />
+                      <CommandList>
+                        <CommandEmpty>Aucun resultat</CommandEmpty>
+                        <CommandGroup>
+                          {arriveeOptions.map(v => (
+                            <CommandItem
+                              key={v.id}
+                              value={getVilleName(v)}
+                              onSelect={() => {
+                                setSelectedArriveeId(v.id);
+                                handleChange('trajetAeroportId', null);
+                                handleChange('vehiculeId', null);
+                                setArriveePopoverOpen(false);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {formData.direction === 'to_airport'
+                                ? <Plane className="w-4 h-4 mr-2 shrink-0" />
+                                : <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                              }
+                              {getVilleName(v)}
+                              {selectedArriveeId === v.id && (
+                                <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Address */}
@@ -457,40 +710,75 @@ export default function AirportShuttle() {
 
               {/* Dates */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date de depart</Label>
-                  <Input
-                    type="date"
-                    value={formData.departure_date}
-                    onChange={(e) => handleChange('departure_date', e.target.value)}
-                  />
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                      >
+                        <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                        {formData.departure_date
+                          ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                          : "Selectionner une date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
+                        onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
-                <div className="space-y-2">
-                  <Label>Heure de depart</Label>
-                  <Input
-                    type="time"
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
+                  <TimePicker
                     value={formData.departure_time}
-                    onChange={(e) => handleChange('departure_time', e.target.value)}
+                    onChange={(v) => handleChange('departure_time', v)}
+                    placeholder="Choisir une heure"
                   />
                 </div>
               </div>
 
               {formData.is_round_trip && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Date de retour</Label>
-                    <Input
-                      type="date"
-                      value={formData.return_date}
-                      onChange={(e) => handleChange('return_date', e.target.value)}
-                    />
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                        >
+                          <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                          {formData.return_date
+                            ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                            : "Selectionner une date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={formData.return_date ? new Date(formData.return_date + 'T00:00:00') : undefined}
+                          onSelect={(date) => handleChange('return_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                          disabled={(date) => {
+                            const minDate = formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                            return date < minDate;
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Heure de retour</Label>
-                    <Input
-                      type="time"
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
+                    <TimePicker
                       value={formData.return_time}
-                      onChange={(e) => handleChange('return_time', e.target.value)}
+                      onChange={(v) => handleChange('return_time', v)}
+                      placeholder="Choisir une heure"
                     />
                   </div>
                 </div>
@@ -540,38 +828,107 @@ export default function AirportShuttle() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
 
-              {/* Employee selector */}
+              {/* Employee selector with search inside dropdown */}
               <div className="space-y-2">
                 <Label>Voyageur (employe) *</Label>
-                <Select
-                  value={formData.employeeId?.toString() || ""}
-                  onValueChange={(v) => {
-                    const empId = parseInt(v);
-                    handleChange('employeeId', empId);
-                    const emp = employees.find(e => e.id === empId);
-                    if (emp) {
-                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
-                      if (emp.email) handleChange('clientEmail', emp.email);
-                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <Users className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Selectionner un employe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id.toString()}>
-                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {employees.length === 0 && (
-                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
-                )}
+                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={employeePopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Users className="w-4 h-4 shrink-0" />
+                        {formData.employeeId
+                          ? (() => {
+                              const emp = employees.find(e => e.id === formData.employeeId);
+                              return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
+                            })()
+                          : 'Selectionner un employe'}
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Rechercher un employe..."
+                        value={employeeSearch}
+                        onValueChange={setEmployeeSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => {
+                              setShowAddEmployee(true);
+                              setEmployeePopoverOpen(false);
+                            }}
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Ajouter &quot;{employeeSearch}&quot;
+                          </Button>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {employees.map(emp => {
+                            const deptName = emp.departement
+                              ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
+                              : '';
+                            return (
+                              <CommandItem
+                                key={emp.id}
+                                value={`${emp.prenom} ${emp.nom}`}
+                                onSelect={() => {
+                                  handleChange('employeeId', emp.id);
+                                  handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                                  if (emp.email) handleChange('clientEmail', emp.email);
+                                  if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                                  setEmployeeSearch("");
+                                  setEmployeePopoverOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                                  {emp.prenom?.[0]}{emp.nom?.[0]}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                                  {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
+                                </div>
+                                {formData.employeeId === emp.id && (
+                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
+
+              {/* Add employee dialog (same form as employees page) */}
+              <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Ajouter un employe</DialogTitle>
+                  </DialogHeader>
+                  <EmployeeForm
+                    departments={departments}
+                    onSubmit={(data) => createEmployee.mutate(data)}
+                    onCancel={() => setShowAddEmployee(false)}
+                    isSubmitting={createEmployee.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -639,8 +996,96 @@ export default function AirportShuttle() {
             </motion.div>
           )}
 
-          {/* Step 3: Options & Payment */}
+          {/* Step 3: Vehicle selection (each trajet = 1 vehicle + 1 price) */}
           {currentStep === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <h3 className="text-lg font-semibold text-slate-800">Choisissez votre vehicule</h3>
+
+              <div className="space-y-3">
+                {matchingTrajets.map(trajet => {
+                  const v = trajet.vehicule;
+                  const vehiculeName = v?.categorie || v?.marque || `Vehicule`;
+                  const vehiculeModel = `${v?.marque || ''} ${v?.modele || v?.model || ''}`.trim();
+                  const price = trajet.prixAllerSimple ?? trajet.prix ?? 0;
+                  const places = v?.places ?? v?.nombrePlace;
+                  const imageUrl = Array.isArray(v?.image) ? v.image[0] : v?.image;
+                  const isSelected = formData.trajetAeroportId === trajet.id;
+                  return (
+                    <div
+                      key={trajet.id}
+                      onClick={() => {
+                        handleChange('trajetAeroportId', trajet.id);
+                        handleChange('vehiculeId', v?.id || null);
+                      }}
+                      className={`
+                        flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
+                        ${isSelected
+                          ? 'border-orange-400 bg-orange-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                        }
+                      `}
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt={vehiculeName} className="w-10 h-10 object-contain rounded" />
+                        ) : (
+                          <Car className="w-7 h-7 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 capitalize">{vehiculeName}</p>
+                        {vehiculeModel && <p className="text-sm text-slate-500">{vehiculeModel}</p>}
+                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                          {places != null && (
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> {places} places
+                            </span>
+                          )}
+                          {v?.petitBagage != null && (
+                            <span>{v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''} bagage{Number(v.petitBagage) > 1 ? 's' : ''}</span>
+                          )}
+                          {v?.grandBagage != null && (
+                            <span>{v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''} bagage{Number(v.grandBagage) > 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-slate-800 text-lg">{Number(price).toLocaleString()} FCFA</p>
+                      </div>
+                      <div className={`
+                        w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
+                        ${isSelected
+                          ? 'border-orange-500 bg-orange-500'
+                          : 'border-slate-300'
+                        }
+                      `}>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {matchingTrajets.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                  <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Aucun vehicule disponible</p>
+                  <p className="text-sm mt-1">Selectionnez un trajet valide pour voir les vehicules</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Step 4: Options & Payment */}
+          {currentStep === 4 && (
             <motion.div
               key="step3"
               initial={{ opacity: 0, x: 20 }}
@@ -760,7 +1205,7 @@ export default function AirportShuttle() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Trajet</span>
-                    <span className="font-medium text-slate-800">{selectedTrajet?.villeDepart?.name} → {selectedTrajet?.villeArrivee?.name}</span>
+                    <span className="font-medium text-slate-800">{getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Type</span>
@@ -797,8 +1242,8 @@ export default function AirportShuttle() {
             </motion.div>
           )}
 
-          {/* Step 4: Confirmation */}
-          {currentStep === 4 && (
+          {/* Step 5: Confirmation */}
+          {currentStep === 5 && (
             <motion.div
               key="step4"
               initial={{ opacity: 0, x: 20 }}
@@ -812,7 +1257,7 @@ export default function AirportShuttle() {
               <div className="p-6 rounded-xl bg-slate-50 space-y-4">
                 <div>
                   <p className="text-sm text-slate-500 mb-1">Trajet</p>
-                  <p className="font-medium text-slate-800">{selectedTrajet?.villeDepart?.name} → {selectedTrajet?.villeArrivee?.name}</p>
+                  <p className="font-medium text-slate-800">{getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}</p>
                   <p className="text-sm text-slate-500 mt-1">{formData.address}</p>
                 </div>
 
@@ -868,7 +1313,7 @@ export default function AirportShuttle() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-600">Mode de paiement</span>
                   <span className="font-medium text-slate-800">
-                    {paymentMethods.find(m => m.id === formData.payment_method)?.label}
+                    {paymentMethods.find((m: { id: string; label: string }) => m.id === formData.payment_method)?.label || 'Non selectionne'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-4 border-t border-orange-300">
@@ -894,7 +1339,7 @@ export default function AirportShuttle() {
           {currentStep === 1 ? 'Annuler' : 'Retour'}
         </Button>
 
-        {currentStep < 4 ? (
+        {currentStep < 5 ? (
           <Button
             onClick={handleNext}
             disabled={!canContinue()}

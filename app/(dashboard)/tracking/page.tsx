@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api, BookingResponse, TravelDocumentResponse } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, BookingResponse, TravelDocumentResponse, PaymentOption } from "@/lib/api";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -21,6 +22,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +39,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
@@ -44,6 +47,17 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
+};
+
+const canalLabels: Record<string, string> = {
+  compagny_web: "Plateforme Entreprise",
+  company_web: "Plateforme Entreprise",
+  web: "Site Web",
+  app: "Application Mobile",
+  phone: "Telephone",
+  whatsapp: "WhatsApp",
+  admin: "Administration",
+  api: "API",
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -56,13 +70,43 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 export default function Tracking() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterService, setFilterService] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState<BookingResponse | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [payBookingId, setPayBookingId] = useState<number | null>(null);
+  const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const limit = 10;
+
+  // Fetch payment options
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const paymentOptions = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '' }));
+
+  // Pay individual booking
+  const payIndividualMutation = useMutation({
+    mutationFn: ({ id, method }: { id: number; method?: string }) =>
+      api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined),
+    onSuccess: () => {
+      toast.success('Reservation payee avec succes');
+      setShowPayDialog(false);
+      setDetailOpen(false);
+      setSelectedBooking(null);
+      queryClient.invalidateQueries({ queryKey: ['bookings-compagny'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-detail'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors du paiement');
+    },
+  });
 
   // Fetch all company bookings
   const { data: bookingsResponse, isLoading } = useQuery({
@@ -304,7 +348,7 @@ export default function Tracking() {
                           </td>
                           <td className="px-6 py-4">
                             {booking.canal ? (
-                              <Badge className="bg-slate-100 text-slate-700 border-0 text-xs capitalize">{booking.canal}</Badge>
+                              <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{canalLabels[booking.canal] || booking.canal}</Badge>
                             ) : (
                               <span className="text-sm text-slate-400">—</span>
                             )}
@@ -513,7 +557,7 @@ export default function Tracking() {
                 {bookingDetail.canal && (
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-500">Canal</span>
-                    <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{bookingDetail.canal}</Badge>
+                    <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{canalLabels[bookingDetail.canal] || bookingDetail.canal}</Badge>
                   </div>
                 )}
                 {bookingDetail.tag && (
@@ -548,8 +592,92 @@ export default function Tracking() {
                   <span className="text-2xl font-bold text-orange-600">{Number(bookingDetail.totalPrice).toLocaleString()} FCFA</span>
                 </div>
               )}
+
+              {/* Pay button for unpaid bookings */}
+              {bookingDetail.status?.toUpperCase() !== 'PAID' && bookingDetail.paymentStatus?.toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
+                <Button
+                  className="w-full gradient-subito text-white border-0 gap-2"
+                  onClick={() => {
+                    const id = bookingDetail.id;
+                    setDetailOpen(false);
+                    setTimeout(() => {
+                      setPayBookingId(id);
+                      setSelectedPayMethod('');
+                      setShowPayDialog(true);
+                    }, 150);
+                  }}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Payer cette reservation
+                </Button>
+              )}
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Booking Dialog */}
+      <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg gradient-subito">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              Payer la reservation
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-slate-500">
+              Choisissez un mode de paiement.
+            </p>
+            <div className="space-y-2">
+              {paymentOptions.map((option) => (
+                <div
+                  key={option.id}
+                  onClick={() => setSelectedPayMethod(option.id)}
+                  className={`
+                    flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
+                    ${selectedPayMethod === option.id
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <div className={`p-2 rounded-lg ${selectedPayMethod === option.id ? 'gradient-subito' : 'bg-slate-100'}`}>
+                    <CreditCard className={`w-5 h-5 ${selectedPayMethod === option.id ? 'text-white' : 'text-slate-500'}`} />
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{option.label}</p>
+                    {option.desc && <p className="text-xs text-slate-500">{option.desc}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDialog(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="gradient-subito text-white border-0 gap-2"
+              disabled={!selectedPayMethod || payIndividualMutation.isPending}
+              onClick={() => {
+                if (payBookingId && selectedPayMethod) {
+                  payIndividualMutation.mutate({ id: payBookingId, method: selectedPayMethod });
+                }
+              }}
+            >
+              {payIndividualMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4" />
+              )}
+              Confirmer le paiement
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

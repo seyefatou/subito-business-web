@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceCompagny } from "@/lib/api";
+import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceCompagny, PaymentOption } from "@/lib/api";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format, endOfMonth } from "date-fns";
@@ -99,6 +99,9 @@ export default function Billing() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [payInvoiceId, setPayInvoiceId] = useState<number | null>(null);
+  const [selectedPayMethod, setSelectedPayMethod] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -188,6 +191,47 @@ export default function Billing() {
     queryFn: () => api.invoices.billingStats(),
   });
 
+  // Fetch payment options from API
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const apiPaymentOptions = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille');
+
+  // Mutation: pay invoice
+  const payInvoiceMutation = useMutation({
+    mutationFn: ({ id, method }: { id: number; method?: string }) =>
+      api.invoices.pay(id, method ? { paymentMethod: method } : undefined),
+    onSuccess: () => {
+      toast.success('Facture payee avec succes');
+      setPaymentMethod(null);
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['billing-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors du paiement');
+    },
+  });
+
+  // Mutation: pay individual booking
+  const payIndividualMutation = useMutation({
+    mutationFn: ({ id, method }: { id: number; method?: string }) =>
+      api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined),
+    onSuccess: () => {
+      toast.success('Reservation payee avec succes');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['billing-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors du paiement');
+    },
+  });
+
   // Mutation: request invoice generation
   const requestInvoiceMutation = useMutation({
     mutationFn: () => api.invoices.requestInvoice({
@@ -242,7 +286,10 @@ export default function Billing() {
 
   function loadImageAsBase64(url: string): Promise<string> {
     return fetch(url)
-      .then(res => res.blob())
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to load image: ${url}`);
+        return res.blob();
+      })
       .then(blob => new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
@@ -301,9 +348,12 @@ export default function Billing() {
   async function handleDownloadPDF(invoice: Invoice) {
     try {
       const [logoBase64, tamponBase64] = await Promise.all([
-        loadImageAsBase64('/logo-subito.jpeg'),
+        loadImageAsBase64('/logo_subito_facture.png'),
         loadImageAsBase64('/tamponSubito.jpeg'),
       ]);
+
+      // Format number with regular spaces (jsPDF can't render locale non-breaking spaces)
+      const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
@@ -311,178 +361,231 @@ export default function Billing() {
       const contentWidth = pageWidth - margin * 2;
       let y = margin;
 
-      // 1. Header: Logo + RECU
-      doc.addImage(logoBase64, 'JPEG', margin, y, 35, 18);
-      doc.setFontSize(28);
-      doc.setTextColor(220, 38, 38);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RECU', pageWidth - margin, y + 12, { align: 'right' });
-      y += 25;
+      // Brand colors (pink/coral matching Subito)
+      const brandR = 232, brandG = 78, brandB = 106;
 
-      // 2. Metadata (right-aligned under RECU)
-      doc.setFontSize(9);
+      // 1. Header: Logo left + RECU right
+      try {
+        doc.addImage(logoBase64, margin, y, 38, 20);
+      } catch (e) {
+        console.error('Logo addImage error:', e);
+      }
+
+      doc.setFontSize(32);
+      doc.setTextColor(brandR, brandG, brandB);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RECU', pageWidth - margin, y + 8, { align: 'right' });
+
+      // Metadata right-aligned under RECU
+      doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       doc.setFont('helvetica', 'normal');
       const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
-      doc.text(`N° Reçu: ${invoiceNum}`, pageWidth - margin, y, { align: 'right' });
-      y += 5;
+      doc.text(`N Recu: ${invoiceNum}`, pageWidth - margin, y + 16, { align: 'right' });
       const invoiceDate = invoice.created_date
         ? format(new Date(invoice.created_date), 'dd/MM/yyyy')
         : format(new Date(), 'dd/MM/yyyy');
-      doc.text(`Date: ${invoiceDate}`, pageWidth - margin, y, { align: 'right' });
-      y += 5;
+      doc.text(`Date: ${invoiceDate}`, pageWidth - margin, y + 21, { align: 'right' });
       if (invoice.period_start && invoice.period_end) {
-        doc.text(`Période: ${format(new Date(invoice.period_start), 'dd/MM/yyyy')} - ${format(new Date(invoice.period_end), 'dd/MM/yyyy')}`, pageWidth - margin, y, { align: 'right' });
-        y += 5;
+        doc.text(`Période: ${format(new Date(invoice.period_start), 'dd/MM/yyyy')} - ${format(new Date(invoice.period_end), 'dd/MM/yyyy')}`, pageWidth - margin, y + 26, { align: 'right' });
       }
-      y += 5;
 
-      // 3. Bloc émetteur (gauche)
-      const col1X = margin;
-      const col2X = pageWidth / 2 + 5;
-      const blockTopY = y;
+      y += 45;
 
-      doc.setFontSize(10);
+      // 2. Subito company info (bold name, then details)
+      doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
-      doc.text('Émetteur', col1X, y);
-      y += 6;
+      doc.text('SUBITO INTERNATIONAL SUARL', margin, y);
+      y += 5;
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text('SUBITO INTERNATIONAL SUARL', col1X, y); y += 4.5;
-      doc.text('Abidjan, Cocody Angré', col1X, y); y += 4.5;
-      doc.text('Côte d\'Ivoire', col1X, y); y += 4.5;
-      doc.text('Email: contact@subitoservices.com', col1X, y); y += 4.5;
-      doc.text('Tél: +225 07 89 36 31 41', col1X, y); y += 4.5;
+      doc.setFontSize(8);
+      doc.setTextColor(60, 60, 60);
+      doc.text('Scat Urbam, Immeuble prestige deco', margin, y); y += 4;
+      doc.text('Tel: (+221) 78 136 36 35 | Email: contact@mysubito.net', margin, y); y += 4;
+      doc.text('NINEA: 006939849v2 | RC: SN.DKR.2018.B20187', margin, y); y += 4;
+      doc.text('Compte BICIS: SN010 01423 007727000051 26', margin, y); y += 4;
 
-      // 4. Bloc client (droite, same height)
-      let yRight = blockTopY;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Client', col2X, yRight);
-      yRight += 6;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      y += 8;
+
+      // 3. Client info
       const companyName = invoice.company_name || invoice.compagny?.nomCompagny || 'N/A';
-      doc.text(companyName, col2X, yRight); yRight += 4.5;
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(60, 60, 60);
       if (invoice.compagny?.emailCompagny) {
-        doc.text(`Email: ${invoice.compagny.emailCompagny}`, col2X, yRight); yRight += 4.5;
+        doc.text(`Email: ${invoice.compagny.emailCompagny}`, margin, y); y += 4;
       }
       if (invoice.compagny?.telephoneCompagny) {
-        doc.text(`Tél: ${invoice.compagny.telephoneCompagny}`, col2X, yRight); yRight += 4.5;
+        doc.text(`Telephone: ${invoice.compagny.telephoneCompagny}`, margin, y); y += 4;
       }
 
-      y = Math.max(y, yRight) + 10;
+      y += 10;
 
-      // 5. Tableau des lignes
-      // Header
+      // 4. Table header with pink/coral gradient
+      const tableHeaderH = 10;
       const colDesignation = margin;
-      const colDetails = margin + 65;
-      const colMontant = pageWidth - margin - 30;
+      const colDetails = margin + 55;
+      const colMontant = pageWidth - margin - 40;
 
-      doc.setFillColor(37, 99, 235);
-      doc.rect(margin, y, contentWidth, 8, 'F');
+      // Draw gradient background (simulate with multiple thin rects)
+      const gradientSteps = 60;
+      const stepWidth = contentWidth / gradientSteps;
+      for (let i = 0; i < gradientSteps; i++) {
+        const ratio = i / gradientSteps;
+        const r = Math.round(brandR + (255 - brandR) * ratio * 0.3);
+        const g = Math.round(brandG + (180 - brandG) * ratio * 0.3);
+        const b = Math.round(brandB + (160 - brandB) * ratio * 0.3);
+        doc.setFillColor(r, g, b);
+        doc.rect(margin + i * stepWidth, y, stepWidth + 0.5, tableHeaderH, 'F');
+      }
+
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.text('Désignation', colDesignation + 2, y + 5.5);
-      doc.text('Détails', colDetails + 2, y + 5.5);
-      doc.text('Montant', colMontant + 2, y + 5.5);
-      y += 8;
+      doc.text('Designation', colDesignation + 3, y + 6.5);
+      doc.text('Details', colDetails + 3, y + 6.5);
+      doc.text('Montant', colMontant + 3, y + 6.5);
+      y += tableHeaderH;
 
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-
-      type PdfLine = { designation: string; details: string; montant: number };
+      // 5. Table rows
+      type PdfLine = { designation: string; details: string[]; montant: number };
       const lines: PdfLine[] = [];
 
-      // Bookings
       if (invoice.bookings) {
         for (const b of invoice.bookings) {
+          const detailParts: string[] = [];
+          if (b.clientName) detailParts.push(b.clientName);
+          if (b.bookingCode) detailParts.push(b.bookingCode);
           lines.push({
-            designation: SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Réservation',
-            details: [b.clientName, b.bookingCode].filter(Boolean).join(' - '),
+            designation: SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Reservation',
+            details: detailParts,
             montant: Number(b.totalPrice) || 0,
           });
         }
       }
 
-      // Travel documents
       if (invoice.travelDocuments) {
         for (const td of invoice.travelDocuments) {
+          const detailParts: string[] = [];
+          if (td.reference) detailParts.push(td.reference);
+          const fullName = [td.firstName, td.lastName].filter(Boolean).join(' ');
+          if (fullName) detailParts.push(fullName);
           lines.push({
             designation: 'Document de voyage',
-            details: [td.reference, [td.firstName, td.lastName].filter(Boolean).join(' ')].filter(Boolean).join(' - '),
+            details: detailParts,
             montant: Number(td.totalPrice) || 0,
           });
         }
       }
 
-      let rowIndex = 0;
       for (const line of lines) {
-        if (rowIndex % 2 === 0) {
-          doc.setFillColor(245, 247, 250);
-          doc.rect(margin, y, contentWidth, 7, 'F');
-        }
+        const rowH = 18;
+
+        // Designation in pink/coral
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.text(line.designation, colDesignation + 3, y + 7);
+
+        // Details in black (multiline)
+        doc.setTextColor(50, 50, 50);
         doc.setFontSize(8);
-        doc.text(line.designation, colDesignation + 2, y + 5);
-        doc.text(line.details.substring(0, 40), colDetails + 2, y + 5);
-        doc.text(line.montant.toLocaleString('fr-FR') + ' F CFA', colMontant + 2, y + 5);
-        y += 7;
-        rowIndex++;
+        const detailText = line.details.join('\n');
+        doc.text(detailText, colDetails + 3, y + 7);
+
+        // Montant right-aligned
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text(fmtPrice(line.montant) + ' F CFA', pageWidth - margin - 3, y + 7, { align: 'right' });
+
+        y += rowH;
+
+        // Separator line
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, y, pageWidth - margin, y);
       }
 
-      // Bottom border of table
-      doc.setDrawColor(200, 200, 200);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 8;
+      y += 10;
 
-      // 6. Totaux
+      // 6. Totals section (right-aligned)
       const sousTotal = lines.reduce((sum, l) => sum + l.montant, 0);
       const totalAmount = invoice.total_amount || sousTotal;
-      const totalHT = Math.round(totalAmount / 1.18);
-      const tva = totalAmount - totalHT;
+      const tva = 0; // TVA 0 as shown in the receipt
+      const totalHT = totalAmount;
 
-      const totalsX = pageWidth - margin - 70;
-      const totalsValX = pageWidth - margin;
+      const totalsLabelX = pageWidth - margin - 75;
+      const totalsValX = pageWidth - margin - 3;
 
-      doc.setFontSize(9);
+      doc.setDrawColor(220, 220, 220);
+
+      // Sous-total
       doc.setFont('helvetica', 'normal');
-      doc.text('Sous-total HT:', totalsX, y);
-      doc.text(totalHT.toLocaleString('fr-FR') + ' F CFA', totalsValX, y, { align: 'right' });
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text('Sous-total', totalsLabelX, y);
+      doc.text(fmtPrice(totalHT) + ' F CFA', totalsValX, y, { align: 'right' });
+      y += 2;
+      doc.line(totalsLabelX, y, pageWidth - margin, y);
       y += 6;
 
-      doc.text('TVA (18%):', totalsX, y);
-      doc.text(tva.toLocaleString('fr-FR') + ' F CFA', totalsValX, y, { align: 'right' });
+      // Total HT
+      doc.text('Total HT', totalsLabelX, y);
+      doc.text(fmtPrice(totalHT) + ' F CFA', totalsValX, y, { align: 'right' });
+      y += 2;
+      doc.line(totalsLabelX, y, pageWidth - margin, y);
       y += 6;
 
-      // Total TTC highlighted
-      doc.setFillColor(37, 99, 235);
-      doc.rect(totalsX - 2, y - 4, 72, 9, 'F');
-      doc.setTextColor(255, 255, 255);
+      // TVA
+      doc.text('TVA (18%)', totalsLabelX, y);
+      doc.text(fmtPrice(tva) + ' F CFA', totalsValX, y, { align: 'right' });
+      y += 2;
+      doc.line(totalsLabelX, y, pageWidth - margin, y);
+      y += 7;
+
+      // Total TTC (bold, larger)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Total TTC:', totalsX, y + 2);
-      doc.text(totalAmount.toLocaleString('fr-FR') + ' F CFA', totalsValX, y + 2, { align: 'right' });
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Total TTC', totalsLabelX, y);
+      doc.text(fmtPrice(totalAmount) + ' F CFA', totalsValX, y, { align: 'right' });
+
+      y += 20;
+
+      // 7. Horizontal separator
+      doc.setDrawColor(220, 220, 220);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 10;
+
+      // 8. Amount in words
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      const montantEnLettres = numberToFrenchWords(totalAmount);
+      const footerText = `Arretee cette facture a la somme de : `;
+      doc.text(footerText, pageWidth / 2, y, { align: 'center' });
+      y += 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`${montantEnLettres} francs CFA (${fmtPrice(totalAmount)} F CFA)`, pageWidth / 2, y, { align: 'center' });
+
       y += 15;
 
-      // 7. Footer
+      // 9. Signature
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(9);
-      const montantEnLettres = numberToFrenchWords(totalAmount);
-      const footerText = `Arrêtée cette facture à la somme de: ${montantEnLettres} francs CFA (${totalAmount.toLocaleString('fr-FR')} F CFA)`;
-      const splitFooter = doc.splitTextToSize(footerText, contentWidth);
-      doc.text(splitFooter, margin, y);
-      y += splitFooter.length * 5 + 10;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text('L\'équipe Commerciale', pageWidth - margin - 45, y);
+      doc.text('L equipe Commerciale', margin, y);
       y += 3;
 
       // Tampon
-      doc.addImage(tamponBase64, 'JPEG', pageWidth - margin - 50, y, 40, 40);
+      doc.addImage(tamponBase64, 'JPEG', margin, y, 40, 40);
 
       doc.save(`Recu_${invoiceNum}.pdf`);
     } catch (err) {
@@ -550,11 +653,18 @@ export default function Billing() {
     );
   });
 
-  const paymentMethods: PaymentMethod[] = [
-    { id: 'virement', label: 'Virement bancaire', icon: Building, desc: 'Sous 2-3 jours ouvres' },
-    { id: 'mobile_money', label: 'Mobile Money', icon: Smartphone, desc: 'Orange Money, MTN, Wave' },
-    { id: 'credit', label: 'Credit entreprise', icon: CreditCard, desc: 'Deduire de votre credit' },
-  ];
+  const paymentMethods: PaymentMethod[] = apiPaymentOptions.length > 0
+    ? apiPaymentOptions.map((o: PaymentOption) => ({
+        id: (o.type || o.name || '').toLowerCase(),
+        label: o.name,
+        icon: CreditCard,
+        desc: o.description || '',
+      }))
+    : [
+        { id: 'virement', label: 'Virement bancaire', icon: Building, desc: 'Sous 2-3 jours ouvres' },
+        { id: 'mobile_money', label: 'Mobile Money', icon: Smartphone, desc: 'Orange Money, MTN, Wave' },
+        { id: 'credit', label: 'Credit entreprise', icon: CreditCard, desc: 'Deduire de votre credit' },
+      ];
 
   return (
     <div className="space-y-6">
@@ -1075,16 +1185,32 @@ export default function Billing() {
                               </div>
                             </div>
                           </div>
-                          <div className="text-right">
-                            {booking.totalPrice != null && (
-                              <p className="font-semibold text-slate-800 text-sm">
-                                {Number(booking.totalPrice).toLocaleString()} FCFA
-                              </p>
-                            )}
-                            {booking.createdAt && (
-                              <p className="text-xs text-slate-400">
-                                {format(new Date(booking.createdAt), 'dd MMM yyyy', { locale: fr })}
-                              </p>
+                          <div className="text-right flex items-center gap-2">
+                            <div>
+                              {booking.totalPrice != null && (
+                                <p className="font-semibold text-slate-800 text-sm">
+                                  {Number(booking.totalPrice).toLocaleString()} FCFA
+                                </p>
+                              )}
+                              {booking.createdAt && (
+                                <p className="text-xs text-slate-400">
+                                  {format(new Date(booking.createdAt), 'dd MMM yyyy', { locale: fr })}
+                                </p>
+                              )}
+                            </div>
+                            {selectedInvoice.status !== 'paid' && (booking.status as string)?.toUpperCase() !== 'PAID' && (booking as Record<string, unknown>).paymentStatus?.toString().toUpperCase() !== 'PAID' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
+                                disabled={payIndividualMutation.isPending}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  payIndividualMutation.mutate({ id: booking.id });
+                                }}
+                              >
+                                Payer
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -1148,7 +1274,18 @@ export default function Billing() {
                     Telecharger PDF
                   </Button>
                   {selectedInvoice.status === 'pending' && (
-                    <Button className="flex-1 gradient-subito text-white border-0">
+                    <Button
+                      className="flex-1 gradient-subito text-white border-0"
+                      onClick={() => {
+                        const invoiceId = Number(selectedInvoice.id);
+                        setSelectedInvoiceId(null); // close detail dialog first
+                        setTimeout(() => {
+                          setPayInvoiceId(invoiceId);
+                          setSelectedPayMethod('');
+                          setShowPayDialog(true);
+                        }, 150);
+                      }}
+                    >
                       Payer maintenant
                     </Button>
                   )}
@@ -1216,6 +1353,74 @@ export default function Billing() {
                 <FileText className="w-4 h-4" />
               )}
               Générer la facture
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Invoice Dialog */}
+      <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg gradient-subito">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              Payer la facture
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-slate-500">
+              Choisissez un mode de paiement pour cette facture.
+            </p>
+
+            <div className="space-y-2">
+              {paymentMethods.map((method) => (
+                <div
+                  key={method.id}
+                  onClick={() => setSelectedPayMethod(method.id)}
+                  className={`
+                    flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
+                    ${selectedPayMethod === method.id
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                    }
+                  `}
+                >
+                  <div className={`p-2 rounded-lg ${selectedPayMethod === method.id ? 'gradient-subito' : 'bg-slate-100'}`}>
+                    <method.icon className={`w-5 h-5 ${selectedPayMethod === method.id ? 'text-white' : 'text-slate-500'}`} />
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{method.label}</p>
+                    <p className="text-xs text-slate-500">{method.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDialog(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="gradient-subito text-white border-0 gap-2"
+              disabled={!selectedPayMethod || payInvoiceMutation.isPending}
+              onClick={() => {
+                if (payInvoiceId && selectedPayMethod) {
+                  payInvoiceMutation.mutate({ id: payInvoiceId, method: selectedPayMethod });
+                  setShowPayDialog(false);
+                  setSelectedInvoiceId(null);
+                }
+              }}
+            >
+              {payInvoiceMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4" />
+              )}
+              Confirmer le paiement
             </Button>
           </DialogFooter>
         </DialogContent>

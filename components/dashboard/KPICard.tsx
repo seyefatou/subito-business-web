@@ -69,7 +69,7 @@ export default function KPICard({
         <p className={`text-sm font-medium mb-1 ${gradient ? 'text-white/80' : 'text-slate-500'}`}>
           {title}
         </p>
-        <p className={`text-3xl font-bold mb-1 ${gradient ? 'text-white' : 'text-slate-800'}`}>
+        <p className={`text-xl font-bold mb-1 truncate ${gradient ? 'text-white' : 'text-slate-800'}`}>
           {value}
         </p>
         {subtitle && (

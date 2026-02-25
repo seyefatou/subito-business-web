@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse } from "@/lib/api";
+import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
 type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
 type VtcCountry = 'senegal' | 'cotedivoire' | 'mali';
-type VtcPaymentMethod = 'cash' | 'mobile_money' | 'company_account';
+type VtcPaymentMethod = string;
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -25,8 +25,9 @@ import {
   Info,
   ArrowLeft,
   User,
-  Phone,
-  Mail
+  Mail,
+  Search,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +46,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import EmployeeForm from "@/components/employees/EmployeeForm";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -61,7 +71,6 @@ type VtcPricing = VtcPricingGrid;
 interface VehicleTypeConfig {
   id: VtcVehicleType;
   name: string;
-  icon: string;
   description: string;
   capacity: number;
   prices: { [key: string]: number };
@@ -81,8 +90,10 @@ interface Country {
 }
 
 interface PaymentMethodConfig {
-  id: VtcPaymentMethod;
+  id: string;
   label: string;
+  desc?: string;
+  icon?: string;
 }
 
 interface FormData {
@@ -119,7 +130,6 @@ const vehicleTypes: VehicleTypeConfig[] = [
   {
     id: "berline",
     name: "Berline",
-    icon: "🚗",
     description: "Confortable pour 1-3 passagers",
     capacity: 3,
     prices: { "two_hours": 15000, "five_hours": 30000, "ten_hours": 55000 }
@@ -127,7 +137,6 @@ const vehicleTypes: VehicleTypeConfig[] = [
   {
     id: "berline_premium",
     name: "Berline Premium",
-    icon: "🚘",
     description: "Mercedes Classe E ou equivalent",
     capacity: 3,
     prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
@@ -135,7 +144,6 @@ const vehicleTypes: VehicleTypeConfig[] = [
   {
     id: "suv",
     name: "SUV",
-    icon: "🚙",
     description: "Spacieux, ideal pour 1-4 passagers",
     capacity: 4,
     prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
@@ -143,7 +151,6 @@ const vehicleTypes: VehicleTypeConfig[] = [
   {
     id: "monospace",
     name: "Monospace",
-    icon: "🚐",
     description: "Jusqu'a 6 passagers",
     capacity: 6,
     prices: { "two_hours": 18000, "five_hours": 35000, "ten_hours": 65000 }
@@ -151,7 +158,6 @@ const vehicleTypes: VehicleTypeConfig[] = [
   {
     id: "van",
     name: "VAN",
-    icon: "🚌",
     description: "Jusqu'a 8 passagers",
     capacity: 8,
     prices: { "two_hours": 16000, "five_hours": 70000, "ten_hours": 100000 }
@@ -164,11 +170,7 @@ const packages: PackageConfig[] = [
   { id: "ten_hours", label: "10 Heures", hours: 10, kmIncluded: 100 },
 ];
 
-const paymentMethods: PaymentMethodConfig[] = [
-  { id: "cash", label: "Especes" },
-  { id: "mobile_money", label: "Mobile Money" },
-  { id: "company_account", label: "Compte entreprise" },
-];
+// Payment methods fetched from API (see useQuery inside component)
 
 export default function HourlyVTC() {
   const router = useRouter();
@@ -193,6 +195,22 @@ export default function HourlyVTC() {
     clientPhone: "",
     clientAddress: "",
   });
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+
+  // Fetch payment options from API
+  const { data: paymentOptionsResponse } = useQuery({
+    queryKey: ['payment-options'],
+    queryFn: () => api.reference.getPaymentOptions(),
+  });
+  const apiMethods: PaymentMethodConfig[] = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
+    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+  const paymentMethods: PaymentMethodConfig[] = [
+    ...apiMethods,
+    { id: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+  ];
 
   // Fetch employees for company bookings
   const { data: employeesResponse } = useQuery({
@@ -203,6 +221,16 @@ export default function HourlyVTC() {
   const employees: EmployeeResponse[] = Array.isArray(employeesRaw)
     ? employeesRaw
     : (employeesRaw as any)?.items || (employeesRaw as any)?.list || [];
+
+  // Fetch departments (for EmployeeForm)
+  const { data: departmentsResponse } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => api.departments.list(1, 100),
+  });
+  const deptData = departmentsResponse?.data;
+  const departments: DepartmentResponse[] = Array.isArray(deptData)
+    ? deptData
+    : (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
 
   // Fetch VTC pricing grid
   const { data: pricingResponse } = useQuery({
@@ -223,6 +251,26 @@ export default function HourlyVTC() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Erreur lors de la reservation");
+    },
+  });
+
+  // Create employee
+  const createEmployee = useMutation({
+    mutationFn: (data: CreateEmployeeDto) => api.employees.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      const emp = response.data;
+      if (emp) {
+        handleChange('employeeId', emp.id);
+        handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+        if (emp.email) handleChange('clientEmail', emp.email);
+        if (emp.telephone) handleChange('clientPhone', emp.telephone);
+      }
+      setShowAddEmployee(false);
+      toast.success("Employe ajoute avec succes");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'ajout de l'employe");
     },
   });
 
@@ -272,7 +320,7 @@ export default function HourlyVTC() {
       case 3:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 4:
-        return !!formData.paymentMethod;
+        return true;
       default:
         return false;
     }
@@ -330,10 +378,7 @@ export default function HourlyVTC() {
     }
 
     if (currentStep === 4) {
-      if (!formData.paymentMethod) {
-        toast.error("Veuillez selectionner un mode de paiement");
-        return;
-      }
+      // Payment method is optional
     }
 
     if (currentStep < 5) {
@@ -346,7 +391,7 @@ export default function HourlyVTC() {
   };
 
   const handleSubmit = () => {
-    if (!formData.vehicleType || !formData.package || !formData.paymentMethod || !formData.pickupDate) {
+    if (!formData.vehicleType || !formData.package || !formData.pickupDate) {
       toast.error("Veuillez remplir tous les champs requis");
       return;
     }
@@ -366,7 +411,7 @@ export default function HourlyVTC() {
       adressePriseEnCharge: formData.pickupLocation,
       notes: formData.instructions || undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       customerId: formData.employeeId || undefined,
@@ -440,7 +485,7 @@ export default function HourlyVTC() {
       <div className="mb-6">
         <RadioGroup
           value={formData.country}
-          onValueChange={(v) => handleChange('country', v)}
+          onValueChange={(v) => handleChange('country', v as VtcCountry)}
           className="flex gap-3"
         >
           {countries.map(country => (
@@ -534,7 +579,9 @@ export default function HourlyVTC() {
                           </div>
                         )}
 
-                        <div className="text-3xl mb-2">{vehicle.icon}</div>
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-2">
+                          <Car className="w-6 h-6 text-slate-400" />
+                        </div>
                         <h4 className="font-semibold text-slate-800 mb-1">{vehicle.name}</h4>
                         <p className="text-xs text-slate-500 mb-2">{vehicle.description}</p>
                         <div className="flex items-center gap-1 text-slate-600">
@@ -612,7 +659,9 @@ export default function HourlyVTC() {
             >
               <div className="p-4 bg-orange-50 rounded-xl border border-orange-200 mb-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{selectedVehicle?.icon}</span>
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+                    <Car className="w-5 h-5 text-orange-600" />
+                  </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800">{selectedVehicle?.name} - {selectedPackage?.label}</p>
                     <p className="text-sm text-slate-600">{selectedPackage?.kmIncluded} km inclus</p>
@@ -647,11 +696,10 @@ export default function HourlyVTC() {
 
                 <div className="bg-slate-50 rounded-2xl p-4">
                   <Label className="text-xs text-slate-500 mb-2 block">Heure de prise en charge</Label>
-                  <Input
-                    type="time"
+                  <TimePicker
                     value={formData.pickupTime}
-                    onChange={(e) => handleChange('pickupTime', e.target.value)}
-                    className="border-0 bg-transparent p-0 text-slate-800"
+                    onChange={(v) => handleChange('pickupTime', v)}
+                    placeholder="Choisir une heure"
                   />
                 </div>
               </div>
@@ -692,38 +740,107 @@ export default function HourlyVTC() {
             >
               <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
 
-              {/* Employee selector */}
+              {/* Employee selector with search */}
               <div className="space-y-2">
                 <Label>Voyageur (employe) *</Label>
-                <Select
-                  value={formData.employeeId?.toString() || ""}
-                  onValueChange={(v) => {
-                    const empId = parseInt(v);
-                    handleChange('employeeId', empId);
-                    const emp = employees.find(e => e.id === empId);
-                    if (emp) {
-                      handleChange('clientName', `${emp.prenom} ${emp.nom}`);
-                      if (emp.email) handleChange('clientEmail', emp.email);
-                      if (emp.telephone) handleChange('clientPhone', emp.telephone);
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <Users className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Selectionner un employe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id.toString()}>
-                        {emp.prenom} {emp.nom} {emp.departement ? `- ${emp.departement.nom}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {employees.length === 0 && (
-                  <p className="text-sm text-amber-600">Aucun employe trouve. Ajoutez des employes dans la section Employes.</p>
-                )}
+                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={employeePopoverOpen}
+                      className="w-full justify-between font-normal h-10"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Users className="w-4 h-4 shrink-0" />
+                        {formData.employeeId
+                          ? (() => {
+                              const emp = employees.find(e => e.id === formData.employeeId);
+                              return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
+                            })()
+                          : 'Selectionner un employe'}
+                      </span>
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Rechercher un employe..."
+                        value={employeeSearch}
+                        onValueChange={setEmployeeSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => {
+                              setShowAddEmployee(true);
+                              setEmployeePopoverOpen(false);
+                            }}
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Ajouter &quot;{employeeSearch}&quot;
+                          </Button>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {employees.map(emp => {
+                            const deptName = emp.departement
+                              ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
+                              : '';
+                            return (
+                              <CommandItem
+                                key={emp.id}
+                                value={`${emp.prenom} ${emp.nom}`}
+                                onSelect={() => {
+                                  handleChange('employeeId', emp.id);
+                                  handleChange('clientName', `${emp.prenom} ${emp.nom}`);
+                                  if (emp.email) handleChange('clientEmail', emp.email);
+                                  if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                                  setEmployeeSearch("");
+                                  setEmployeePopoverOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                                  {emp.prenom?.[0]}{emp.nom?.[0]}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                                  {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
+                                </div>
+                                {formData.employeeId === emp.id && (
+                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
+
+              {/* Add employee dialog */}
+              <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Ajouter un employe</DialogTitle>
+                  </DialogHeader>
+                  <EmployeeForm
+                    departments={departments}
+                    onSubmit={(data) => createEmployee.mutate(data)}
+                    onCancel={() => setShowAddEmployee(false)}
+                    isSubmitting={createEmployee.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -858,7 +975,9 @@ export default function HourlyVTC() {
               {/* Vehicle & Package */}
               <div className="p-6 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-4 mb-4">
-                  <span className="text-4xl">{selectedVehicle?.icon}</span>
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Car className="w-6 h-6 text-slate-400" />
+                  </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800">{selectedVehicle?.name}</p>
                     <p className="text-sm text-slate-500">{selectedVehicle?.description}</p>
