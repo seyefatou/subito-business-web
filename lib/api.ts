@@ -1,7 +1,7 @@
 'use client';
 
 // API Client for mysubito-v2-api
-const API_BASE_URL = 'https://api.mysubito.net';
+const API_BASE_URL = 'https://api.mysubito.net/v1';
 
 // Token keys for localStorage
 const TOKEN_KEY = 'subito_compagny_token';
