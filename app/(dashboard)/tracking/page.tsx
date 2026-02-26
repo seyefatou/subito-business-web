@@ -50,14 +50,13 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
 };
 
 const canalLabels: Record<string, string> = {
-  compagny_web: "Plateforme Entreprise",
-  company_web: "Plateforme Entreprise",
-  web: "Site Web",
-  app: "Application Mobile",
-  phone: "Telephone",
-  whatsapp: "WhatsApp",
-  admin: "Administration",
-  api: "API",
+  Company: "Plateforme Entreprise",
+  "App Mobile": "Application Mobile",
+  WhatsApp: "WhatsApp",
+  Web: "Site Web",
+  Admin: "Administration",
+  API: "API",
+  Phone: "Telephone",
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -151,6 +150,7 @@ export default function Tracking() {
     clientPhone: (td as Record<string, unknown>).phone as string || '',
     clientEmail: (td as Record<string, unknown>).email as string || '',
     totalPrice: Number((td as Record<string, unknown>).totalPrice || 0),
+    canal: (td as Record<string, unknown>).canal as string || undefined,
     createdAt: td.createdAt,
     updatedAt: td.updatedAt,
   }));

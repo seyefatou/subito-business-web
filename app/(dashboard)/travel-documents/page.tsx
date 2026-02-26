@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateTravelDocumentDto, TravelDocumentTarif, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
+import { api, CreateTravelDocumentDto, TravelDocumentTarif, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 type TravelDocumentPaymentMethod = string;
 import { motion, AnimatePresence } from "framer-motion";
@@ -209,8 +209,8 @@ export default function TravelDocuments() {
     queryFn: () => api.reference.getPaymentOptions(),
   });
   const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ value: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ value: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods = [
     ...apiMethods,
     { value: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
@@ -388,7 +388,7 @@ export default function TravelDocuments() {
       returnDate: formData.returnDate ? formData.returnDate.toISOString() : undefined,
       travelReason: formData.reason as CreateTravelDocumentDto['travelReason'],
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : toBookingPaymentMethod(formData.paymentMethod),
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       hotelCategory: hasHotel ? formData.category : undefined,
@@ -950,6 +950,7 @@ export default function TravelDocuments() {
                         mode="single"
                         selected={formData.departureDate || undefined}
                         onSelect={(date) => handleChange('departureDate', date || null)}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       />
                     </PopoverContent>
                   </Popover>
@@ -969,6 +970,10 @@ export default function TravelDocuments() {
                         mode="single"
                         selected={formData.returnDate || undefined}
                         onSelect={(date) => handleChange('returnDate', date || null)}
+                        disabled={(date) => {
+                          const minDate = formData.departureDate || new Date(new Date().setHours(0, 0, 0, 0));
+                          return date < minDate;
+                        }}
                       />
                     </PopoverContent>
                   </Popover>

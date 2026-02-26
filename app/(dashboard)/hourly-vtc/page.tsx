@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
+import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
 type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
@@ -205,8 +205,8 @@ export default function HourlyVTC() {
     queryFn: () => api.reference.getPaymentOptions(),
   });
   const apiMethods: PaymentMethodConfig[] = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ id: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods: PaymentMethodConfig[] = [
     ...apiMethods,
     { id: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
@@ -411,7 +411,7 @@ export default function HourlyVTC() {
       adressePriseEnCharge: formData.pickupLocation,
       notes: formData.instructions || undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : toBookingPaymentMethod(formData.paymentMethod),
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       customerId: formData.employeeId || undefined,
@@ -688,7 +688,7 @@ export default function HourlyVTC() {
                         mode="single"
                         selected={formData.pickupDate || undefined}
                         onSelect={(date) => handleChange('pickupDate', date || null)}
-                        disabled={(date) => date < new Date()}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       />
                     </PopoverContent>
                   </Popover>
@@ -700,6 +700,7 @@ export default function HourlyVTC() {
                     value={formData.pickupTime}
                     onChange={(v) => handleChange('pickupTime', v)}
                     placeholder="Choisir une heure"
+                    selectedDate={formData.pickupDate}
                   />
                 </div>
               </div>

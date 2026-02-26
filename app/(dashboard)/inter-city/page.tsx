@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
+import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 type InterCityPaymentMethod = string;
 import { useRouter } from "next/navigation";
@@ -163,8 +163,8 @@ export default function InterCity() {
     queryFn: () => api.reference.getPaymentOptions(),
   });
   const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ value: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ value: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods = [
     ...apiMethods,
     { value: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
@@ -428,7 +428,7 @@ export default function InterCity() {
       pickupDateAller: formData.pickupDateAller,
       pickupTimeAller: formData.pickupTimeAller,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : formData.paymentMethod,
+      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : toBookingPaymentMethod(formData.paymentMethod),
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       customerId: formData.employeeId || undefined,
@@ -823,6 +823,7 @@ export default function InterCity() {
                         value={formData.pickupTimeAller}
                         onChange={(v) => handleChange('pickupTimeAller', v)}
                         placeholder="Choisir une heure"
+                        selectedDate={formData.pickupDateAller}
                       />
                     </div>
                   </div>
@@ -987,6 +988,7 @@ export default function InterCity() {
                             value={formData.pickupTimeRetour}
                             onChange={(v) => handleChange('pickupTimeRetour', v)}
                             placeholder="Choisir une heure"
+                            selectedDate={formData.pickupDateRetour}
                           />
                         </div>
                       </div>

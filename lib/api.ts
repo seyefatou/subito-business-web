@@ -563,11 +563,25 @@ export type StatsData = BookingStatsData;
 export interface PaymentOption {
   id: number;
   name: string;
-  type: string;
+  slug: string;
+  type?: string;
   description?: string;
   icon?: string;
   isActive?: boolean;
   [key: string]: unknown;
+}
+
+/** Map payment option slugs to valid booking paymentMethod values */
+export function toBookingPaymentMethod(slug: string): string {
+  const map: Record<string, string> = {
+    wave: 'mobile_money',
+    orange_money: 'mobile_money',
+    cash: 'cash',
+    mobile_money: 'mobile_money',
+    wallet: 'wallet',
+    bank_transfer: 'bank_transfer',
+  };
+  return map[slug] || 'mobile_money';
 }
 
 // ==================== PAYMENT REQUEST TYPES ====================

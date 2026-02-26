@@ -24,11 +24,41 @@ interface TimePickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Selected date — when it's today, past time slots are hidden */
+  selectedDate?: Date | string | null;
 }
 
-export function TimePicker({ value, onChange, placeholder = "Selectionner" }: TimePickerProps) {
+function getMinTimeForDate(selectedDate?: Date | string | null): string | null {
+  if (!selectedDate) return null;
+  const date = typeof selectedDate === 'string' ? new Date(selectedDate + 'T00:00:00') : selectedDate;
+  const now = new Date();
+  if (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  ) {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+  return null;
+}
+
+export function TimePicker({ value, onChange, placeholder = "Selectionner", selectedDate }: TimePickerProps) {
   const [open, setOpen] = useState(false);
   const selectedRef = useRef<HTMLButtonElement>(null);
+
+  const minTime = getMinTimeForDate(selectedDate);
+  const availableSlots = minTime
+    ? TIME_SLOTS.filter((slot) => slot >= minTime)
+    : TIME_SLOTS;
+
+  // Clear value if it became unavailable (e.g. user picked a past time then switched date to today)
+  useEffect(() => {
+    if (value && minTime && value < minTime) {
+      onChange('');
+    }
+  }, [minTime, value, onChange]);
 
   useEffect(() => {
     if (open && selectedRef.current) {
@@ -53,7 +83,7 @@ export function TimePicker({ value, onChange, placeholder = "Selectionner" }: Ti
       <PopoverContent className="w-44 p-0" align="start">
         <ScrollArea className="h-60">
           <div className="p-1">
-            {TIME_SLOTS.map((slot) => {
+            {availableSlots.map((slot) => {
               const isSelected = value === slot;
               return (
                 <button

@@ -37,13 +37,14 @@ export default function NotificationBell() {
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await api.notifications.unreadCount();
-      const data = response.data;
-      // Handle various response shapes
+      // response may be { data: { unreadCount: N } } or { unreadCount: N } or { count: N }
+      const raw = response as any;
+      const inner = raw?.data ?? raw;
       let count = 0;
-      if (typeof data === 'number') {
-        count = data;
-      } else if (typeof data === 'object' && data !== null) {
-        count = (data as any).count ?? (data as any).unreadCount ?? 0;
+      if (typeof inner === 'number') {
+        count = inner;
+      } else if (typeof inner === 'object' && inner !== null) {
+        count = inner.unreadCount ?? inner.count ?? 0;
       }
       setUnreadCount(count);
     } catch {

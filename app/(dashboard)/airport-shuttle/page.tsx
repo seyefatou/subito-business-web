@@ -56,7 +56,7 @@ import {
 import EmployeeForm from "@/components/employees/EmployeeForm";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption } from "@/lib/api";
+import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 interface StepDef {
@@ -149,8 +149,8 @@ export default function AirportShuttle() {
     queryFn: () => api.reference.getPaymentOptions(),
   });
   const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '', icon: o.icon || '' }));
+    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
+    .map((o: PaymentOption) => ({ id: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods = [
     ...apiMethods,
     { id: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
@@ -369,7 +369,7 @@ export default function AirportShuttle() {
       adresseSupplement: formData.adresseSupplement || undefined,
       specialRequests: formData.specialRequests || undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : formData.payment_method,
+      paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : toBookingPaymentMethod(formData.payment_method),
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
     };
@@ -740,6 +740,7 @@ export default function AirportShuttle() {
                     value={formData.departure_time}
                     onChange={(v) => handleChange('departure_time', v)}
                     placeholder="Choisir une heure"
+                    selectedDate={formData.departure_date}
                   />
                 </div>
               </div>
@@ -779,6 +780,7 @@ export default function AirportShuttle() {
                       value={formData.return_time}
                       onChange={(v) => handleChange('return_time', v)}
                       placeholder="Choisir une heure"
+                      selectedDate={formData.return_date}
                     />
                   </div>
                 </div>

@@ -39,6 +39,7 @@ import {
 import NotificationBell from "@/components/notifications/NotificationBell";
 import CriticalAlert from "@/components/notifications/CriticalAlert";
 import { useAuth } from "@/lib/auth-context";
+import { api } from "@/lib/api";
 
 interface NavigationItem {
   name: string;
@@ -76,12 +77,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
+  const [unreadCount, setUnreadCount] = useState(0);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Poll notification unread count
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchCount = async () => {
+      try {
+        const response = await api.notifications.unreadCount();
+        const raw = response as any;
+        const inner = raw?.data ?? raw;
+        const count = typeof inner === 'number' ? inner : (inner?.unreadCount ?? inner?.count ?? 0);
+        setUnreadCount(count);
+      } catch { /* silent */ }
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     await logout();
@@ -214,6 +234,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <item.icon className={`w-5 h-5 ${active ? 'text-subito' : ''}`} />
                   {item.name}
+                  {item.href === '/notifications' && unreadCount > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
