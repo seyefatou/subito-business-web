@@ -76,6 +76,8 @@ interface Department {
 interface Vehicle {
   id: string;
   registration: string;
+  brand: string;
+  model: string;
 }
 
 interface PageProps {
