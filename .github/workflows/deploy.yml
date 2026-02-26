@@ -8,18 +8,17 @@ on:
 jobs:
   deploy:
     name: Deploy to Server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            cd ${{ secrets.APP_PATH }}
-            git pull origin production
-            docker compose down
-            docker compose build --no-cache
-            docker compose up -d
+      - name: Pull latest code
+        run: |
+          cd /var/www/mysubito/business/subito-business-web
+          git pull origin production
+
+      - name: Deploy with Docker Compose
+        run: |
+          cd /var/www/mysubito/business/subito-business-web
+          docker compose down
+          docker compose build --no-cache
+          docker compose up -d
