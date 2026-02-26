@@ -77,6 +77,16 @@ export interface ResetPasswordCompagnyDto {
   newPassword: string;
 }
 
+export interface CreateRegistrationRequestDto {
+  nomEntreprise: string;
+  ninea: string;
+  nomResponsable: string;
+  emailEntreprise: string;
+  telephone: string;
+  utilisateursEstimes: number;
+  secteurActivite: string;
+}
+
 // ==================== REFERENCE DATA TYPES ====================
 export interface Ville {
   id: number;
@@ -848,6 +858,15 @@ class ApiClient {
 
     resetPassword: (data: ResetPasswordCompagnyDto) =>
       this.request('/auth/compagny/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  };
+
+  // ==================== COMPANY REGISTRATION REQUESTS (PUBLIC) ====================
+  companyRegistration = {
+    create: (data: CreateRegistrationRequestDto) =>
+      this.request('/company-registration-requests', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
