@@ -54,20 +54,32 @@ export default function AccountRequestForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      await fetch("/api/account-request", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.mysubito.net/v1';
+      const res = await fetch(`${API_BASE}/company-registration-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          estimated_vehicles: form.estimated_vehicles ? Number(form.estimated_vehicles) : undefined,
-          estimated_users: form.estimated_users ? Number(form.estimated_users) : undefined,
+          nomEntreprise: form.company_name,
+          ninea: form.ninea,
+          nomResponsable: form.contact_name,
+          emailEntreprise: form.email,
+          telephone: form.phone,
+          utilisateursEstimes: form.estimated_users ? Number(form.estimated_users) : 1,
+          secteurActivite: form.sector || 'Autre',
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const msg = data?.message || "Une erreur est survenue";
+        alert(Array.isArray(msg) ? msg.join(', ') : msg);
+        setLoading(false);
+        return;
+      }
+      setSubmitted(true);
     } catch {
-      // best-effort
+      alert("Erreur réseau, veuillez réessayer.");
     }
     setLoading(false);
-    setSubmitted(true);
   };
 
   return (
