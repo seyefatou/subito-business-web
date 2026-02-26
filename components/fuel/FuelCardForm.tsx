@@ -66,7 +66,7 @@ export default function FuelCardForm({ employees, onSubmit, onCancel, isSubmitti
     onSubmit({
       ...formData,
       monthly_limit: parseFloat(formData.monthly_limit) || null,
-    });
+    } as FuelCardFormData & { monthly_limit: number | null });
   };
 
   return (

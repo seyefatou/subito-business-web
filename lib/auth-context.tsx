@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const data = response.data || response;
 
     // Extract token - handle both { access_token } and { token } formats
-    const rawData = data as Record<string, unknown>;
+    const rawData = data as unknown as Record<string, unknown>;
     const accessToken = (rawData.access_token || rawData.token) as string;
     if (!accessToken) {
       console.error('[AUTH] NO TOKEN in response! Full response:', JSON.stringify(response));

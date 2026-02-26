@@ -32,6 +32,11 @@ export const base44 = {
     FuelCardTransaction: createEntityStub(),
     ServiceProvider: createEntityStub(),
   },
+  integrations: {
+    Core: {
+      UploadFile: noopObj as (..._args: any[]) => Promise<any>,
+    },
+  },
   functions: {},
   analytics: {
     track: () => Promise.resolve(),
@@ -39,6 +44,7 @@ export const base44 = {
   auth: {
     isLoggedIn: () => false,
     getUser: () => null,
+    me: noopObj as () => Promise<any>,
     login: () => Promise.resolve(),
     logout: () => Promise.resolve(),
   },

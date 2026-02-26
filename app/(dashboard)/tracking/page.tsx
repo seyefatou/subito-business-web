@@ -594,7 +594,7 @@ export default function Tracking() {
               )}
 
               {/* Pay button for unpaid bookings */}
-              {bookingDetail.status?.toUpperCase() !== 'PAID' && bookingDetail.paymentStatus?.toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
+              {bookingDetail.status?.toUpperCase() !== 'PAID' && (bookingDetail.paymentStatus as string | undefined)?.toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
                   onClick={() => {
