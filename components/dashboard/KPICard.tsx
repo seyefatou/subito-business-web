@@ -44,12 +44,17 @@ export default function KPICard({
       <div className={`absolute top-0 right-0 w-32 h-32 rounded-full transform translate-x-8 -translate-y-8 ${gradient ? 'bg-white/10' : 'bg-slate-50'}`} />
 
       <div className="relative">
-        <div className="flex items-start justify-between mb-4">
-          <div className={`
-            p-3 rounded-xl
-            ${gradient ? 'bg-white/20' : 'bg-orange-50'}
-          `}>
-            <Icon className={`w-5 h-5 ${gradient ? 'text-white' : 'text-subito'}`} />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className={`
+              p-3 rounded-xl
+              ${gradient ? 'bg-white/20' : 'bg-orange-50'}
+            `}>
+              <Icon className={`w-5 h-5 ${gradient ? 'text-white' : 'text-subito'}`} />
+            </div>
+            <p className={`text-sm font-medium ${gradient ? 'text-white/80' : 'text-slate-500'}`}>
+              {title}
+            </p>
           </div>
 
           {trendValue && (
@@ -65,10 +70,6 @@ export default function KPICard({
             </div>
           )}
         </div>
-
-        <p className={`text-sm font-medium mb-1 ${gradient ? 'text-white/80' : 'text-slate-500'}`}>
-          {title}
-        </p>
         <p className={`text-xl font-bold mb-1 truncate ${gradient ? 'text-white' : 'text-slate-800'}`}>
           {value}
         </p>
