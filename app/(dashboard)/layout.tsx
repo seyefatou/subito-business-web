@@ -26,7 +26,9 @@ import {
   Clock,
   LucideIcon,
   Loader2,
-  ClipboardCheck
+  ClipboardCheck,
+  Copy,
+  Share2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +42,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import CriticalAlert from "@/components/notifications/CriticalAlert";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 interface NavigationItem {
   name: string;
@@ -302,7 +305,43 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <ChevronDown className="w-4 h-4 text-slate-400 hidden md:block" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-64">
+                  {user?.companyCode && (
+                    <>
+                      <div className="px-3 py-2">
+                        <p className="text-xs text-slate-500 mb-1">Code entreprise</p>
+                        <p className="text-sm font-bold text-slate-800 font-mono">{user.companyCode}</p>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(user.companyCode!);
+                              toast.success('Code copie');
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            Copier
+                          </button>
+                          <button
+                            onClick={() => {
+                              const text = `Rejoignez notre entreprise sur Subito Business avec le code : ${user.companyCode}`;
+                              if (navigator.share) {
+                                navigator.share({ title: 'Code Subito Business', text });
+                              } else {
+                                navigator.clipboard.writeText(text);
+                                toast.success('Lien copie');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-orange-500 to-red-400 hover:opacity-90 rounded-lg transition-colors"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            Partager
+                          </button>
+                        </div>
+                      </div>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="cursor-pointer">
                       <User className="w-4 h-4 mr-2" />

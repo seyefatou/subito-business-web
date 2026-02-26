@@ -148,7 +148,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <a href="#" className="text-sm text-subito hover:underline">
+            <a href="/forgot-password" className="text-sm text-subito hover:underline">
               Mot de passe oublie ?
             </a>
           </div>
