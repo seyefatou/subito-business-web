@@ -877,7 +877,7 @@ class ApiClient {
       this.authGet<string[]>('/villes/pays'),
 
     getTravelDocumentTarifs: () =>
-      this.authGet<TravelDocumentTarif[]>('/travel-documents/compagny/tarifs'),
+      this.request<TravelDocumentTarif[]>('/travel-documents/tarifs'),
 
     getPaymentOptions: () =>
       this.request<PaymentOption[]>('/payment-options'),

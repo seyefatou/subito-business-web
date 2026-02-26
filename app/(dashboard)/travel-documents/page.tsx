@@ -113,7 +113,6 @@ const steps: Step[] = [
 const services: Service[] = [
   { id: "flight", label: "Reservation Vol", icon: "plane", description: "Attestation de vol" },
   { id: "hotel", label: "Reservation Hotel", icon: "hotel", description: "Attestation d'hebergement" },
-  { id: "insurance", label: "Assurance Voyage", icon: "insurance", description: "Assurance pour votre voyage" },
 ];
 
 const departureCountries: Country[] = [
@@ -224,7 +223,7 @@ export default function TravelDocuments() {
 
   const tarifs: TravelDocumentTarif[] = Array.isArray(tarifsResponse?.data)
     ? tarifsResponse.data
-    : [];
+    : Array.isArray(tarifsResponse) ? tarifsResponse : [];
 
   const { data: employeesResponse } = useQuery({
     queryKey: ['employees'],
@@ -309,24 +308,27 @@ export default function TravelDocuments() {
   const selectedCountry = countries.find(c => c.code === formData.country);
   const hasHotel = formData.selectedServices.includes('hotel');
   const hasFlight = formData.selectedServices.includes('flight');
-  const hasInsurance = formData.selectedServices.includes('insurance');
+  // Map form service ids to API serviceType values
+  const serviceTypeMap: Record<string, string> = {
+    flight: 'flight_reservation',
+    hotel: 'hotel_reservation',
+  };
+
+  const findTarif = (serviceId: string) =>
+    tarifs.find(t => (t.serviceType === serviceTypeMap[serviceId] || t.serviceType === serviceId) && t.isActive);
 
   // Calculate total price from tarifs
   const calculateTotal = (): number => {
     let total = 0;
     if (hasFlight) {
-      const flightTarif = tarifs.find(t => t.serviceType === 'flight' && t.isActive);
-      if (flightTarif) total += flightTarif.price;
+      const flightTarif = findTarif('flight');
+      if (flightTarif) total += Number(flightTarif.price);
     }
     if (hasHotel) {
-      const hotelTarif = tarifs.find(t => t.serviceType === 'hotel' && t.isActive);
-      if (hotelTarif) total += hotelTarif.price;
+      const hotelTarif = findTarif('hotel');
+      if (hotelTarif) total += Number(hotelTarif.price);
     }
-    if (hasInsurance) {
-      const insuranceTarif = tarifs.find(t => t.serviceType === 'insurance' && t.isActive);
-      if (insuranceTarif) total += insuranceTarif.price;
-    }
-    return total || 50000; // Default price if no tarifs
+    return total;
   };
 
   const canContinue = (): boolean => {
@@ -372,7 +374,7 @@ export default function TravelDocuments() {
     const bookingData: CreateTravelDocumentDto = {
       flightReservation: hasFlight,
       hotelReservation: hasHotel,
-      travelInsurance: hasInsurance,
+      travelInsurance: false,
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
@@ -566,10 +568,10 @@ export default function TravelDocuments() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {services.map((service) => {
                   const isSelected = formData.selectedServices.includes(service.id);
-                  const tarif = tarifs.find(t => t.serviceType === service.id && t.isActive);
+                  const tarif = findTarif(service.id);
                   return (
                     <motion.div
                       key={service.id}
@@ -589,15 +591,14 @@ export default function TravelDocuments() {
                         </div>
                       )}
 
-                      <div className="text-4xl mb-3">
-                        {service.id === 'flight' ? <Plane className="w-10 h-10 text-blue-500" /> :
-                         service.id === 'insurance' ? <FileText className="w-10 h-10 text-purple-500" /> :
-                         <Globe className="w-10 h-10 text-green-500" />}
+                      <div className="flex items-center gap-3 mb-2">
+                        {service.id === 'flight' ? <Plane className="w-8 h-8 text-blue-500" /> :
+                         <Globe className="w-8 h-8 text-green-500" />}
+                        <h3 className="font-semibold text-slate-800">{service.label}</h3>
                       </div>
-                      <h3 className="font-semibold text-slate-800 mb-1">{service.label}</h3>
                       <p className="text-sm text-slate-500 mb-2">{service.description}</p>
                       {tarif && (
-                        <p className="text-lg font-bold text-subito">{tarif.price.toLocaleString()} FCFA</p>
+                        <p className="text-lg font-bold text-subito">{Number(tarif.price).toLocaleString()} FCFA</p>
                       )}
                     </motion.div>
                   );
@@ -1102,11 +1103,11 @@ export default function TravelDocuments() {
                 <div className="space-y-2 text-sm">
                   {formData.selectedServices.map(id => {
                     const service = services.find(s => s.id === id);
-                    const tarif = tarifs.find(t => t.serviceType === id && t.isActive);
+                    const tarif = findTarif(id);
                     return service && (
                       <div key={id} className="flex justify-between">
                         <span>{service.label}</span>
-                        <span className="font-medium">{tarif?.price.toLocaleString() || '25 000'} FCFA</span>
+                        <span className="font-medium">{tarif ? Number(tarif.price).toLocaleString() : '—'} FCFA</span>
                       </div>
                     );
                   })}
@@ -1137,7 +1138,6 @@ export default function TravelDocuments() {
                     return service && (
                       <div key={serviceId} className="flex items-center gap-2 text-slate-700">
                         {service.id === 'flight' ? <Plane className="w-5 h-5" /> :
-                         service.id === 'insurance' ? <FileText className="w-5 h-5" /> :
                          <Globe className="w-5 h-5" />}
                         {service.label}
                       </div>
