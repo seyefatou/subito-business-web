@@ -78,6 +78,7 @@ interface FormData {
   passengers: number;
   flight_number: string;
   address: string;
+  return_address: string;
   payment_method: PaymentChoice | '';
   clientName: string;
   clientEmail: string;
@@ -102,6 +103,7 @@ const initialFormData: FormData = {
   passengers: 1,
   flight_number: "",
   address: "",
+  return_address: "",
   payment_method: "",
   clientName: "",
   clientEmail: "",
@@ -318,6 +320,7 @@ export default function AirportShuttle() {
       if (formData.is_round_trip) {
         if (!formData.return_date) { toast.error("Veuillez selectionner une date de retour"); return; }
         if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
+        if (!formData.return_address) { toast.error("Veuillez entrer une adresse de prise en charge retour"); return; }
       }
     }
 
@@ -360,6 +363,7 @@ export default function AirportShuttle() {
       passengers: formData.passengers,
       flightNumber: formData.flight_number || undefined,
       adressePriseEnChargeAller: formData.address,
+      adressePriseEnChargeRetour: formData.is_round_trip ? formData.return_address : undefined,
       clientName: formData.clientName,
       clientPhone: formatPhoneForApi(formData.clientPhone),
       clientEmail: formData.clientEmail || undefined,
@@ -382,7 +386,7 @@ export default function AirportShuttle() {
     switch (currentStep) {
       case 1: {
         const baseValid = !!(selectedDepartId && selectedArriveeId && matchingTrajets.length > 0 && formData.departure_date && formData.departure_time && formData.address);
-        if (formData.is_round_trip) return baseValid && !!(formData.return_date && formData.return_time);
+        if (formData.is_round_trip) return baseValid && !!(formData.return_date && formData.return_time && formData.return_address);
         return baseValid;
       }
       case 2:
@@ -746,44 +750,55 @@ export default function AirportShuttle() {
               </div>
 
               {formData.is_round_trip && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-2xl p-4">
-                    <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
-                        >
-                          <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
-                          {formData.return_date
-                            ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                            : "Selectionner une date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formData.return_date ? new Date(formData.return_date + 'T00:00:00') : undefined}
-                          onSelect={(date) => handleChange('return_date', date ? format(date, 'yyyy-MM-dd') : '')}
-                          disabled={(date) => {
-                            const minDate = formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
-                            return date < minDate;
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                      <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                            {formData.return_date
+                              ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                              : "Selectionner une date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.return_date ? new Date(formData.return_date + 'T00:00:00') : undefined}
+                            onSelect={(date) => handleChange('return_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                            disabled={(date) => {
+                              const minDate = formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                              return date < minDate;
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                      <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
+                      <TimePicker
+                        value={formData.return_time}
+                        onChange={(v) => handleChange('return_time', v)}
+                        placeholder="Choisir une heure"
+                        selectedDate={formData.return_date}
+                      />
+                    </div>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl p-4">
-                    <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
-                    <TimePicker
-                      value={formData.return_time}
-                      onChange={(v) => handleChange('return_time', v)}
-                      placeholder="Choisir une heure"
-                      selectedDate={formData.return_date}
+                  <div className="space-y-2">
+                    <Label>Adresse de prise en charge retour</Label>
+                    <Textarea
+                      placeholder="Ex: Aeroport Blaise Diagne, Terminal 1"
+                      value={formData.return_address}
+                      onChange={(e) => handleChange('return_address', e.target.value)}
+                      className="h-20"
                     />
                   </div>
-                </div>
+                </>
               )}
 
               {/* Passengers & Flight */}
@@ -1280,6 +1295,7 @@ export default function AirportShuttle() {
                         {' a '}
                         {formData.return_time}
                       </p>
+                      <p className="text-sm text-slate-500 mt-1">{formData.return_address}</p>
                     </div>
                   )}
                 </div>

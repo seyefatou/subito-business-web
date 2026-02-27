@@ -264,6 +264,7 @@ export interface CreateAirportShuttleBookingDto {
   passengers: number;
   flightNumber?: string;
   adressePriseEnChargeAller: string;
+  adressePriseEnChargeRetour?: string;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
