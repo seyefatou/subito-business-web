@@ -121,7 +121,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img
-              src="/logo-subito.jpeg"
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo-subito.jpeg`}
               alt="Subito"
               className="h-12 w-auto"
             />

@@ -262,6 +262,7 @@ export default function AirportShuttle() {
         handleChange('clientName', `${emp.prenom} ${emp.nom}`);
         if (emp.email) handleChange('clientEmail', emp.email);
         if (emp.telephone) handleChange('clientPhone', emp.telephone);
+        if (emp.adresse) handleChange('clientAddress', emp.adresse);
       }
       setShowAddEmployee(false);
       toast.success("Employe ajoute avec succes");
@@ -317,6 +318,7 @@ export default function AirportShuttle() {
       if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
       if (!formData.departure_time) { toast.error("Veuillez selectionner une heure de depart"); return; }
       if (!formData.address) { toast.error("Veuillez entrer une adresse"); return; }
+      if (formData.direction === 'from_airport' && !formData.flight_number) { toast.error("Veuillez entrer le numero de vol"); return; }
       if (formData.is_round_trip) {
         if (!formData.return_date) { toast.error("Veuillez selectionner une date de retour"); return; }
         if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
@@ -386,8 +388,9 @@ export default function AirportShuttle() {
     switch (currentStep) {
       case 1: {
         const baseValid = !!(selectedDepartId && selectedArriveeId && matchingTrajets.length > 0 && formData.departure_date && formData.departure_time && formData.address);
-        if (formData.is_round_trip) return baseValid && !!(formData.return_date && formData.return_time && formData.return_address);
-        return baseValid;
+        const flightValid = formData.direction === 'from_airport' ? !!formData.flight_number : true;
+        if (formData.is_round_trip) return baseValid && flightValid && !!(formData.return_date && formData.return_time && formData.return_address);
+        return baseValid && flightValid;
       }
       case 2:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
@@ -686,17 +689,6 @@ export default function AirportShuttle() {
                 </Popover>
               </div>
 
-              {/* Address */}
-              <div className="space-y-2">
-                <Label>Adresse complete de prise en charge / depose</Label>
-                <Textarea
-                  placeholder="Ex: Residence Les Almadies, Villa 23, Rue AJ-42"
-                  value={formData.address}
-                  onChange={(e) => handleChange('address', e.target.value)}
-                  className="h-20"
-                />
-              </div>
-
               {/* Round trip toggle */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
                 <div className="flex items-center gap-3">
@@ -712,47 +704,70 @@ export default function AirportShuttle() {
                 />
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 rounded-2xl p-4">
-                  <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
-                      >
-                        <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
-                        {formData.departure_date
-                          ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                          : "Selectionner une date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
-                        onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
-                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* === ALLER === */}
+              <div className="border border-slate-200 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <PlaneTakeoff className="w-5 h-5 text-orange-600" />
+                  <h4 className="font-semibold text-slate-800">Informations Aller</h4>
                 </div>
-                <div className="bg-slate-50 rounded-2xl p-4">
-                  <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
-                  <TimePicker
-                    value={formData.departure_time}
-                    onChange={(v) => handleChange('departure_time', v)}
-                    placeholder="Choisir une heure"
-                    selectedDate={formData.departure_date}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                        >
+                          <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
+                          {formData.departure_date
+                            ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                            : "Selectionner une date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
+                          onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                    <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
+                    <TimePicker
+                      value={formData.departure_time}
+                      onChange={(v) => handleChange('departure_time', v)}
+                      placeholder="Choisir une heure"
+                      selectedDate={formData.departure_date}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Adresse de prise en charge / depose (aller) *</Label>
+                  <Textarea
+                    placeholder="Ex: Residence Les Almadies, Villa 23, Rue AJ-42"
+                    value={formData.address}
+                    onChange={(e) => handleChange('address', e.target.value)}
+                    className="h-20"
                   />
                 </div>
               </div>
 
+              {/* === RETOUR === */}
               {formData.is_round_trip && (
-                <>
+                <div className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/30">
+                  <div className="flex items-center gap-2 mb-1">
+                    <PlaneLanding className="w-5 h-5 text-blue-600" />
+                    <h4 className="font-semibold text-slate-800">Informations Retour</h4>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-50 rounded-2xl p-4">
+                    <div className="bg-white rounded-2xl p-4">
                       <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -779,7 +794,7 @@ export default function AirportShuttle() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="bg-slate-50 rounded-2xl p-4">
+                    <div className="bg-white rounded-2xl p-4">
                       <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
                       <TimePicker
                         value={formData.return_time}
@@ -789,8 +804,9 @@ export default function AirportShuttle() {
                       />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label>Adresse de prise en charge retour</Label>
+                    <Label>Adresse de prise en charge retour *</Label>
                     <Textarea
                       placeholder="Ex: Aeroport Blaise Diagne, Terminal 1"
                       value={formData.return_address}
@@ -798,7 +814,7 @@ export default function AirportShuttle() {
                       className="h-20"
                     />
                   </div>
-                </>
+                </div>
               )}
 
               {/* Passengers & Flight */}
@@ -823,7 +839,7 @@ export default function AirportShuttle() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Numero de vol (optionnel)</Label>
+                  <Label>Numero de vol {formData.direction === 'from_airport' ? '*' : '(optionnel)'}</Label>
                   <Input
                     placeholder="Ex: AF 718"
                     value={formData.flight_number}
@@ -907,6 +923,7 @@ export default function AirportShuttle() {
                                   handleChange('clientName', `${emp.prenom} ${emp.nom}`);
                                   if (emp.email) handleChange('clientEmail', emp.email);
                                   if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                                  if (emp.adresse) handleChange('clientAddress', emp.adresse);
                                   setEmployeeSearch("");
                                   setEmployeePopoverOpen(false);
                                 }}
@@ -1271,43 +1288,69 @@ export default function AirportShuttle() {
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Recapitulatif de la reservation</h3>
 
               {/* Trip details */}
-              <div className="p-6 rounded-xl bg-slate-50 space-y-4">
-                <div>
-                  <p className="text-sm text-slate-500 mb-1">Trajet</p>
+              <div className="space-y-4">
+                <div className="p-6 rounded-xl bg-slate-50 space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-sm text-slate-500">Trajet</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">{formData.is_round_trip ? 'Aller-retour' : 'Aller simple'}</span>
+                  </div>
                   <p className="font-medium text-slate-800">{getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}</p>
-                  <p className="text-sm text-slate-500 mt-1">{formData.address}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-slate-500">Date & Heure aller</p>
-                    <p className="font-medium text-slate-800">
-                      {formData.departure_date && format(new Date(formData.departure_date), 'dd MMM yyyy', { locale: fr })}
-                      {' a '}
-                      {formData.departure_time}
-                    </p>
+                {/* Aller info */}
+                <div className="p-5 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <PlaneTakeoff className="w-4 h-4 text-orange-600" />
+                    <p className="text-sm font-semibold text-slate-700">Aller</p>
                   </div>
-                  {formData.is_round_trip && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-slate-500">Date & Heure retour</p>
+                      <p className="text-xs text-slate-500">Date & Heure</p>
                       <p className="font-medium text-slate-800">
-                        {formData.return_date && format(new Date(formData.return_date), 'dd MMM yyyy', { locale: fr })}
-                        {' a '}
-                        {formData.return_time}
+                        {formData.departure_date && format(new Date(formData.departure_date), 'dd MMM yyyy', { locale: fr })}
+                        {' a '}{formData.departure_time}
                       </p>
-                      <p className="text-sm text-slate-500 mt-1">{formData.return_address}</p>
                     </div>
-                  )}
+                    <div>
+                      <p className="text-xs text-slate-500">Adresse</p>
+                      <p className="text-sm text-slate-800">{formData.address}</p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-slate-500">Passagers</p>
-                    <p className="font-medium text-slate-800">{formData.passengers}</p>
+                {/* Retour info */}
+                {formData.is_round_trip && (
+                  <div className="p-5 rounded-xl border border-blue-200 bg-blue-50/30 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PlaneLanding className="w-4 h-4 text-blue-600" />
+                      <p className="text-sm font-semibold text-slate-700">Retour</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-slate-500">Date & Heure</p>
+                        <p className="font-medium text-slate-800">
+                          {formData.return_date && format(new Date(formData.return_date), 'dd MMM yyyy', { locale: fr })}
+                          {' a '}{formData.return_time}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Adresse</p>
+                        <p className="text-sm text-slate-800">{formData.return_address}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Numero de vol</p>
-                    <p className="font-medium text-slate-800">{formData.flight_number || '—'}</p>
+                )}
+
+                <div className="p-5 rounded-xl bg-slate-50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-slate-500">Passagers</p>
+                      <p className="font-medium text-slate-800">{formData.passengers}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Numero de vol</p>
+                      <p className="font-medium text-slate-800">{formData.flight_number || '—'}</p>
+                    </div>
                   </div>
                 </div>
               </div>

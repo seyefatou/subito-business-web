@@ -265,6 +265,7 @@ export default function HourlyVTC() {
         handleChange('clientName', `${emp.prenom} ${emp.nom}`);
         if (emp.email) handleChange('clientEmail', emp.email);
         if (emp.telephone) handleChange('clientPhone', emp.telephone);
+        if (emp.adresse) handleChange('clientAddress', emp.adresse);
       }
       setShowAddEmployee(false);
       toast.success("Employe ajoute avec succes");
@@ -803,6 +804,7 @@ export default function HourlyVTC() {
                                   handleChange('clientName', `${emp.prenom} ${emp.nom}`);
                                   if (emp.email) handleChange('clientEmail', emp.email);
                                   if (emp.telephone) handleChange('clientPhone', emp.telephone);
+                                  if (emp.adresse) handleChange('clientAddress', emp.adresse);
                                   setEmployeeSearch("");
                                   setEmployeePopoverOpen(false);
                                 }}

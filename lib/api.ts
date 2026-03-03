@@ -407,6 +407,12 @@ export interface TravelDocumentResponse {
 }
 
 // ==================== INVOICE TYPES ====================
+export interface InvoiceEmployee {
+  id: number;
+  nom?: string;
+  prenom?: string;
+}
+
 export interface InvoiceBooking {
   id: number;
   bookingCode?: string;
@@ -416,10 +422,12 @@ export interface InvoiceBooking {
   clientEmail?: string;
   totalPrice?: number;
   status?: string;
+  paymentStatus?: string;
   paidBy?: string;
   canal?: string;
   paymentMethod?: string;
   createdAt?: string;
+  employee?: InvoiceEmployee;
   [key: string]: unknown;
 }
 
@@ -430,7 +438,22 @@ export interface InvoiceTravelDocument {
   lastName?: string;
   status?: string;
   totalPrice?: number;
+  paymentStatus?: string;
   createdAt?: string;
+  employee?: InvoiceEmployee;
+  [key: string]: unknown;
+}
+
+export interface InvoiceServiceReservation {
+  id: number;
+  reservationCode?: string;
+  serviceType?: string;
+  clientName?: string;
+  totalPrice?: number;
+  status?: string;
+  paymentStatus?: string;
+  createdAt?: string;
+  employee?: InvoiceEmployee;
   [key: string]: unknown;
 }
 
@@ -448,7 +471,11 @@ export interface InvoiceResponse {
   compagnyId?: number;
   companyCode?: string;
   compagnyName?: string;
+  totalHT?: number | string;
+  tvaAmount?: number | string;
   totalAmount?: number | string;
+  isTva?: boolean;
+  pdfUrl?: string | null;
   status: string;
   startDate?: string;
   endDate?: string;
@@ -460,6 +487,7 @@ export interface InvoiceResponse {
   compagny?: InvoiceCompagny;
   bookings?: InvoiceBooking[];
   travelDocuments?: InvoiceTravelDocument[];
+  serviceReservations?: InvoiceServiceReservation[];
   [key: string]: unknown;
 }
 
@@ -608,6 +636,112 @@ export interface PaymentRequest {
   [key: string]: unknown;
 }
 
+// ==================== SERVICE RESERVATION TYPES ====================
+export interface Circuit {
+  id: number;
+  titre: string;
+  descriptionCourte?: string;
+  descriptionComplete?: string;
+  duree?: string;
+  ville?: string;
+  prix?: number;
+  maxParticipants?: number;
+  inclus?: string[];
+  nonInclus?: string[];
+  typeAnnulation?: string;
+  images?: string[];
+  statut?: string;
+  [key: string]: unknown;
+}
+
+export interface Logement {
+  id: number;
+  nom: string;
+  type?: string; // HOTEL, RIAD, RESIDENCE, etc.
+  nbreEtoiles?: number;
+  pays?: string;
+  ville?: string;
+  adresseExacte?: string;
+  description?: string;
+  prixParNuit?: number;
+  prixWeekend?: number;
+  equipements?: string[];
+  capacite?: number;
+  chambres?: number;
+  images?: string[];
+  statut?: string;
+  [key: string]: unknown;
+}
+
+export interface VehiculeLocation {
+  id: number;
+  marque?: string;
+  modele?: string;
+  annee?: number;
+  type?: string;
+  places?: number;
+  transmission?: string;
+  carburant?: string;
+  prixParJour?: number;
+  prixWeekend?: number;
+  caution?: number;
+  zoneOperations?: string;
+  climatisation?: boolean;
+  chauffeur?: boolean;
+  gps?: boolean;
+  images?: string[];
+  statut?: string;
+  [key: string]: unknown;
+}
+
+export interface CreateServiceReservationDto {
+  serviceType: 'CIRCUIT' | 'LOGEMENT' | 'FLOTTE';
+  circuitId?: number;
+  logementId?: number;
+  vehiculeLocationId?: number;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  dateDebut: string;
+  dateFin?: string;
+  totalPrice?: number;
+  employeeId?: number;
+  notes?: string;
+  nombrePersonnes?: number;
+  adresseLivraison?: string;
+  paidBy?: 'company' | 'client';
+  paymentMethod?: string;
+}
+
+export interface PayReservationDto {
+  paymentMethod: 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer';
+}
+
+export interface ServiceReservationResponse {
+  id: number;
+  reference?: string;
+  serviceType?: string;
+  status?: string;
+  totalPrice?: number;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  dateDebut?: string;
+  dateFin?: string;
+  nombrePersonnes?: number;
+  adresseLivraison?: string;
+  notes?: string;
+  employeeId?: number;
+  circuit?: Circuit;
+  logement?: Logement;
+  vehiculeLocation?: VehiculeLocation;
+  paidBy?: string;
+  paymentMethod?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
 // ==================== ERROR TRANSLATION ====================
 const ERROR_TRANSLATIONS: Record<string, string> = {
   // Auth
@@ -693,6 +827,8 @@ function translateErrors(raw: string | string[]): string {
 // ==================== API CLIENT ====================
 class ApiClient {
   private baseUrl: string;
+  private isRefreshing = false;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -708,9 +844,69 @@ class ApiClient {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
+  private saveNewToken(newToken: string) {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(TOKEN_KEY, newToken);
+    document.cookie = `subito_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+  }
+
+  private clearAuth() {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    document.cookie = 'subito_token=; path=/; max-age=0';
+  }
+
+  private async attemptRefreshToken(): Promise<string | null> {
+    // If already refreshing, wait for the existing refresh to finish
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    const currentToken = this.getAuthToken();
+    if (!currentToken) return null;
+
+    this.isRefreshing = true;
+    this.refreshPromise = (async () => {
+      try {
+        console.log('[API] Attempting token refresh...');
+        const res = await fetch(`${this.baseUrl}/auth/compagny/refresh-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${currentToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          console.warn(`[API] Refresh token failed: ${res.status}`);
+          return null;
+        }
+
+        const json = await res.json();
+        const newToken = json?.data?.access_token || json?.access_token;
+        if (newToken) {
+          console.log('[API] Token refreshed successfully');
+          this.saveNewToken(newToken);
+          return newToken as string;
+        }
+        return null;
+      } catch (err) {
+        console.error('[API] Refresh token error:', err);
+        return null;
+      } finally {
+        this.isRefreshing = false;
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    _isRetryAfterRefresh = false
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -731,7 +927,6 @@ class ApiClient {
         },
       });
     } catch (networkError) {
-      // Network error = server down, no internet, etc. — NOT a token issue
       console.error(`[API] Network error on ${endpoint}:`, networkError);
       throw new Error('Erreur réseau — le serveur est peut-être indisponible');
     }
@@ -741,11 +936,10 @@ class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Une erreur est survenue' }));
 
-      // Format message: handle string, array, or fallback — and translate to French
       const rawMsg = error.message;
       const msg = rawMsg ? translateErrors(rawMsg) : `Erreur ${response.status}`;
 
-      // 5xx = server error, don't logout — server is restarting
+      // 5xx = server error, don't logout
       if (response.status >= 500) {
         console.error(`[API] ${response.status} on ${endpoint}:`, msg);
         throw new Error('Le serveur est temporairement indisponible, réessayez dans un instant');
@@ -754,15 +948,27 @@ class ApiClient {
       if (response.status === 401) {
         console.error(`[API] 401 on ${endpoint}:`, msg);
 
-        // Don't clear auth on login/auth endpoints (they don't need a valid token)
         const isAuthEndpoint = endpoint.startsWith('/auth/');
-        if (!isAuthEndpoint && typeof window !== 'undefined') {
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-          // Clear the cookie too
-          document.cookie = 'subito_token=; path=/; max-age=0';
-          window.location.href = '/login?expired=true';
-          // Return a never-resolving promise to stop further execution
+
+        // Try refresh token (only once, not on auth endpoints)
+        if (!isAuthEndpoint && !_isRetryAfterRefresh && typeof window !== 'undefined') {
+          const newToken = await this.attemptRefreshToken();
+
+          if (newToken) {
+            // Retry the original request with the new token
+            const retryOptions = {
+              ...options,
+              headers: {
+                ...(options.headers || {}),
+                Authorization: `Bearer ${newToken}`,
+              },
+            };
+            return this.request<T>(endpoint, retryOptions, true);
+          }
+
+          // Refresh failed — logout
+          this.clearAuth();
+          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '/business') + '/login?expired=true';
           return new Promise<never>(() => {});
         }
 
@@ -861,6 +1067,12 @@ class ApiClient {
       this.request('/auth/compagny/reset-password', {
         method: 'POST',
         body: JSON.stringify(data),
+      }),
+
+    refreshToken: (token: string) =>
+      this.request<{ access_token: string }>('/auth/compagny/refresh-token', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
       }),
   };
 
@@ -1102,6 +1314,46 @@ class ApiClient {
 
     pay: (id: number, data?: { paymentMethod?: string }) =>
       this.authPut<InvoiceResponse>(`/invoices/compagny/${id}/pay`, data || {}),
+  };
+
+  // ==================== SERVICE RESERVATIONS COMPANY ====================
+  serviceReservations = {
+    create: (data: CreateServiceReservationDto) =>
+      this.authPost<ServiceReservationResponse>('/service-reservations/compagny', data),
+
+    list: (page = 1, limit = 10) =>
+      this.authGet<PaginatedData<ServiceReservationResponse>>(`/service-reservations/compagny?page=${page}&limit=${limit}`),
+
+    get: (id: number) =>
+      this.authGet<ServiceReservationResponse>(`/service-reservations/compagny/${id}`),
+
+    pay: (id: number, data: PayReservationDto) =>
+      this.authPut<ServiceReservationResponse>(`/service-reservations/compagny/${id}/pay`, data),
+  };
+
+  // ==================== PUBLIC CATALOGS (NO AUTH) ====================
+  circuits = {
+    listPublic: (page = 1, limit = 50) =>
+      this.request<PaginatedData<Circuit>>(`/circuits/public?page=${page}&limit=${limit}`),
+
+    getPublic: (id: number) =>
+      this.request<Circuit>(`/circuits/public/${id}`),
+  };
+
+  logements = {
+    listPublic: (page = 1, limit = 50) =>
+      this.request<PaginatedData<Logement>>(`/logements/public?page=${page}&limit=${limit}`),
+
+    getPublic: (id: number) =>
+      this.request<Logement>(`/logements/public/${id}`),
+  };
+
+  vehiculesLocation = {
+    listPublic: (page = 1, limit = 50) =>
+      this.request<PaginatedData<VehiculeLocation>>(`/vehicules-location/public?page=${page}&limit=${limit}`),
+
+    getPublic: (id: number) =>
+      this.request<VehiculeLocation>(`/vehicules-location/public/${id}`),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================

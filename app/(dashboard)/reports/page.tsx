@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { jsPDF } from "jspdf";
+import autoTable from 'jspdf-autotable';
 import { toast } from "sonner";
 
 const COLORS = ['#FF6B35', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569'];
@@ -180,94 +181,317 @@ export default function Reports() {
   // ==================== EXPORTS ====================
 
   const handleExportCSV = () => {
-    const headers = ['Indicateur', 'Valeur'];
-    const rows = [
-      ['Total commandes', String(totalBookings)],
-      ['Revenus total (FCFA)', String(totalRevenue)],
-      ['Prix moyen (FCFA)', String(avgPrice)],
-      ['Taux de complétion (%)', String(completionRate)],
-      ['', ''],
-      ['--- Par statut ---', ''],
-      ...Object.entries(byStatus).map(([k, v]) => [k, String(v)]),
-      ['', ''],
-      ['--- Par service ---', ''],
-      ...byServiceData.map(s => [s.name, String(s.value)]),
-      ['', ''],
-      ['--- Par département ---', ''],
-      ...byDeptData.map(d => [d.name, String(d.value)]),
-    ];
+    const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const periodLabel = `${format(new Date(startDate), 'dd/MM/yyyy')} - ${format(new Date(endDate), 'dd/MM/yyyy')}`;
+    const rows: string[][] = [];
 
-    const csv = [headers, ...rows]
-      .map(row => row.map(cell => `"${cell}"`).join(';'))
+    // Header info
+    rows.push(['RAPPORT SUBITO BUSINESS', '', '', '']);
+    rows.push([`Periode: ${periodLabel}`, '', `Genere le: ${format(now, 'dd/MM/yyyy')}`, '']);
+    rows.push([]);
+
+    // KPIs
+    rows.push(['RESUME', '', '', '']);
+    rows.push(['Indicateur', 'Valeur', '', '']);
+    rows.push(['Depenses totales', `${fmtPrice(totalRevenue)} FCFA`, '', '']);
+    rows.push(['Nombre de commandes', String(totalBookings), '', '']);
+    rows.push(['Prix moyen', `${fmtPrice(avgPrice)} FCFA`, '', '']);
+    rows.push(['Taux de completion', `${completionRate}%`, '', '']);
+    rows.push([]);
+
+    // Par statut
+    const statusEntries = Object.entries(byStatus);
+    if (statusEntries.length > 0) {
+      rows.push(['REPARTITION PAR STATUT', '', '', '']);
+      rows.push(['Statut', 'Nombre', '', '']);
+      statusEntries.forEach(([k, v]) => {
+        rows.push([STATUS_LABELS[k] || k.replace(/_/g, ' '), String(v), '', '']);
+      });
+      rows.push([]);
+    }
+
+    // Par service
+    if (byServiceData.length > 0) {
+      const totalServices = byServiceData.reduce((s, i) => s + i.value, 0);
+      rows.push(['DEPENSES PAR SERVICE', '', '', '']);
+      rows.push(['Service', 'Montant (FCFA)', '% du total', '']);
+      byServiceData.forEach(s => {
+        const pct = totalServices > 0 ? ((s.value / totalServices) * 100).toFixed(1) + '%' : '0%';
+        rows.push([s.name, `${fmtPrice(s.value)} FCFA`, pct, '']);
+      });
+      rows.push(['TOTAL', `${fmtPrice(totalServices)} FCFA`, '100%', '']);
+      rows.push([]);
+    }
+
+    // Par département
+    if (byDeptData.length > 0) {
+      const totalDepts = byDeptData.reduce((s, d) => s + d.value, 0);
+      rows.push(['DEPENSES PAR DEPARTEMENT', '', '', '']);
+      rows.push(['Departement', 'Montant (FCFA)', '% du total', '']);
+      byDeptData.forEach(d => {
+        const pct = totalDepts > 0 ? ((d.value / totalDepts) * 100).toFixed(1) + '%' : '0%';
+        rows.push([d.name, `${fmtPrice(d.value)} FCFA`, pct, '']);
+      });
+      rows.push(['TOTAL', `${fmtPrice(totalDepts)} FCFA`, '100%', '']);
+      rows.push([]);
+    }
+
+    // Evolution mensuelle
+    if (monthlyData.length > 0) {
+      rows.push(['EVOLUTION MENSUELLE', '', '', '']);
+      rows.push(['Mois', 'Montant (x1000 FCFA)', '', '']);
+      monthlyData.forEach(m => {
+        rows.push([m.month, typeof m.total === 'number' ? `${fmtPrice(Math.round(m.total))}k` : String(m.total), '', '']);
+      });
+    }
+
+    const csv = rows
+      .map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(';'))
       .join('\n');
 
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `rapport-subito-${format(now, 'yyyy-MM-dd')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Rapport CSV téléchargé');
+    toast.success('Rapport CSV telecharge');
   };
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
+  const handleExportPDF = async () => {
+    try {
+      const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      const brandR = 232, brandG = 78, brandB = 106;
 
-    doc.setFontSize(20);
-    doc.text('RAPPORT SUBITO BUSINESS', 20, 20);
+      let logoBase64: string | null = null;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo_subito_facture.png`);
+        if (res.ok) {
+          const blob = await res.blob();
+          logoBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch { /* logo optional */ }
 
-    doc.setFontSize(10);
-    doc.text(`Généré le ${format(now, 'dd MMMM yyyy à HH:mm', { locale: fr })}`, 20, 30);
-    doc.text(`Période: ${format(new Date(startDate), 'dd/MM/yyyy')} — ${format(new Date(endDate), 'dd/MM/yyyy')}`, 20, 36);
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const margin = 15;
+      let y = margin;
 
-    doc.setFontSize(14);
-    doc.text('RÉSUMÉ', 20, 50);
-    doc.setFontSize(10);
-    doc.text(`Dépenses totales: ${totalRevenue.toLocaleString()} FCFA`, 20, 60);
-    doc.text(`Nombre de commandes: ${totalBookings}`, 20, 66);
-    doc.text(`Prix moyen: ${avgPrice.toLocaleString()} FCFA`, 20, 72);
-    doc.text(`Taux de complétion: ${completionRate}%`, 20, 78);
+      // --- Header band ---
+      doc.setFillColor(brandR, brandG, brandB);
+      doc.rect(0, 0, pageWidth, 40, 'F');
 
-    doc.setFontSize(14);
-    doc.text('PAR STATUT', 20, 94);
-    doc.setFontSize(10);
-    let y = 104;
-    Object.entries(byStatus).forEach(([k, v]) => {
-      doc.text(`${k}: ${v}`, 25, y);
-      y += 6;
-    });
+      // Logo (white area)
+      if (logoBase64) {
+        try { doc.addImage(logoBase64, margin, 6, 34, 18); } catch { /* ignore */ }
+      }
 
-    doc.setFontSize(14);
-    doc.text('PAR SERVICE', 20, y + 10);
-    doc.setFontSize(10);
-    y += 20;
-    byServiceData.slice(0, 8).forEach(s => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      doc.text(`${s.name}: ${s.value.toLocaleString()} FCFA`, 25, y);
-      y += 6;
-    });
+      // Title
+      doc.setFontSize(22);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RAPPORT D\'ACTIVITE', pageWidth - margin, 18, { align: 'right' });
 
-    doc.setFontSize(14);
-    doc.text('PAR DÉPARTEMENT', 20, y + 10);
-    doc.setFontSize(10);
-    y += 20;
-    byDeptData.slice(0, 10).forEach(d => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      doc.text(`${d.name}: ${d.value.toLocaleString()} FCFA`, 25, y);
-      y += 6;
-    });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `Periode: ${format(new Date(startDate), 'dd/MM/yyyy')} - ${format(new Date(endDate), 'dd/MM/yyyy')}`,
+        pageWidth - margin, 28, { align: 'right' }
+      );
+      doc.text(
+        `Genere le ${format(now, 'dd MMMM yyyy', { locale: fr })}`,
+        pageWidth - margin, 34, { align: 'right' }
+      );
 
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.text(`Page ${i}/${pageCount}`, 180, 285);
-      doc.text('Subito Business — Confidentiel', 20, 285);
+      y = 50;
+
+      // --- KPI Cards ---
+      const kpiBoxW = (pageWidth - margin * 2 - 9) / 4; // 4 boxes, 3px gap
+      const kpiBoxH = 22;
+      const kpiData = [
+        { label: 'Depenses totales', value: `${fmtPrice(totalRevenue)} FCFA` },
+        { label: 'Commandes', value: String(totalBookings) },
+        { label: 'Prix moyen', value: `${fmtPrice(avgPrice)} FCFA` },
+        { label: 'Taux completion', value: `${completionRate}%` },
+      ];
+
+      kpiData.forEach((kpi, i) => {
+        const x = margin + i * (kpiBoxW + 3);
+        doc.setFillColor(248, 248, 252);
+        doc.roundedRect(x, y, kpiBoxW, kpiBoxH, 2, 2, 'F');
+
+        doc.setFontSize(7);
+        doc.setTextColor(120, 120, 120);
+        doc.setFont('helvetica', 'normal');
+        doc.text(kpi.label, x + 4, y + 8);
+
+        doc.setFontSize(11);
+        doc.setTextColor(30, 30, 30);
+        doc.setFont('helvetica', 'bold');
+        doc.text(kpi.value, x + 4, y + 17);
+      });
+
+      y += kpiBoxH + 10;
+
+      // --- Section: Par Statut ---
+      const statusEntries = Object.entries(byStatus);
+      if (statusEntries.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.setFont('helvetica', 'bold');
+        doc.text('REPARTITION PAR STATUT', margin, y);
+        y += 3;
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Statut', 'Nombre']],
+          body: statusEntries.map(([k, v]) => [
+            STATUS_LABELS[k] || k.replace(/_/g, ' '),
+            String(v),
+          ]),
+          theme: 'striped',
+          headStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
+          alternateRowStyles: { fillColor: [252, 248, 249] },
+          columnStyles: { 1: { halign: 'center', fontStyle: 'bold' } },
+          margin: { left: margin, right: margin },
+          tableWidth: 90,
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // --- Section: Par Service ---
+      if (byServiceData.length > 0) {
+        if (y > 230) { doc.addPage(); y = margin; }
+
+        doc.setFontSize(12);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DEPENSES PAR SERVICE', margin, y);
+        y += 3;
+
+        const totalServices = byServiceData.reduce((s, i) => s + i.value, 0);
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Service', 'Montant (FCFA)', '% du total']],
+          body: byServiceData.map(s => [
+            s.name,
+            fmtPrice(s.value) + ' FCFA',
+            totalServices > 0 ? ((s.value / totalServices) * 100).toFixed(1) + '%' : '0%',
+          ]),
+          foot: [['Total', fmtPrice(totalServices) + ' FCFA', '100%']],
+          theme: 'striped',
+          headStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          footStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
+          alternateRowStyles: { fillColor: [252, 248, 249] },
+          columnStyles: {
+            1: { halign: 'right', fontStyle: 'bold' },
+            2: { halign: 'center' },
+          },
+          margin: { left: margin, right: margin },
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // --- Section: Par Département ---
+      if (byDeptData.length > 0) {
+        if (y > 230) { doc.addPage(); y = margin; }
+
+        doc.setFontSize(12);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DEPENSES PAR DEPARTEMENT', margin, y);
+        y += 3;
+
+        const totalDepts = byDeptData.reduce((s, d) => s + d.value, 0);
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Departement', 'Montant (FCFA)', '% du total']],
+          body: byDeptData.map(d => [
+            d.name,
+            fmtPrice(d.value) + ' FCFA',
+            totalDepts > 0 ? ((d.value / totalDepts) * 100).toFixed(1) + '%' : '0%',
+          ]),
+          foot: [['Total', fmtPrice(totalDepts) + ' FCFA', '100%']],
+          theme: 'striped',
+          headStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          footStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
+          alternateRowStyles: { fillColor: [252, 248, 249] },
+          columnStyles: {
+            1: { halign: 'right', fontStyle: 'bold' },
+            2: { halign: 'center' },
+          },
+          margin: { left: margin, right: margin },
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // --- Section: Evolution mensuelle ---
+      if (monthlyData.length > 0) {
+        if (y > 220) { doc.addPage(); y = margin; }
+
+        doc.setFontSize(12);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.setFont('helvetica', 'bold');
+        doc.text('EVOLUTION MENSUELLE', margin, y);
+        y += 3;
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Mois', 'Montant (x1000 FCFA)']],
+          body: monthlyData.map(m => [
+            m.month,
+            typeof m.total === 'number' ? fmtPrice(Math.round(m.total)) + 'k' : String(m.total),
+          ]),
+          theme: 'striped',
+          headStyles: { fillColor: [brandR, brandG, brandB], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
+          alternateRowStyles: { fillColor: [252, 248, 249] },
+          columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+          margin: { left: margin, right: margin },
+          tableWidth: 100,
+        });
+      }
+
+      // --- Footer on every page ---
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+
+        // Bottom line
+        doc.setDrawColor(brandR, brandG, brandB);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 284, pageWidth - margin, 284);
+
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.setFont('helvetica', 'normal');
+        doc.text('SUBITO INTERNATIONAL SUARL — Confidentiel', margin, 289);
+        doc.text(`Page ${i}/${pageCount}`, pageWidth - margin, 289, { align: 'right' });
+      }
+
+      doc.save(`rapport-subito-${format(now, 'yyyy-MM-dd')}.pdf`);
+      toast.success('Rapport PDF telecharge');
+    } catch (err) {
+      console.error('Erreur generation rapport PDF:', err);
+      toast.error('Erreur lors de la generation du rapport PDF');
     }
-
-    doc.save(`rapport-subito-${format(now, 'yyyy-MM-dd')}.pdf`);
-    toast.success('Rapport PDF téléchargé');
   };
 
   // ==================== RENDER ====================
