@@ -28,7 +28,8 @@ import {
   Loader2,
   ClipboardCheck,
   Copy,
-  Share2
+  Share2,
+  Compass
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,7 @@ const navigation: NavigationItem[] = [
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
   { name: "Inter-villes", href: "/inter-city", icon: Car },
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
+  { name: "Reservations Services", href: "/service-reservations", icon: Compass },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   // { name: "Livraison Colis", href: "/parcel-delivery", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
@@ -200,7 +202,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100">
             <div className="flex items-center gap-3">
               <img
-                src="/logo-subito.jpeg"
+                src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo-subito.jpeg`}
                 alt="Subito"
                 className="h-10 w-auto"
               />

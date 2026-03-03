@@ -11,6 +11,8 @@ import {
   MapPin,
   Search,
   Plane,
+  PlaneTakeoff,
+  PlaneLanding,
   Car,
   Clock,
   FileText,
@@ -23,6 +25,9 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Compass,
+  Hotel,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +52,9 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
+  CIRCUIT: { label: "Circuit", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
+  LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-cyan-100 text-cyan-700" },
+  FLOTTE: { label: "Flotte", icon: Car, color: "bg-pink-100 text-pink-700" },
 };
 
 const canalLabels: Record<string, string> = {
@@ -266,6 +274,9 @@ export default function Tracking() {
               <SelectItem value="inter_city">Inter-ville</SelectItem>
               <SelectItem value="vtc_hourly">VTC Horaire</SelectItem>
               <SelectItem value="visa_assistance">Documents Voyage</SelectItem>
+              <SelectItem value="CIRCUIT">Circuit</SelectItem>
+              <SelectItem value="LOGEMENT">Logement</SelectItem>
+              <SelectItem value="FLOTTE">Flotte</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -473,73 +484,237 @@ export default function Tracking() {
                 )}
               </div>
 
-              {/* Details */}
-              <div className="space-y-3">
-                {/* Travel Document specific fields */}
-                {bookingDetail.serviceType === 'visa_assistance' && (
-                  <>
-                    {(bookingDetail as any).destinationCountry && (
+              {/* ======= AIRPORT SHUTTLE / INTER-CITY: Trajet Aller / Retour ======= */}
+              {(bookingDetail.serviceType === 'airport_shuttle' || bookingDetail.serviceType === 'inter_city') && (() => {
+                const d = bookingDetail as any;
+                const isRoundTrip = d.isOneWay === false || !!d.pickupDateRetour;
+                const departVille = d.villeDepart?.nom || d.villeDepart?.name || d.departureCity || '';
+                const arriveeVille = d.villeArrivee?.nom || d.villeArrivee?.name || d.arrivalCity || '';
+                return (
+                  <div className="space-y-3">
+                    {/* Route summary */}
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
+                      <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="text-sm font-medium text-slate-800">{departVille}</span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-sm font-medium text-slate-800">{arriveeVille}</span>
+                      <Badge className={`ml-auto border-0 text-xs ${isRoundTrip ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {isRoundTrip ? 'Aller-retour' : 'Aller simple'}
+                      </Badge>
+                    </div>
+
+                    {/* ALLER */}
+                    <div className="p-4 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <PlaneTakeoff className="w-4 h-4 text-orange-600" />
+                        <p className="text-sm font-semibold text-slate-700">Aller</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">Date & Heure</p>
+                          <p className="text-sm font-medium text-slate-800">
+                            {d.pickupDateAller ? format(new Date(d.pickupDateAller), 'dd MMM yyyy', { locale: fr }) : '—'}
+                            {d.pickupTimeAller ? ` a ${d.pickupTimeAller}` : ''}
+                          </p>
+                        </div>
+                        {d.passengers && (
+                          <div>
+                            <p className="text-xs text-slate-500">Passagers</p>
+                            <p className="text-sm font-medium text-slate-800">{d.passengers}</p>
+                          </div>
+                        )}
+                      </div>
+                      {/* Addresses for airport shuttle */}
+                      {d.adressePriseEnChargeAller && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse de prise en charge</p>
+                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeAller}</p>
+                        </div>
+                      )}
+                      {/* Addresses for inter-city */}
+                      {d.adressePriseEnChargeDepartAller && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse depart</p>
+                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeDepartAller}</p>
+                        </div>
+                      )}
+                      {d.adressePriseEnChargeArriveeAller && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse arrivee</p>
+                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeArriveeAller}</p>
+                        </div>
+                      )}
+                      {d.flightNumber && (
+                        <div>
+                          <p className="text-xs text-slate-500">Numero de vol</p>
+                          <p className="text-sm font-medium text-slate-800">{d.flightNumber}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RETOUR */}
+                    {isRoundTrip && (
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/30 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <PlaneLanding className="w-4 h-4 text-blue-600" />
+                          <p className="text-sm font-semibold text-slate-700">Retour</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">Date & Heure</p>
+                            <p className="text-sm font-medium text-slate-800">
+                              {d.pickupDateRetour ? format(new Date(d.pickupDateRetour), 'dd MMM yyyy', { locale: fr }) : '—'}
+                              {d.pickupTimeRetour ? ` a ${d.pickupTimeRetour}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        {d.adressePriseEnChargeRetour && (
+                          <div>
+                            <p className="text-xs text-slate-500">Adresse de prise en charge retour</p>
+                            <p className="text-sm text-slate-800">{d.adressePriseEnChargeRetour}</p>
+                          </div>
+                        )}
+                        {d.adressePriseEnChargeDepartRetour && (
+                          <div>
+                            <p className="text-xs text-slate-500">Adresse depart retour</p>
+                            <p className="text-sm text-slate-800">{d.adressePriseEnChargeDepartRetour}</p>
+                          </div>
+                        )}
+                        {d.adressePriseEnChargeArriveeRetour && (
+                          <div>
+                            <p className="text-xs text-slate-500">Adresse arrivee retour</p>
+                            <p className="text-sm text-slate-800">{d.adressePriseEnChargeArriveeRetour}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ======= VTC HOURLY ======= */}
+              {bookingDetail.serviceType === 'vtc_hourly' && (() => {
+                const d = bookingDetail as any;
+                return (
+                  <div className="p-4 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="w-4 h-4 text-purple-600" />
+                      <p className="text-sm font-semibold text-slate-700">Details VTC</p>
+                    </div>
+                    {d.scheduledDatetime && (
+                      <div>
+                        <p className="text-xs text-slate-500">Date & Heure</p>
+                        <p className="text-sm font-medium text-slate-800">
+                          {format(new Date(d.scheduledDatetime), 'dd MMM yyyy HH:mm', { locale: fr })}
+                        </p>
+                      </div>
+                    )}
+                    {(d.pickupAddress || d.adressePriseEnCharge) && (
+                      <div>
+                        <p className="text-xs text-slate-500">Adresse de prise en charge</p>
+                        <p className="text-sm text-slate-800">{d.pickupAddress || d.adressePriseEnCharge}</p>
+                      </div>
+                    )}
+                    {d.package && (
+                      <div>
+                        <p className="text-xs text-slate-500">Forfait</p>
+                        <p className="text-sm font-medium text-slate-800">{d.package}</p>
+                      </div>
+                    )}
+                    {d.vehicleType && (
+                      <div>
+                        <p className="text-xs text-slate-500">Type de vehicule</p>
+                        <p className="text-sm font-medium text-slate-800">{d.vehicleType}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ======= VISA / TRAVEL DOCUMENTS ======= */}
+              {bookingDetail.serviceType === 'visa_assistance' && (() => {
+                const d = bookingDetail as any;
+                return (
+                  <div className="space-y-3">
+                    {d.destinationCountry && (
                       <div className="flex justify-between">
                         <span className="text-sm text-slate-500">Destination</span>
                         <span className="text-sm font-medium text-slate-800">
-                          {(bookingDetail as any).destinationCity ? `${(bookingDetail as any).destinationCity}, ` : ''}
-                          {(bookingDetail as any).destinationCountry}
+                          {d.destinationCity ? `${d.destinationCity}, ` : ''}{d.destinationCountry}
                         </span>
                       </div>
                     )}
-                    {(bookingDetail as any).departureCountry && (
+                    {d.departureCountry && (
                       <div className="flex justify-between">
                         <span className="text-sm text-slate-500">Depart</span>
                         <span className="text-sm font-medium text-slate-800">
-                          {(bookingDetail as any).departureCity ? `${(bookingDetail as any).departureCity}, ` : ''}
-                          {(bookingDetail as any).departureCountry}
+                          {d.departureCity ? `${d.departureCity}, ` : ''}{d.departureCountry}
                         </span>
                       </div>
                     )}
-                    {(bookingDetail as any).passportNumber && (
+                    {d.passportNumber && (
                       <div className="flex justify-between">
                         <span className="text-sm text-slate-500">Passeport</span>
-                        <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).passportNumber}</span>
+                        <span className="text-sm font-medium text-slate-800">{d.passportNumber}</span>
                       </div>
                     )}
-                    {(bookingDetail as any).travelReason && (
+                    {d.travelReason && (
                       <div className="flex justify-between">
                         <span className="text-sm text-slate-500">Motif</span>
-                        <span className="text-sm font-medium text-slate-800 capitalize">{(bookingDetail as any).travelReason}</span>
+                        <span className="text-sm font-medium text-slate-800 capitalize">{d.travelReason}</span>
                       </div>
                     )}
-                    {(bookingDetail as any).flightReservation && (
+                    {d.departureDate && (
                       <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Vol</span>
-                        <Badge className="bg-blue-100 text-blue-700 border-0">Reservation vol</Badge>
+                        <span className="text-sm text-slate-500">Date depart</span>
+                        <span className="text-sm font-medium text-slate-800">
+                          {format(new Date(d.departureDate), 'dd MMM yyyy', { locale: fr })}
+                        </span>
                       </div>
                     )}
-                    {(bookingDetail as any).hotelReservation && (
+                    {d.returnDate && (
                       <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Hotel</span>
-                        <Badge className="bg-green-100 text-green-700 border-0">Reservation hotel</Badge>
+                        <span className="text-sm text-slate-500">Date retour</span>
+                        <span className="text-sm font-medium text-slate-800">
+                          {format(new Date(d.returnDate), 'dd MMM yyyy', { locale: fr })}
+                        </span>
                       </div>
                     )}
-                    {(bookingDetail as any).travelInsurance && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Assurance</span>
-                        <Badge className="bg-purple-100 text-purple-700 border-0">Assurance voyage</Badge>
-                      </div>
-                    )}
-                  </>
-                )}
-                {(bookingDetail as any).departureDate && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Date depart</span>
-                    <span className="text-sm font-medium text-slate-800">
-                      {format(new Date((bookingDetail as any).departureDate), 'dd MMM yyyy HH:mm', { locale: fr })}
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {d.flightReservation && <Badge className="bg-blue-100 text-blue-700 border-0">Reservation vol</Badge>}
+                      {d.hotelReservation && <Badge className="bg-green-100 text-green-700 border-0">Reservation hotel</Badge>}
+                      {d.travelInsurance && <Badge className="bg-purple-100 text-purple-700 border-0">Assurance voyage</Badge>}
+                    </div>
                   </div>
-                )}
-                {(bookingDetail as any).passengers && (
+                );
+              })()}
+
+              {/* ======= GENERIC FIELDS (for services without specific sections) ======= */}
+              {!['airport_shuttle', 'inter_city', 'vtc_hourly', 'visa_assistance'].includes(bookingDetail.serviceType || '') && (
+                <div className="space-y-3">
+                  {(bookingDetail as any).departureDate && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">Date depart</span>
+                      <span className="text-sm font-medium text-slate-800">
+                        {format(new Date((bookingDetail as any).departureDate), 'dd MMM yyyy HH:mm', { locale: fr })}
+                      </span>
+                    </div>
+                  )}
+                  {(bookingDetail as any).passengers && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-slate-500">Passagers</span>
+                      <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).passengers}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ======= COMMON FIELDS (all services) ======= */}
+              <div className="space-y-3">
+                {bookingDetail.clientAddress && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-slate-500">Passagers</span>
-                    <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).passengers}</span>
+                    <span className="text-sm text-slate-500">Adresse client</span>
+                    <span className="text-sm font-medium text-slate-800">{bookingDetail.clientAddress}</span>
                   </div>
                 )}
                 {bookingDetail.paymentMethod && (
@@ -594,7 +769,7 @@ export default function Tracking() {
               )}
 
               {/* Pay button for unpaid bookings */}
-              {bookingDetail.status?.toUpperCase() !== 'PAID' && bookingDetail.paymentStatus?.toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
+              {String(bookingDetail.status || '').toUpperCase() !== 'PAID' && String((bookingDetail as any).paymentStatus || '').toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
                   onClick={() => {

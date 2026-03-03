@@ -2,17 +2,19 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceCompagny, PaymentOption } from "@/lib/api";
+import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceServiceReservation, InvoiceCompagny, PaymentOption } from "@/lib/api";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   Download,
   CreditCard,
   Building,
   FileText,
+  FileDown,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -54,7 +56,11 @@ interface Invoice {
   company_name?: string;
   period_start?: string;
   period_end?: string;
+  total_ht?: number;
+  tva_amount?: number;
   total_amount?: number;
+  is_tva?: boolean;
+  pdf_url?: string | null;
   bookings_count?: number;
   status: 'pending' | 'paid' | 'overdue';
   created_date: string;
@@ -63,6 +69,7 @@ interface Invoice {
   compagny?: InvoiceCompagny;
   bookings?: InvoiceBooking[];
   travelDocuments?: InvoiceTravelDocument[];
+  serviceReservations?: InvoiceServiceReservation[];
 }
 
 interface StatusConfig {
@@ -85,6 +92,10 @@ const SERVICE_LABELS: Record<string, string> = {
   vtc_hourly: 'VTC à l\'heure',
   visa_assistance: 'Visa / Assistance',
   travel_document: 'Document de voyage',
+  CIRCUIT: 'Circuit',
+  PRESSING: 'Pressing',
+  pressing: 'Pressing',
+  circuit: 'Circuit',
 };
 
 const statusConfig: Record<string, StatusConfig> = {
@@ -164,7 +175,11 @@ export default function Billing() {
       company_name: inv.compagnyName || inv.compagny?.nomCompagny,
       period_start: inv.startDate,
       period_end: inv.endDate,
+      total_ht: Number(inv.totalHT) || 0,
+      tva_amount: Number(inv.tvaAmount) || 0,
       total_amount: Number(inv.totalAmount) || 0,
+      is_tva: inv.isTva ?? false,
+      pdf_url: inv.pdfUrl,
       bookings_count: inv.bookingsCount || (inv.bookings?.length ?? 0),
       status: (s === 'PAID' ? 'paid' : s === 'OVERDUE' ? 'overdue' : 'pending') as Invoice['status'],
       created_date: inv.createdAt || '',
@@ -173,6 +188,7 @@ export default function Billing() {
       compagny: inv.compagny,
       bookings: inv.bookings,
       travelDocuments: inv.travelDocuments,
+      serviceReservations: inv.serviceReservations,
     };
   });
 
@@ -267,7 +283,11 @@ export default function Billing() {
       company_name: inv.compagnyName || inv.compagny?.nomCompagny,
       period_start: inv.startDate,
       period_end: inv.endDate,
+      total_ht: Number(inv.totalHT) || 0,
+      tva_amount: Number(inv.tvaAmount) || 0,
       total_amount: Number(inv.totalAmount) || 0,
+      is_tva: inv.isTva ?? false,
+      pdf_url: inv.pdfUrl,
       bookings_count: inv.bookingsCount || (inv.bookings?.length ?? 0),
       status: (s === 'PAID' ? 'paid' : s === 'OVERDUE' ? 'overdue' : 'pending') as Invoice['status'],
       created_date: inv.createdAt || '',
@@ -276,6 +296,7 @@ export default function Billing() {
       compagny: inv.compagny,
       bookings: inv.bookings || [],
       travelDocuments: inv.travelDocuments || [],
+      serviceReservations: inv.serviceReservations || [],
     } as Invoice;
   })();
 
@@ -347,53 +368,60 @@ export default function Billing() {
 
   async function handleDownloadPDF(invoice: Invoice) {
     try {
+      // If backend provides a PDF URL, download it directly
+      if (invoice.pdf_url) {
+        const link = document.createElement('a');
+        link.href = invoice.pdf_url;
+        link.download = `Facture_${invoice.invoice_number || `FAC-${invoice.id}`}.pdf`;
+        link.target = '_blank';
+        link.click();
+        return;
+      }
+
+      // Fallback: generate PDF client-side
       const [logoBase64, tamponBase64] = await Promise.all([
-        loadImageAsBase64('/logo_subito_facture.png'),
-        loadImageAsBase64('/tamponSubito.jpeg'),
+        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo_subito_facture.png`),
+        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/tamponSubito.jpeg`),
       ]);
 
-      // Format number with regular spaces (jsPDF can't render locale non-breaking spaces)
       const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const margin = 15;
-      const contentWidth = pageWidth - margin * 2;
       let y = margin;
 
-      // Brand colors (pink/coral matching Subito)
       const brandR = 232, brandG = 78, brandB = 106;
+      const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
+      const invoiceDate = invoice.created_date
+        ? format(new Date(invoice.created_date), 'dd/MM/yyyy')
+        : format(new Date(), 'dd/MM/yyyy');
 
-      // 1. Header: Logo left + RECU right
+      // --- 1. Header: Logo left + FACTURE right ---
       try {
         doc.addImage(logoBase64, margin, y, 38, 20);
       } catch (e) {
         console.error('Logo addImage error:', e);
       }
 
-      doc.setFontSize(32);
+      doc.setFontSize(28);
       doc.setTextColor(brandR, brandG, brandB);
       doc.setFont('helvetica', 'bold');
-      doc.text('RECU', pageWidth - margin, y + 8, { align: 'right' });
+      doc.text('FACTURE', pageWidth - margin, y + 8, { align: 'right' });
 
-      // Metadata right-aligned under RECU
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       doc.setFont('helvetica', 'normal');
-      const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
-      doc.text(`N Recu: ${invoiceNum}`, pageWidth - margin, y + 16, { align: 'right' });
-      const invoiceDate = invoice.created_date
-        ? format(new Date(invoice.created_date), 'dd/MM/yyyy')
-        : format(new Date(), 'dd/MM/yyyy');
+      doc.text(`N° Facture: ${invoiceNum}`, pageWidth - margin, y + 16, { align: 'right' });
       doc.text(`Date: ${invoiceDate}`, pageWidth - margin, y + 21, { align: 'right' });
       if (invoice.period_start && invoice.period_end) {
-        doc.text(`Période: ${format(new Date(invoice.period_start), 'dd/MM/yyyy')} - ${format(new Date(invoice.period_end), 'dd/MM/yyyy')}`, pageWidth - margin, y + 26, { align: 'right' });
+        doc.text(`Periode: ${format(new Date(invoice.period_start), 'dd/MM/yyyy')} - ${format(new Date(invoice.period_end), 'dd/MM/yyyy')}`, pageWidth - margin, y + 26, { align: 'right' });
       }
 
-      y += 45;
+      y += 38;
 
-      // 2. Subito company info (bold name, then details)
-      doc.setFontSize(11);
+      // --- 2. Subito company info (left) + Client info (right) ---
+      doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
       doc.text('SUBITO INTERNATIONAL SUARL', margin, y);
@@ -404,194 +432,274 @@ export default function Billing() {
       doc.text('Scat Urbam, Immeuble prestige deco', margin, y); y += 4;
       doc.text('Tel: (+221) 78 136 36 35 | Email: contact@mysubito.net', margin, y); y += 4;
       doc.text('NINEA: 006939849v2 | RC: SN.DKR.2018.B20187', margin, y); y += 4;
-      doc.text('Compte BICIS: SN010 01423 007727000051 26', margin, y); y += 4;
+      doc.text('Compte BICIS: SN010 01423 007727000051 26', margin, y);
 
-      y += 8;
+      // Client block on the right
+      const clientX = pageWidth - margin - 70;
+      const clientY = y - 12;
+      doc.setFillColor(248, 248, 252);
+      doc.roundedRect(clientX - 5, clientY - 8, 75, 30, 3, 3, 'F');
 
-      // 3. Client info
-      const companyName = invoice.company_name || invoice.compagny?.nomCompagny || 'N/A';
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(7);
+      doc.setTextColor(brandR, brandG, brandB);
       doc.setFont('helvetica', 'bold');
-      doc.text(companyName, margin, y);
-      y += 5;
+      doc.text('FACTURE A:', clientX, clientY - 2);
+
+      const companyName = invoice.company_name || invoice.compagny?.nomCompagny || 'N/A';
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text(companyName, clientX, clientY + 5);
+
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(60, 60, 60);
+      doc.setFontSize(7);
+      doc.setTextColor(80, 80, 80);
+      let clientInfoY = clientY + 10;
       if (invoice.compagny?.emailCompagny) {
-        doc.text(`Email: ${invoice.compagny.emailCompagny}`, margin, y); y += 4;
+        doc.text(invoice.compagny.emailCompagny, clientX, clientInfoY);
+        clientInfoY += 4;
       }
       if (invoice.compagny?.telephoneCompagny) {
-        doc.text(`Telephone: ${invoice.compagny.telephoneCompagny}`, margin, y); y += 4;
+        doc.text(`Tel: ${invoice.compagny.telephoneCompagny}`, clientX, clientInfoY);
       }
 
-      y += 10;
+      y += 15;
 
-      // 4. Table header with pink/coral gradient
-      const tableHeaderH = 10;
-      const colDesignation = margin;
-      const colDetails = margin + 55;
-      const colMontant = pageWidth - margin - 40;
-
-      // Draw gradient background (simulate with multiple thin rects)
-      const gradientSteps = 60;
-      const stepWidth = contentWidth / gradientSteps;
-      for (let i = 0; i < gradientSteps; i++) {
-        const ratio = i / gradientSteps;
-        const r = Math.round(brandR + (255 - brandR) * ratio * 0.3);
-        const g = Math.round(brandG + (180 - brandG) * ratio * 0.3);
-        const b = Math.round(brandB + (160 - brandB) * ratio * 0.3);
-        doc.setFillColor(r, g, b);
-        doc.rect(margin + i * stepWidth, y, stepWidth + 0.5, tableHeaderH, 'F');
-      }
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('Designation', colDesignation + 3, y + 6.5);
-      doc.text('Details', colDetails + 3, y + 6.5);
-      doc.text('Montant', colMontant + 3, y + 6.5);
-      y += tableHeaderH;
-
-      // 5. Table rows
-      type PdfLine = { designation: string; details: string[]; montant: number };
-      const lines: PdfLine[] = [];
+      // --- 3. Table with autoTable ---
+      type PdfRow = [string, string, string, string, string];
+      const tableRows: PdfRow[] = [];
 
       if (invoice.bookings) {
         for (const b of invoice.bookings) {
-          const detailParts: string[] = [];
-          if (b.clientName) detailParts.push(b.clientName);
-          if (b.bookingCode) detailParts.push(b.bookingCode);
-          lines.push({
-            designation: SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Reservation',
-            details: detailParts,
-            montant: Number(b.totalPrice) || 0,
-          });
+          tableRows.push([
+            SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Reservation',
+            b.bookingCode || `#${b.id}`,
+            b.clientName || '-',
+            b.createdAt ? format(new Date(b.createdAt), 'dd/MM/yyyy') : '-',
+            fmtPrice(Number(b.totalPrice) || 0) + ' F CFA',
+          ]);
         }
       }
 
       if (invoice.travelDocuments) {
         for (const td of invoice.travelDocuments) {
-          const detailParts: string[] = [];
-          if (td.reference) detailParts.push(td.reference);
-          const fullName = [td.firstName, td.lastName].filter(Boolean).join(' ');
-          if (fullName) detailParts.push(fullName);
-          lines.push({
-            designation: 'Document de voyage',
-            details: detailParts,
-            montant: Number(td.totalPrice) || 0,
-          });
+          const fullName = [td.firstName, td.lastName].filter(Boolean).join(' ') || '-';
+          tableRows.push([
+            'Document de voyage',
+            td.reference || `#${td.id}`,
+            fullName,
+            td.createdAt ? format(new Date(td.createdAt), 'dd/MM/yyyy') : '-',
+            fmtPrice(Number(td.totalPrice) || 0) + ' F CFA',
+          ]);
         }
       }
 
-      for (const line of lines) {
-        const rowH = 18;
-
-        // Designation in pink/coral
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(brandR, brandG, brandB);
-        doc.text(line.designation, colDesignation + 3, y + 7);
-
-        // Details in black (multiline)
-        doc.setTextColor(50, 50, 50);
-        doc.setFontSize(8);
-        const detailText = line.details.join('\n');
-        doc.text(detailText, colDetails + 3, y + 7);
-
-        // Montant right-aligned
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(0, 0, 0);
-        doc.text(fmtPrice(line.montant) + ' F CFA', pageWidth - margin - 3, y + 7, { align: 'right' });
-
-        y += rowH;
-
-        // Separator line
-        doc.setDrawColor(220, 220, 220);
-        doc.line(margin, y, pageWidth - margin, y);
+      if (invoice.serviceReservations) {
+        for (const sr of invoice.serviceReservations) {
+          tableRows.push([
+            SERVICE_LABELS[sr.serviceType || ''] || sr.serviceType || 'Service',
+            sr.reservationCode || `#${sr.id}`,
+            sr.clientName || '-',
+            sr.createdAt ? format(new Date(sr.createdAt), 'dd/MM/yyyy') : '-',
+            fmtPrice(Number(sr.totalPrice) || 0) + ' F CFA',
+          ]);
+        }
       }
 
-      y += 10;
+      autoTable(doc, {
+        startY: y,
+        head: [['Designation', 'Reference', 'Client', 'Date', 'Montant']],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [brandR, brandG, brandB],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 9,
+          halign: 'left',
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [50, 50, 50],
+        },
+        columnStyles: {
+          0: { cellWidth: 38 },
+          4: { halign: 'right', fontStyle: 'bold', textColor: [0, 0, 0] },
+        },
+        alternateRowStyles: {
+          fillColor: [252, 248, 249],
+        },
+        margin: { left: margin, right: margin },
+        didDrawPage: (data: { pageNumber: number }) => {
+          // Footer on each page
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text(
+            `SUBITO INTERNATIONAL SUARL - Facture ${invoiceNum} - Page ${data.pageNumber}`,
+            pageWidth / 2,
+            290,
+            { align: 'center' }
+          );
+        },
+      });
 
-      // 6. Totals section (right-aligned)
-      const sousTotal = lines.reduce((sum, l) => sum + l.montant, 0);
-      const totalAmount = invoice.total_amount || sousTotal;
-      const tva = 0; // TVA 0 as shown in the receipt
-      const totalHT = totalAmount;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      y = (doc as any).lastAutoTable.finalY + 10;
 
-      const totalsLabelX = pageWidth - margin - 75;
-      const totalsValX = pageWidth - margin - 3;
+      // --- 4. Totals in rounded rect ---
+      const fallbackTotal = tableRows.reduce((sum, row) => {
+        const val = parseInt(row[4].replace(/[^\d]/g, ''), 10) || 0;
+        return sum + val;
+      }, 0);
+      const totalHT = invoice.total_ht || fallbackTotal;
+      const tva = invoice.is_tva ? (invoice.tva_amount || 0) : 0;
+      const totalAmount = invoice.total_amount || (totalHT + tva);
 
-      doc.setDrawColor(220, 220, 220);
+      const totalsBoxX = pageWidth - margin - 80;
+      const totalsBoxW = 80;
+      const totalsBoxH = 42;
 
-      // Sous-total
+      doc.setFillColor(248, 248, 252);
+      doc.roundedRect(totalsBoxX, y, totalsBoxW, totalsBoxH, 3, 3, 'F');
+
+      const labelX = totalsBoxX + 5;
+      const valX = totalsBoxX + totalsBoxW - 5;
+      let ty = y + 8;
+
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
-      doc.text('Sous-total', totalsLabelX, y);
-      doc.text(fmtPrice(totalHT) + ' F CFA', totalsValX, y, { align: 'right' });
-      y += 2;
-      doc.line(totalsLabelX, y, pageWidth - margin, y);
-      y += 6;
+      doc.text('Sous-total HT', labelX, ty);
+      doc.text(fmtPrice(totalHT) + ' F CFA', valX, ty, { align: 'right' });
+      ty += 7;
 
-      // Total HT
-      doc.text('Total HT', totalsLabelX, y);
-      doc.text(fmtPrice(totalHT) + ' F CFA', totalsValX, y, { align: 'right' });
-      y += 2;
-      doc.line(totalsLabelX, y, pageWidth - margin, y);
-      y += 6;
+      doc.text(invoice.is_tva ? 'TVA (18%)' : 'TVA', labelX, ty);
+      doc.text(invoice.is_tva ? fmtPrice(tva) + ' F CFA' : 'N/A', valX, ty, { align: 'right' });
+      ty += 3;
 
-      // TVA
-      doc.text('TVA (18%)', totalsLabelX, y);
-      doc.text(fmtPrice(tva) + ' F CFA', totalsValX, y, { align: 'right' });
-      y += 2;
-      doc.line(totalsLabelX, y, pageWidth - margin, y);
-      y += 7;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(labelX, ty, valX, ty);
+      ty += 7;
 
-      // Total TTC (bold, larger)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
-      doc.text('Total TTC', totalsLabelX, y);
-      doc.text(fmtPrice(totalAmount) + ' F CFA', totalsValX, y, { align: 'right' });
+      doc.setTextColor(brandR, brandG, brandB);
+      doc.text('Total TTC', labelX, ty);
+      doc.text(fmtPrice(totalAmount) + ' F CFA', valX, ty, { align: 'right' });
 
-      y += 20;
+      y += totalsBoxH + 12;
 
-      // 7. Horizontal separator
-      doc.setDrawColor(220, 220, 220);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 10;
-
-      // 8. Amount in words
+      // --- 5. Amount in words ---
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(120, 120, 120);
-      const montantEnLettres = numberToFrenchWords(totalAmount);
-      const footerText = `Arretee cette facture a la somme de : `;
-      doc.text(footerText, pageWidth / 2, y, { align: 'center' });
-      y += 4;
+      doc.text('Arretee cette facture a la somme de :', pageWidth / 2, y, { align: 'center' });
+      y += 5;
       doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
+      const montantEnLettres = numberToFrenchWords(totalAmount);
       doc.text(`${montantEnLettres} francs CFA (${fmtPrice(totalAmount)} F CFA)`, pageWidth / 2, y, { align: 'center' });
 
       y += 15;
 
-      // 9. Signature
+      // --- 6. Signature + Tampon ---
+      // Check if we need a new page
+      if (y > 240) {
+        doc.addPage();
+        y = margin + 10;
+      }
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
-      doc.text('L equipe Commerciale', margin, y);
+      doc.text('L\'equipe Commerciale', margin, y);
       y += 3;
 
-      // Tampon
-      doc.addImage(tamponBase64, 'JPEG', margin, y, 40, 40);
+      try {
+        doc.addImage(tamponBase64, 'JPEG', margin, y, 40, 40);
+      } catch (e) {
+        console.error('Tampon addImage error:', e);
+      }
 
-      doc.save(`Recu_${invoiceNum}.pdf`);
+      doc.save(`Facture_${invoiceNum}.pdf`);
     } catch (err) {
-      console.error('Erreur génération PDF:', err);
-      toast.error('Erreur lors de la génération du PDF');
+      console.error('Erreur generation PDF:', err);
+      toast.error('Erreur lors de la generation du PDF');
     }
+  }
+
+  function handleDownloadCSV(invoice: Invoice) {
+    const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
+    const rows: string[][] = [];
+
+    // Header row
+    rows.push(['Designation', 'Reference', 'Client', 'Montant', 'Date', 'Type']);
+
+    if (invoice.bookings) {
+      for (const b of invoice.bookings) {
+        rows.push([
+          SERVICE_LABELS[b.serviceType || ''] || b.serviceType || 'Reservation',
+          b.bookingCode || `#${b.id}`,
+          b.clientName || '-',
+          fmtPrice(Number(b.totalPrice) || 0) + ' F CFA',
+          b.createdAt ? format(new Date(b.createdAt), 'dd/MM/yyyy') : '-',
+          'Reservation',
+        ]);
+      }
+    }
+
+    if (invoice.travelDocuments) {
+      for (const td of invoice.travelDocuments) {
+        const fullName = [td.firstName, td.lastName].filter(Boolean).join(' ') || '-';
+        rows.push([
+          'Document de voyage',
+          td.reference || `#${td.id}`,
+          fullName,
+          fmtPrice(Number(td.totalPrice) || 0) + ' F CFA',
+          td.createdAt ? format(new Date(td.createdAt), 'dd/MM/yyyy') : '-',
+          'Document',
+        ]);
+      }
+    }
+
+    if (invoice.serviceReservations) {
+      for (const sr of invoice.serviceReservations) {
+        rows.push([
+          SERVICE_LABELS[sr.serviceType || ''] || sr.serviceType || 'Service',
+          sr.reservationCode || `#${sr.id}`,
+          sr.clientName || '-',
+          fmtPrice(Number(sr.totalPrice) || 0) + ' F CFA',
+          sr.createdAt ? format(new Date(sr.createdAt), 'dd/MM/yyyy') : '-',
+          'Service',
+        ]);
+      }
+    }
+
+    // Total rows
+    const totalHT = invoice.total_ht || invoice.total_amount || 0;
+    const tva = invoice.is_tva ? (invoice.tva_amount || 0) : 0;
+    const totalAmount = invoice.total_amount || (totalHT + tva);
+    rows.push(['SOUS-TOTAL HT', '', '', fmtPrice(totalHT) + ' F CFA', '', '']);
+    if (invoice.is_tva) {
+      rows.push(['TVA (18%)', '', '', fmtPrice(tva) + ' F CFA', '', '']);
+    }
+    rows.push(['TOTAL TTC', '', '', fmtPrice(totalAmount) + ' F CFA', '', '']);
+
+    // Build CSV with semicolon separator for Excel FR
+    const csvContent = rows.map(row =>
+      row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(';')
+    ).join('\n');
+
+    // BOM UTF-8 for Excel compatibility
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Facture_${invoiceNum}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   const statsRaw = (billingStatsResponse?.data ?? billingStatsResponse) as Record<string, unknown> | undefined;
@@ -756,7 +864,7 @@ export default function Billing() {
       </div>
 
       {/* Main content */}
-      <Tabs defaultValue="current" className="space-y-6">
+      <Tabs defaultValue="invoices" className="space-y-6">
         <TabsList className="bg-slate-100">
           <TabsTrigger value="current">Mois en cours</TabsTrigger>
           <TabsTrigger value="invoices">Historique factures</TabsTrigger>
@@ -1088,10 +1196,18 @@ export default function Billing() {
                 {/* Montant + statut */}
                 <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-slate-50">
                   <div className="min-w-0">
-                    <span className="text-slate-500 text-sm">Montant total</span>
+                    <span className="text-slate-500 text-sm">Montant TTC</span>
                     <p className="text-lg sm:text-xl font-bold text-slate-800 break-all">
                       {(selectedInvoice.total_amount || 0).toLocaleString()} FCFA
                     </p>
+                    {(selectedInvoice.total_ht != null && selectedInvoice.total_ht > 0) && (
+                      <div className="flex gap-3 text-xs text-slate-500 mt-1">
+                        <span>HT: {selectedInvoice.total_ht.toLocaleString()} F</span>
+                        {selectedInvoice.is_tva && (
+                          <span>TVA: {(selectedInvoice.tva_amount || 0).toLocaleString()} F</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <Badge className={`${(statusConfig[selectedInvoice.status] || statusConfig.pending).color} border-0 shrink-0`}>
                     {(statusConfig[selectedInvoice.status] || statusConfig.pending).label}
@@ -1262,19 +1378,81 @@ export default function Billing() {
                   </div>
                 )}
 
+                {/* Réservations de services */}
+                {selectedInvoice.serviceReservations && selectedInvoice.serviceReservations.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-subito" />
+                      Services ({selectedInvoice.serviceReservations.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {selectedInvoice.serviceReservations.map((sr) => (
+                        <div
+                          key={sr.id}
+                          className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-purple-100">
+                              <FileText className="w-4 h-4 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-800 text-sm">
+                                {sr.reservationCode || `#${sr.id}`}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span>{SERVICE_LABELS[sr.serviceType || ''] || sr.serviceType}</span>
+                                {sr.clientName && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      {sr.clientName}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {sr.totalPrice != null && (
+                              <p className="font-semibold text-slate-800 text-sm">
+                                {Number(sr.totalPrice).toLocaleString()} FCFA
+                              </p>
+                            )}
+                            {sr.createdAt && (
+                              <p className="text-xs text-slate-400">
+                                {format(new Date(sr.createdAt), 'dd MMM yyyy', { locale: fr })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Aucune réservation */}
                 {(!selectedInvoice.bookings || selectedInvoice.bookings.length === 0) &&
-                 (!selectedInvoice.travelDocuments || selectedInvoice.travelDocuments.length === 0) && (
+                 (!selectedInvoice.travelDocuments || selectedInvoice.travelDocuments.length === 0) &&
+                 (!selectedInvoice.serviceReservations || selectedInvoice.serviceReservations.length === 0) && (
                   <p className="text-sm text-slate-400 text-center py-2">
                     Aucune réservation associée
                   </p>
                 )}
 
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <Button variant="outline" className="flex-1 gap-2" onClick={() => handleDownloadPDF(selectedInvoice!)}>
-                    <Download className="w-4 h-4" />
-                    Telecharger PDF
-                  </Button>
+                  {((selectedInvoice.bookings?.length ?? 0) > 0 || (selectedInvoice.travelDocuments?.length ?? 0) > 0 || (selectedInvoice.serviceReservations?.length ?? 0) > 0 || selectedInvoice.pdf_url) && (
+                    <>
+                      <Button variant="outline" className="flex-1 gap-2" onClick={() => handleDownloadPDF(selectedInvoice!)}>
+                        <Download className="w-4 h-4" />
+                        PDF
+                      </Button>
+                      <Button variant="outline" className="flex-1 gap-2" onClick={() => handleDownloadCSV(selectedInvoice!)}>
+                        <FileDown className="w-4 h-4" />
+                        CSV
+                      </Button>
+                    </>
+                  )}
                   {selectedInvoice.status === 'pending' && (
                     <Button
                       className="flex-1 gradient-subito text-white border-0"

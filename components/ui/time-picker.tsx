@@ -6,10 +6,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Generate time slots from 00:00 to 23:30 in 30-minute increments
+// Generate time slots from 00:00 to 23:55 in 5-minute increments
 const TIME_SLOTS: string[] = [];
 for (let h = 0; h < 24; h++) {
-  for (const m of [0, 30]) {
+  for (let m = 0; m < 60; m += 5) {
     TIME_SLOTS.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
   }
 }

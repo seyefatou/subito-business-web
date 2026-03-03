@@ -35,6 +35,9 @@ const SERVICE_LABELS: Record<string, string> = {
   flight_reservation: 'Réservation vol',
   hotel_reservation: 'Réservation hôtel',
   flight_and_hotel: 'Vol + Hôtel',
+  CIRCUIT: 'Circuit touristique',
+  LOGEMENT: 'Logement',
+  FLOTTE: 'Location véhicule',
 };
 
 // Both dashboard endpoints return the same structure
@@ -306,6 +309,7 @@ export default function Dashboard() {
               { label: "Inter-villes", icon: "🚗", href: "/inter-city" },
               { label: "VTC Horaire", icon: "🕐", href: "/hourly-vtc" },
               { label: "Documents Voyage", icon: "📄", href: "/travel-documents" },
+              { label: "Reservations Services", icon: "🗺️", href: "/service-reservations" },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div

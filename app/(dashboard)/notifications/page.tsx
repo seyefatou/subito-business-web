@@ -6,6 +6,7 @@ import {
   Bell,
   BellOff,
   Filter,
+  Calendar,
   Check,
   CheckCheck,
   Loader2,
@@ -50,6 +51,7 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [filterRead, setFilterRead] = useState<string>("all");
+  const [filterPeriod, setFilterPeriod] = useState<string>("all");
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
@@ -106,8 +108,28 @@ export default function Notifications() {
   }).length;
 
   const filteredNotifications = notifications.filter(n => {
-    if (filterRead === "unread") return !n.isRead;
-    if (filterRead === "read") return n.isRead;
+    // Filtre lu/non lu
+    if (filterRead === "unread" && n.isRead) return false;
+    if (filterRead === "read" && !n.isRead) return false;
+
+    // Filtre par période
+    if (filterPeriod !== "all") {
+      const notifDate = new Date(n.createdAt);
+      const now = new Date();
+
+      if (filterPeriod === "today") {
+        if (notifDate.toDateString() !== now.toDateString()) return false;
+      } else if (filterPeriod === "week") {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        if (notifDate < weekAgo) return false;
+      } else if (filterPeriod === "month") {
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        if (notifDate < monthAgo) return false;
+      }
+    }
+
     return true;
   });
 
@@ -189,7 +211,7 @@ export default function Notifications() {
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
             <Filter className="w-4 h-4 text-slate-400" />
             <Select value={filterRead} onValueChange={setFilterRead}>
               <SelectTrigger className="w-full md:w-48">
@@ -199,6 +221,18 @@ export default function Notifications() {
                 <SelectItem value="all">Toutes</SelectItem>
                 <SelectItem value="unread">Non lues</SelectItem>
                 <SelectItem value="read">Lues</SelectItem>
+              </SelectContent>
+            </Select>
+            <Calendar className="w-4 h-4 text-slate-400 ml-2" />
+            <Select value={filterPeriod} onValueChange={setFilterPeriod}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Periode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les dates</SelectItem>
+                <SelectItem value="today">Aujourd&apos;hui</SelectItem>
+                <SelectItem value="week">Cette semaine</SelectItem>
+                <SelectItem value="month">Ce mois</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -65,18 +65,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setTokenCookie(storedToken);
             console.log('[AUTH] Token valid, profile loaded OK');
           } else {
-            // Profile response is empty/invalid
             console.warn('[AUTH] Profile response invalid, clearing auth');
             localStorage.removeItem(TOKEN_KEY);
             localStorage.removeItem(USER_KEY);
             removeTokenCookie();
           }
         } catch {
-          // Token is expired/invalid — clean up
-          console.warn('[AUTH] Token validation failed (401 or error), clearing auth');
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-          removeTokenCookie();
+          // Token expired — try refresh before clearing auth
+          console.warn('[AUTH] Token validation failed, trying refresh...');
+          try {
+            const refreshResponse = await api.authCompagny.refreshToken(storedToken);
+            const refreshData = refreshResponse.data || refreshResponse;
+            const newToken = (refreshData as Record<string, unknown>).access_token as string;
+
+            if (newToken) {
+              console.log('[AUTH] Token refreshed successfully on mount');
+              localStorage.setItem(TOKEN_KEY, newToken);
+              setTokenCookie(newToken);
+
+              // Validate the new token
+              const profileResponse = await api.authCompagny.getProfile(newToken);
+              const profile = profileResponse.data || profileResponse;
+              if (profile && (profile.id || profile.nomCompagny || profile.raisonSociale)) {
+                setToken(newToken);
+                setUser(profile as CompagnyUserProfile);
+                localStorage.setItem(USER_KEY, JSON.stringify(profile));
+                console.log('[AUTH] Profile loaded with refreshed token');
+              }
+            } else {
+              throw new Error('No token in refresh response');
+            }
+          } catch {
+            console.warn('[AUTH] Refresh also failed, clearing auth');
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            removeTokenCookie();
+          }
         }
       } catch (error) {
         console.error('[AUTH] Error loading auth state:', error);
