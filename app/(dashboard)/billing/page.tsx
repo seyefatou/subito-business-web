@@ -542,7 +542,6 @@ export default function Billing() {
         },
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       y = (doc as any).lastAutoTable.finalY + 10;
 
       // --- 4. Totals in rounded rect ---

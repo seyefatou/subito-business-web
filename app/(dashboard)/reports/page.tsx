@@ -364,7 +364,6 @@ export default function Reports() {
           tableWidth: 90,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
@@ -401,7 +400,6 @@ export default function Reports() {
           margin: { left: margin, right: margin },
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
@@ -438,7 +436,6 @@ export default function Reports() {
           margin: { left: margin, right: margin },
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
