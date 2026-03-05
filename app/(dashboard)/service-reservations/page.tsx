@@ -765,90 +765,114 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                   </DialogContent>
                 </Dialog>
 
-                {/* Phone */}
-                <div className="space-y-2">
-                  <Label htmlFor="clientPhone">Telephone *</Label>
-                  <PhoneInput
-                    value={formData.clientPhone}
-                    onChange={(val) => handleChange('clientPhone', val || '')}
-                    defaultCountryCode="+221"
-                  />
-                </div>
-
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="clientEmail">Email</Label>
-                  <Input
-                    id="clientEmail"
-                    type="email"
-                    placeholder="email@exemple.com"
-                    value={formData.clientEmail}
-                    onChange={(e) => handleChange('clientEmail', e.target.value)}
-                  />
-                </div>
-
-                {/* Dates */}
+                {/* Phone / Email */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Date de debut *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
-                          {formData.dateDebut
-                            ? format(new Date(formData.dateDebut), 'dd MMM yyyy', { locale: fr })
-                            : 'Selectionner une date'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={formData.dateDebut ? new Date(formData.dateDebut) : undefined}
-                          onSelect={(date) => handleChange('dateDebut', date ? date.toISOString() : '')}
-                          disabled={(date) => date < new Date()}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="clientPhone">Telephone *</Label>
+                    <PhoneInput
+                      value={formData.clientPhone}
+                      onChange={(val) => handleChange('clientPhone', val || '')}
+                      defaultCountryCode="+221"
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Date de fin</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
-                          {formData.dateFin
-                            ? format(new Date(formData.dateFin), 'dd MMM yyyy', { locale: fr })
-                            : 'Selectionner une date'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={formData.dateFin ? new Date(formData.dateFin) : undefined}
-                          onSelect={(date) => handleChange('dateFin', date ? date.toISOString() : '')}
-                          disabled={(date) => date < new Date(formData.dateDebut || new Date())}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="clientEmail">Email</Label>
+                    <Input
+                      id="clientEmail"
+                      type="email"
+                      placeholder="email@exemple.com"
+                      value={formData.clientEmail}
+                      onChange={(e) => handleChange('clientEmail', e.target.value)}
+                    />
                   </div>
                 </div>
 
-                {/* Nombre de personnes (circuit only) */}
-                {formData.serviceType === 'CIRCUIT' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="nombrePersonnes">Nombre de personnes</Label>
-                    <Input
-                      id="nombrePersonnes"
-                      type="number"
-                      min={1}
-                      max={selectedCircuit?.maxParticipants || 50}
-                      value={formData.nombrePersonnes}
-                      onChange={(e) => handleChange('nombrePersonnes', parseInt(e.target.value) || 1)}
-                    />
-                    {selectedCircuit?.maxParticipants && (
-                      <p className="text-xs text-slate-500">Maximum {selectedCircuit.maxParticipants} participants</p>
-                    )}
+                {/* Dates / Nombre de personnes */}
+                {formData.serviceType === 'CIRCUIT' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Date *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                            {formData.dateDebut
+                              ? format(new Date(formData.dateDebut), 'dd MMM yyyy', { locale: fr })
+                              : 'Selectionner une date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.dateDebut ? new Date(formData.dateDebut) : undefined}
+                            onSelect={(date) => handleChange('dateDebut', date ? date.toISOString() : '')}
+                            disabled={(date) => date < new Date()}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="nombrePersonnes">Nombre de personnes</Label>
+                      <Input
+                        id="nombrePersonnes"
+                        type="number"
+                        min={1}
+                        max={selectedCircuit?.maxParticipants || 50}
+                        value={formData.nombrePersonnes}
+                        onChange={(e) => handleChange('nombrePersonnes', parseInt(e.target.value) || 1)}
+                      />
+                      {selectedCircuit?.maxParticipants && (
+                        <p className="text-xs text-slate-500">Maximum {selectedCircuit.maxParticipants} participants</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Date de debut *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                            {formData.dateDebut
+                              ? format(new Date(formData.dateDebut), 'dd MMM yyyy', { locale: fr })
+                              : 'Selectionner une date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.dateDebut ? new Date(formData.dateDebut) : undefined}
+                            onSelect={(date) => handleChange('dateDebut', date ? date.toISOString() : '')}
+                            disabled={(date) => date < new Date()}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Date de fin</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                            {formData.dateFin
+                              ? format(new Date(formData.dateFin), 'dd MMM yyyy', { locale: fr })
+                              : 'Selectionner une date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={formData.dateFin ? new Date(formData.dateFin) : undefined}
+                            onSelect={(date) => handleChange('dateFin', date ? date.toISOString() : '')}
+                            disabled={(date) => date < new Date(formData.dateDebut || new Date())}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 )}
 
@@ -979,12 +1003,12 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
 
                 {/* Dates */}
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Date de debut</span>
+                  <span className="text-sm text-slate-500">{formData.serviceType === 'CIRCUIT' ? 'Date' : 'Date de debut'}</span>
                   <span className="text-sm font-medium text-slate-800">
                     {formData.dateDebut ? format(new Date(formData.dateDebut), 'dd MMM yyyy', { locale: fr }) : '-'}
                   </span>
                 </div>
-                {formData.dateFin && (
+                {formData.serviceType !== 'CIRCUIT' && formData.dateFin && (
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-500">Date de fin</span>
                     <span className="text-sm font-medium text-slate-800">
