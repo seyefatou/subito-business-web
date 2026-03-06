@@ -12,7 +12,19 @@ function getNotificationRoute(notif: CompagnyNotification): string | null {
   const message = (notif.message || '').toLowerCase();
   const text = `${type} ${title} ${message}`;
 
-  if (text.includes('prise en charge') || text.includes('payment_request') || text.includes('payment-request')) {
+  // Notifications requiring company approval → pending validations page
+  if (
+    text.includes('prise en charge') ||
+    text.includes('payment_request') ||
+    text.includes('payment-request') ||
+    text.includes('approbation') ||
+    text.includes('approuver') ||
+    text.includes('paiement entreprise') ||
+    text.includes('employ') ||
+    text.includes('collaborateur') ||
+    text.includes('pending_company') ||
+    text.includes('demande de paiement')
+  ) {
     return '/pending-validations';
   }
   if (type.includes('booking') || text.includes('réservation') || text.includes('reservation')) {

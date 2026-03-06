@@ -74,6 +74,8 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   completed: { label: "Termine", color: "bg-green-100 text-green-700" },
   cancelled: { label: "Annule", color: "bg-red-100 text-red-700" },
   rejected: { label: "Rejete", color: "bg-red-100 text-red-700" },
+  processing: { label: "En traitement", color: "bg-amber-100 text-amber-700" },
+  deleted: { label: "Supprime", color: "bg-slate-100 text-slate-500" },
 };
 
 export default function Tracking() {
@@ -194,8 +196,20 @@ export default function Tracking() {
       } as BookingResponse
     : (rawDetail || selectedBooking) as BookingResponse;
 
+  // Exclude rejected payment requests (refused prise en charge) from the tracking table
+  const rejectedPaymentStatuses = ['rejected', 'refused', 'declined'];
+  const visibleBookings = bookings.filter(b => {
+    const paymentStatus = String((b as Record<string, unknown>).paymentStatus || '').toLowerCase();
+    const status = (b.status || '').toLowerCase();
+    // Hide if payment request was rejected by the company
+    if (rejectedPaymentStatuses.includes(paymentStatus)) return false;
+    // Hide if status is rejected and it was a company-paid booking (prise en charge refusée)
+    if (status === 'rejected' && b.paidBy === 'company') return false;
+    return true;
+  });
+
   // Client-side filtering
-  const filtered = bookings.filter(b => {
+  const filtered = visibleBookings.filter(b => {
     const matchSearch = !searchTerm ||
       (b.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.reference || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -207,10 +221,10 @@ export default function Tracking() {
 
   // Stats
   const stats = {
-    total: totalBookingsCount || bookings.length,
-    confirmed: bookings.filter(b => b.status === 'confirmed').length,
-    inProgress: bookings.filter(b => b.status === 'in_progress').length,
-    completed: bookings.filter(b => b.status === 'completed').length,
+    total: visibleBookings.length,
+    confirmed: visibleBookings.filter(b => b.status === 'confirmed').length,
+    inProgress: visibleBookings.filter(b => b.status === 'in_progress').length,
+    completed: visibleBookings.filter(b => b.status === 'completed').length,
   };
 
   const getServiceInfo = (type?: string) => serviceLabels[type || ''] || { label: type || 'Autre', icon: Package, color: "bg-slate-100 text-slate-700" };
@@ -290,6 +304,8 @@ export default function Tracking() {
               <SelectItem value="in_progress">En cours</SelectItem>
               <SelectItem value="completed">Termine</SelectItem>
               <SelectItem value="cancelled">Annule</SelectItem>
+              <SelectItem value="processing">En traitement</SelectItem>
+              <SelectItem value="deleted">Supprime</SelectItem>
             </SelectContent>
           </Select>
         </div>
