@@ -968,7 +968,7 @@ class ApiClient {
 
           // Refresh failed — logout
           this.clearAuth();
-          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '/business') + '/login?expired=true';
+          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/login?expired=true';
           return new Promise<never>(() => {});
         }
 

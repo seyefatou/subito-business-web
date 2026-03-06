@@ -380,8 +380,8 @@ export default function Billing() {
 
       // Fallback: generate PDF client-side
       const [logoBase64, tamponBase64] = await Promise.all([
-        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo_subito_facture.png`),
-        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/tamponSubito.jpeg`),
+        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo_subito_facture.png`),
+        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/tamponSubito.jpeg`),
       ]);
 
       const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');

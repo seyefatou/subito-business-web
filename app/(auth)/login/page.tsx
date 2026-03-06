@@ -53,7 +53,7 @@ function LoginContent() {
       await login(email, password);
       toast.success('Connexion reussie');
       // Force navigation using window.location for reliable redirect
-      window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '/business') + '/dashboard';
+      window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/dashboard';
     } catch (error: unknown) {
       const err = error as { message?: string };
       toast.error(err.message || 'Identifiants incorrects');
@@ -85,7 +85,7 @@ function LoginContent() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img
-              src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo-subito.jpeg`}
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo-subito.jpeg`}
               alt="Subito"
               className="h-12 w-auto"
             />

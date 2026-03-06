@@ -266,7 +266,7 @@ export default function Reports() {
 
       let logoBase64: string | null = null;
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo_subito_facture.png`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo_subito_facture.png`);
         if (res.ok) {
           const blob = await res.blob();
           logoBase64 = await new Promise<string>((resolve, reject) => {
