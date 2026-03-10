@@ -1043,12 +1043,27 @@ export default function HourlyVTC() {
                     {paymentMethods.find(m => m.id === formData.paymentMethod)?.label}
                   </span>
                 </div>
-                <div className="flex items-center justify-between pt-4 border-t border-orange-300">
-                  <span className="text-slate-800 font-semibold">Total</span>
-                  <span className="text-3xl font-bold text-subito">
-                    {totalPrice.toLocaleString()} FCFA
-                  </span>
-                </div>
+                {user?.isTva ? (
+                  <>
+                    <div className="flex items-center justify-between pt-4 border-t border-orange-300">
+                      <span className="text-slate-600">Total HT</span>
+                      <span className="text-lg font-semibold text-slate-800">{totalPrice.toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">TVA (18%)</span>
+                      <span className="font-medium text-slate-800">{Math.round(totalPrice * 0.18).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-orange-300">
+                      <span className="text-slate-800 font-semibold">Total TTC</span>
+                      <span className="text-3xl font-bold text-subito">{Math.round(totalPrice * 1.18).toLocaleString()} FCFA</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between pt-4 border-t border-orange-300">
+                    <span className="text-slate-800 font-semibold">Total</span>
+                    <span className="text-3xl font-bold text-subito">{totalPrice.toLocaleString()} FCFA</span>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

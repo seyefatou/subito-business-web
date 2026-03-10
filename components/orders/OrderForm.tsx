@@ -37,6 +37,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import { useAuth } from "@/lib/auth-context";
 
 interface Step {
   id: number;
@@ -108,6 +109,7 @@ export default function OrderForm({
   departments = [],
   isSubmitting
 }: OrderFormProps) {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
   const [formData, setFormData] = useState<OrderFormData>({
@@ -502,12 +504,27 @@ export default function OrderForm({
 
               {/* Price summary */}
               <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-slate-600">Cout estimatif</span>
-                  <span className="text-2xl font-bold text-subito">
-                    {estimatedCost.toLocaleString()} FCFA
-                  </span>
-                </div>
+                {user?.isTva ? (
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Cout estimatif HT</span>
+                      <span className="text-lg font-semibold text-slate-800">{estimatedCost.toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">TVA (18%)</span>
+                      <span className="font-medium text-slate-800">{Math.round(estimatedCost * 0.18).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-orange-200">
+                      <span className="font-semibold text-slate-800">Total TTC</span>
+                      <span className="text-2xl font-bold text-subito">{Math.round(estimatedCost * 1.18).toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-slate-600">Cout estimatif</span>
+                    <span className="text-2xl font-bold text-subito">{estimatedCost.toLocaleString()} FCFA</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <CreditCard className="w-4 h-4" />
                   <span>Paiement : {
