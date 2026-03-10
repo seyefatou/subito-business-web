@@ -109,7 +109,7 @@ export default function OrderForm({
   departments = [],
   isSubmitting
 }: OrderFormProps) {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showAddEmployeeDialog, setShowAddEmployeeDialog] = useState(false);
   const [formData, setFormData] = useState<OrderFormData>({
@@ -504,7 +504,7 @@ export default function OrderForm({
 
               {/* Price summary */}
               <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-6">
-                {user?.isTva ? (
+                {authUser?.isTva ? (
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-600">Cout estimatif HT</span>

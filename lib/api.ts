@@ -743,6 +743,73 @@ export interface ServiceReservationResponse {
   [key: string]: unknown;
 }
 
+// ==================== DELIVERIES COMPANY ====================
+export interface CreateDeliveryDto {
+  deliveryTypeId: number;
+  deliveryDate: string;
+  deliveryTime: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  pickupAddress: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  dropoffAddress: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
+  description?: string;
+  notes?: string;
+  employeeId?: number;
+}
+
+export interface DeliveryResponse {
+  id: number;
+  reference?: string;
+  status?: string;
+  deliveryTypeId?: number;
+  deliveryDate?: string;
+  deliveryTime?: string;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  pickupAddress?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  dropoffAddress?: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
+  description?: string;
+  notes?: string;
+  totalPrice?: number;
+  distance?: number;
+  employeeId?: number;
+  deliveryType?: { id: number; name?: string; description?: string; prixParKm?: number; prixMinimum?: number };
+  livreur?: { id: number; nom?: string; prenom?: string; telephone?: string };
+  trackingHistory?: Array<{ status: string; timestamp: string; comment?: string }>;
+  paidBy?: string;
+  paymentMethod?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface DeliveryListResponse {
+  list: DeliveryResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface DeliveryType {
+  id: number;
+  nom: string;
+  description?: string;
+  image?: string;
+  prixParKm?: string;
+  prixMinimum?: string;
+  isActive?: boolean;
+}
+
 // ==================== ERROR TRANSLATION ====================
 const ERROR_TRANSLATIONS: Record<string, string> = {
   // Auth
@@ -1355,6 +1422,29 @@ class ApiClient {
 
     getPublic: (id: number) =>
       this.request<VehiculeLocation>(`/vehicules-location/public/${id}`),
+  };
+
+  // ==================== DELIVERIES COMPANY ====================
+  deliveries = {
+    types: () =>
+      this.request<DeliveryType[]>('/delivery-types/public'),
+
+    create: (data: CreateDeliveryDto) =>
+      this.authPost<DeliveryResponse>('/deliveries/company', data),
+
+    list: (params?: { page?: number; limit?: number; status?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.limit) q.set('limit', params.limit.toString());
+      if (params?.status) q.set('status', params.status);
+      return this.authGet<DeliveryListResponse>(`/deliveries/company?${q.toString()}`);
+    },
+
+    get: (id: number) =>
+      this.authGet<DeliveryResponse>(`/deliveries/company/${id}`),
+
+    cancel: (id: number) =>
+      this.authPatch<DeliveryResponse>(`/deliveries/company/${id}/cancel`),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================

@@ -60,7 +60,7 @@ const navigation: NavigationItem[] = [
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
   { name: "Reservations Services", href: "/service-reservations", icon: Compass },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
-  // { name: "Livraison Colis", href: "/parcel-delivery", icon: Package },
+  { name: "Livraisons", href: "/deliveries", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },
   // { name: "Devis Entretien", href: "/maintenance-quotes", icon: Wrench },
