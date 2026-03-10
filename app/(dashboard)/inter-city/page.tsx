@@ -1402,9 +1402,21 @@ export default function InterCity() {
                   )}
                 </div>
                 <div className="pt-3 border-t border-slate-300 flex justify-between">
-                  <span className="font-semibold">Total</span>
-                  <span className="font-bold text-subito text-xl">{calculateTotal().toLocaleString()} FCFA</span>
+                  <span className="font-semibold">{user?.isTva ? 'Total HT' : 'Total'}</span>
+                  <span className={`font-bold ${user?.isTva ? 'text-slate-800 text-lg' : 'text-subito text-xl'}`}>{calculateTotal().toLocaleString()} FCFA</span>
                 </div>
+                {user?.isTva && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span>TVA (18%)</span>
+                      <span className="font-medium">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-300 flex justify-between">
+                      <span className="font-semibold">Total TTC</span>
+                      <span className="font-bold text-subito text-xl">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           )}
@@ -1574,12 +1586,27 @@ export default function InterCity() {
                       </span>
                     </div>
                   )}
-                  <div className="border-t border-white/20 pt-3 flex items-center justify-between">
-                    <span className="text-lg font-semibold">Total</span>
-                    <span className="text-3xl font-bold text-red-400">
-                      {calculateTotal().toLocaleString()} FCFA
-                    </span>
-                  </div>
+                  {user?.isTva ? (
+                    <>
+                      <div className="border-t border-white/20 pt-3 flex items-center justify-between">
+                        <span className="text-sm text-slate-300">Total HT</span>
+                        <span className="text-lg font-semibold">{calculateTotal().toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-300">TVA (18%)</span>
+                        <span>{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="border-t border-white/20 pt-2 flex items-center justify-between">
+                        <span className="text-lg font-semibold">Total TTC</span>
+                        <span className="text-3xl font-bold text-red-400">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="border-t border-white/20 pt-3 flex items-center justify-between">
+                      <span className="text-lg font-semibold">Total</span>
+                      <span className="text-3xl font-bold text-red-400">{calculateTotal().toLocaleString()} FCFA</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

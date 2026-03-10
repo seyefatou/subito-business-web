@@ -1268,9 +1268,21 @@ export default function AirportShuttle() {
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                    <span className="text-lg font-semibold text-slate-800">Total</span>
-                    <span className="text-2xl font-bold text-orange-600">{calculateTotal().toLocaleString()} FCFA</span>
+                    <span className="text-lg font-semibold text-slate-800">{user?.isTva ? 'Total HT' : 'Total'}</span>
+                    <span className={`font-bold ${user?.isTva ? 'text-lg text-slate-800' : 'text-2xl text-orange-600'}`}>{calculateTotal().toLocaleString()} FCFA</span>
                   </div>
+                  {user?.isTva && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600">TVA (18%)</span>
+                        <span className="font-medium text-slate-800">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                        <span className="text-lg font-semibold text-slate-800">Total TTC</span>
+                        <span className="text-2xl font-bold text-orange-600">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1377,12 +1389,27 @@ export default function AirportShuttle() {
                     {paymentMethods.find((m: { id: string; label: string }) => m.id === formData.payment_method)?.label || 'Non selectionne'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between pt-4 border-t border-orange-300">
-                  <span className="text-slate-800 font-semibold">Total</span>
-                  <span className="text-3xl font-bold text-subito">
-                    {calculateTotal().toLocaleString()} FCFA
-                  </span>
-                </div>
+                {user?.isTva ? (
+                  <>
+                    <div className="flex items-center justify-between pt-4 border-t border-orange-300">
+                      <span className="text-slate-600">Total HT</span>
+                      <span className="text-lg font-semibold text-slate-800">{calculateTotal().toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">TVA (18%)</span>
+                      <span className="font-medium text-slate-800">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-orange-300">
+                      <span className="text-slate-800 font-semibold">Total TTC</span>
+                      <span className="text-3xl font-bold text-subito">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between pt-4 border-t border-orange-300">
+                    <span className="text-slate-800 font-semibold">Total</span>
+                    <span className="text-3xl font-bold text-subito">{calculateTotal().toLocaleString()} FCFA</span>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

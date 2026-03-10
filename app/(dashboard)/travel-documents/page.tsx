@@ -1217,12 +1217,27 @@ export default function TravelDocuments() {
 
               {/* Total */}
               <div className="p-6 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 text-white">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-semibold">Total a payer</span>
-                  <span className="text-3xl font-bold text-red-400">
-                    {calculateTotal().toLocaleString()} FCFA
-                  </span>
-                </div>
+                {user?.isTva ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-300">Total HT</span>
+                      <span className="text-lg font-semibold">{calculateTotal().toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-300">TVA (18%)</span>
+                      <span>{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="border-t border-white/20 pt-2 flex items-center justify-between">
+                      <span className="text-lg font-semibold">Total TTC</span>
+                      <span className="text-3xl font-bold text-red-400">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold">Total a payer</span>
+                    <span className="text-3xl font-bold text-red-400">{calculateTotal().toLocaleString()} FCFA</span>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

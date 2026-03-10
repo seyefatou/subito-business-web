@@ -55,6 +55,7 @@ export interface CompagnyUserProfile {
   telephone?: string;
   adresse?: string;
   companyCode?: string;
+  isTva?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

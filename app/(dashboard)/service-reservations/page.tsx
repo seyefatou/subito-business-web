@@ -1033,9 +1033,28 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                 )}
 
                 {/* Total */}
-                <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 flex justify-between items-center">
-                  <span className="font-semibold text-slate-800">Total</span>
-                  <span className="text-2xl font-bold text-orange-600">{calculateTotal().toLocaleString()} FCFA</span>
+                <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 space-y-2">
+                  {user?.isTva ? (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600">Total HT</span>
+                        <span className="text-lg font-semibold text-slate-800">{calculateTotal().toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600">TVA (18%)</span>
+                        <span className="font-medium text-slate-800">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-orange-200">
+                        <span className="font-semibold text-slate-800">Total TTC</span>
+                        <span className="text-2xl font-bold text-orange-600">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-800">Total</span>
+                      <span className="text-2xl font-bold text-orange-600">{calculateTotal().toLocaleString()} FCFA</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1443,8 +1462,7 @@ function ReservationsList() {
               )}
 
               {/* Pay button — only if confirmed/completed AND not already paid */}
-              {(reservationDetail.status?.toLowerCase() === 'confirmed' || reservationDetail.status?.toLowerCase() === 'completed') &&
-               reservationDetail.status?.toLowerCase() !== 'paid' &&
+              {reservationDetail.status?.toLowerCase() === 'completed' &&
                (reservationDetail as any).paymentStatus?.toLowerCase() !== 'paid' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
