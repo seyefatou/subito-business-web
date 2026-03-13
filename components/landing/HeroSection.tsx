@@ -54,7 +54,7 @@ export default function HeroSection() {
                 Demander l&apos;ouverture d&apos;un compte
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <a href="/business/login">
+              <a href="/login">
                 <Button
                   variant="outline"
                   className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-6 text-base rounded-xl transition-all"

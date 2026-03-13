@@ -27,7 +27,7 @@ export default function LoginSection() {
             Accédez à votre espace entreprise en toute sécurité pour gérer votre flotte, suivre vos opérations et consulter vos rapports.
           </p>
 
-          <a href="/business/login">
+          <a href="/login">
             <Button
               variant="outline"
               className="mt-8 border-slate-300 text-slate-700 hover:bg-slate-900 hover:text-white hover:border-slate-900 px-10 py-6 text-base font-semibold rounded-xl transition-all duration-300"
