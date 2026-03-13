@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,6 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
@@ -78,7 +79,11 @@ interface FormData {
   passengers: number;
   flight_number: string;
   address: string;
+  addressLat: number | null;
+  addressLng: number | null;
   return_address: string;
+  returnAddressLat: number | null;
+  returnAddressLng: number | null;
   payment_method: PaymentChoice | '';
   clientName: string;
   clientEmail: string;
@@ -103,7 +108,11 @@ const initialFormData: FormData = {
   passengers: 1,
   flight_number: "",
   address: "",
+  addressLat: null,
+  addressLng: null,
   return_address: "",
+  returnAddressLat: null,
+  returnAddressLng: null,
   payment_method: "",
   clientName: "",
   clientEmail: "",
@@ -118,8 +127,8 @@ const initialFormData: FormData = {
 };
 
 const steps: StepDef[] = [
-  { id: 1, title: "Trajet", icon: MapPin },
-  { id: 2, title: "Client", icon: User },
+  { id: 1, title: "Client", icon: User },
+  { id: 2, title: "Trajet", icon: MapPin },
   { id: 3, title: "Vehicule", icon: Car },
   { id: 4, title: "Paiement", icon: CreditCard },
   { id: 5, title: "Confirmation", icon: Check },
@@ -313,6 +322,13 @@ export default function AirportShuttle() {
 
   const handleNext = () => {
     if (currentStep === 1) {
+      if (!formData.employeeId) { toast.error("Veuillez selectionner un voyageur"); return; }
+      if (!formData.clientName) { toast.error("Veuillez entrer le nom du client"); return; }
+      if (!formData.clientPhone) { toast.error("Veuillez entrer le numero de telephone"); return; }
+      if (!isValidPhone(formData.clientPhone)) { toast.error("Numero de telephone invalide"); return; }
+    }
+
+    if (currentStep === 2) {
       if (!selectedDepartId || !selectedArriveeId) { toast.error("Veuillez selectionner le depart et l'arrivee"); return; }
       if (matchingTrajets.length === 0) { toast.error("Aucun trajet disponible pour cette route"); return; }
       if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
@@ -324,14 +340,6 @@ export default function AirportShuttle() {
         if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
         if (!formData.return_address) { toast.error("Veuillez entrer une adresse de prise en charge retour"); return; }
       }
-    }
-
-    if (currentStep === 2) {
-      if (!formData.employeeId) { toast.error("Veuillez selectionner un voyageur"); return; }
-      if (!formData.clientName) { toast.error("Veuillez entrer le nom du client"); return; }
-      if (!formData.clientPhone) { toast.error("Veuillez entrer le numero de telephone"); return; }
-      if (!isValidPhone(formData.clientPhone)) { toast.error("Numero de telephone invalide"); return; }
-      if (!formData.clientAddress) { toast.error("Veuillez entrer l'adresse du client"); return; }
     }
 
     if (currentStep === 3) {
@@ -365,7 +373,11 @@ export default function AirportShuttle() {
       passengers: formData.passengers,
       flightNumber: formData.flight_number || undefined,
       adressePriseEnChargeAller: formData.address,
+      adressePriseEnChargeAllerLat: formData.addressLat || undefined,
+      adressePriseEnChargeAllerLng: formData.addressLng || undefined,
       adressePriseEnChargeRetour: formData.is_round_trip ? formData.return_address : undefined,
+      adressePriseEnChargeRetourLat: formData.is_round_trip ? formData.returnAddressLat || undefined : undefined,
+      adressePriseEnChargeRetourLng: formData.is_round_trip ? formData.returnAddressLng || undefined : undefined,
       clientName: formData.clientName,
       clientPhone: formatPhoneForApi(formData.clientPhone),
       clientEmail: formData.clientEmail || undefined,
@@ -386,14 +398,14 @@ export default function AirportShuttle() {
 
   const canContinue = (): boolean => {
     switch (currentStep) {
-      case 1: {
+      case 1:
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone));
+      case 2: {
         const baseValid = !!(selectedDepartId && selectedArriveeId && matchingTrajets.length > 0 && formData.departure_date && formData.departure_time && formData.address);
         const flightValid = formData.direction === 'from_airport' ? !!formData.flight_number : true;
         if (formData.is_round_trip) return baseValid && flightValid && !!(formData.return_date && formData.return_time && formData.return_address);
         return baseValid && flightValid;
       }
-      case 2:
-        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 3:
         return !!formData.trajetAeroportId;
       case 4:
@@ -499,9 +511,9 @@ export default function AirportShuttle() {
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <AnimatePresence mode="wait">
           {/* Step 1: Trip details */}
-          {currentStep === 1 && (
+          {currentStep === 2 && (
             <motion.div
-              key="step1"
+              key="step2"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -749,11 +761,14 @@ export default function AirportShuttle() {
 
                 <div className="space-y-2">
                   <Label>Adresse de prise en charge / depose (aller) *</Label>
-                  <Textarea
+                  <AddressAutocomplete
                     placeholder="Ex: Residence Les Almadies, Villa 23, Rue AJ-42"
                     value={formData.address}
-                    onChange={(e) => handleChange('address', e.target.value)}
-                    className="h-20"
+                    onChange={(val) => handleChange('address', val)}
+                    onSelect={(address, lat, lng) => {
+                      setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
+                    }}
+                    iconColor="text-orange-500"
                   />
                 </div>
               </div>
@@ -807,11 +822,14 @@ export default function AirportShuttle() {
 
                   <div className="space-y-2">
                     <Label>Adresse de prise en charge retour *</Label>
-                    <Textarea
+                    <AddressAutocomplete
                       placeholder="Ex: Aeroport Blaise Diagne, Terminal 1"
                       value={formData.return_address}
-                      onChange={(e) => handleChange('return_address', e.target.value)}
-                      className="h-20"
+                      onChange={(val) => handleChange('return_address', val)}
+                      onSelect={(address, lat, lng) => {
+                        setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                      }}
+                      iconColor="text-blue-500"
                     />
                   </div>
                 </div>
@@ -850,8 +868,8 @@ export default function AirportShuttle() {
             </motion.div>
           )}
 
-          {/* Step 2: Client Info */}
-          {currentStep === 2 && (
+          {/* Step 1: Client Info */}
+          {currentStep === 1 && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}
@@ -1001,19 +1019,6 @@ export default function AirportShuttle() {
                     className="pl-10"
                     value={formData.clientEmail}
                     onChange={(e) => handleChange('clientEmail', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Adresse du client *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <Textarea
-                    placeholder="Ex: Cite Keur Gorgui, Villa 123, Dakar"
-                    className="pl-10 min-h-[80px]"
-                    value={formData.clientAddress}
-                    onChange={(e) => handleChange('clientAddress', e.target.value)}
                   />
                 </div>
               </div>

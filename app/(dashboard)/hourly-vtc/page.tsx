@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -57,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -103,6 +104,8 @@ interface FormData {
   pickupDate: Date | null;
   pickupTime: string;
   pickupLocation: string;
+  pickupLocationLat: number | null;
+  pickupLocationLng: number | null;
   instructions: string;
   paymentMethod: VtcPaymentMethod | "";
   // Client info
@@ -187,6 +190,8 @@ export default function HourlyVTC() {
     pickupDate: null,
     pickupTime: "",
     pickupLocation: "",
+    pickupLocationLat: null,
+    pickupLocationLng: null,
     instructions: "",
     paymentMethod: "",
     employeeId: null,
@@ -410,6 +415,8 @@ export default function HourlyVTC() {
       scheduledDatetime: `${format(formData.pickupDate, 'yyyy-MM-dd')}T${formData.pickupTime}:00`,
       pickupAddress: formData.pickupLocation,
       adressePriseEnCharge: formData.pickupLocation,
+      adressePriseEnChargeLat: formData.pickupLocationLat || undefined,
+      adressePriseEnChargeLng: formData.pickupLocationLng || undefined,
       notes: formData.instructions || undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
       paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : toBookingPaymentMethod(formData.paymentMethod),
@@ -708,15 +715,15 @@ export default function HourlyVTC() {
 
               <div className="bg-slate-50 rounded-2xl p-4">
                 <Label className="text-xs text-slate-500 mb-2 block">Lieu de prise en charge</Label>
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-orange-600" />
-                  <Input
-                    value={formData.pickupLocation}
-                    onChange={(e) => handleChange('pickupLocation', e.target.value)}
-                    className="border-0 bg-transparent p-0 text-slate-800"
-                    placeholder="Adresse complete"
-                  />
-                </div>
+                <AddressAutocomplete
+                  value={formData.pickupLocation}
+                  onChange={(val) => handleChange('pickupLocation', val)}
+                  onSelect={(address, lat, lng) => {
+                    setFormData(prev => ({ ...prev, pickupLocation: address, pickupLocationLat: lat, pickupLocationLng: lng }));
+                  }}
+                  placeholder="Adresse complete"
+                  iconColor="text-orange-600"
+                />
               </div>
 
               <div className="bg-slate-50 rounded-2xl p-4">

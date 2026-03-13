@@ -29,7 +29,8 @@ import {
   ClipboardCheck,
   Copy,
   Share2,
-  Compass
+  Compass,
+  Hotel
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +59,9 @@ const navigation: NavigationItem[] = [
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
   { name: "Inter-villes", href: "/inter-city", icon: Car },
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
-  { name: "Reservations Services", href: "/service-reservations", icon: Compass },
+  { name: "Activite", href: "/service-reservations?type=ACTIVITE", icon: Compass },
+  { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
+  { name: "Flotte", href: "/service-reservations?type=FLOTTE", icon: Car },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   { name: "Livraisons", href: "/deliveries", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
@@ -148,6 +151,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const isActive = (href: string): boolean => {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
+    }
+    // Handle hrefs with query params (e.g. /service-reservations?type=CIRCUIT)
+    if (href.includes('?')) {
+      const [hrefPath, hrefQuery] = href.split('?');
+      if (pathname !== hrefPath) return false;
+      const currentParams = new URLSearchParams(window.location.search);
+      const expectedParams = new URLSearchParams(hrefQuery);
+      const keys = Array.from(expectedParams.keys());
+      return keys.every(key => currentParams.get(key) === expectedParams.get(key));
     }
     return pathname === href || pathname.startsWith(href + "/");
   };

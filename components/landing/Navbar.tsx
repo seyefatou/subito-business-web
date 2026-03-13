@@ -62,7 +62,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <a href="/login">
+            <a href="/business/login">
               <Button
                 variant="ghost"
                 className="text-slate-400 hover:text-white text-sm"
@@ -108,7 +108,7 @@ export default function Navbar() {
                 </button>
               ))}
               <div className="pt-4 space-y-3">
-                <a href="/login" className="block">
+                <a href="/business/login" className="block">
                   <Button
                     variant="outline"
                     className="w-full border-slate-700 text-white py-6 text-base"

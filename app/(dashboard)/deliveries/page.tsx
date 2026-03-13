@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -58,6 +58,7 @@ import {
   api,
   CreateDeliveryDto,
   DeliveryResponse,
+  DeliveryEstimate,
   DeliveryType,
   CreateEmployeeDto,
   EmployeeResponse,
@@ -65,6 +66,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 // ==================== TYPES ====================
 interface StepDef {
@@ -76,18 +78,22 @@ interface StepDef {
 const steps: StepDef[] = [
   { id: 1, title: "Livraison", icon: Package },
   { id: 2, title: "Adresses", icon: MapPin },
-  { id: 3, title: "Client", icon: User },
-  { id: 4, title: "Details", icon: FileText },
-  { id: 5, title: "Confirmation", icon: Check },
+  { id: 3, title: "Expediteur", icon: User },
+  { id: 4, title: "Destinataire", icon: User },
+  { id: 5, title: "Details", icon: FileText },
+  { id: 6, title: "Confirmation", icon: Check },
 ];
 
 interface FormData {
   deliveryTypeId: number | null;
   deliveryDate: string;
   deliveryTime: string;
-  clientName: string;
-  clientPhone: string;
-  clientEmail: string;
+  expediteurNom: string;
+  expediteurTelephone: string;
+  expediteurEmail: string;
+  destinataireNom: string;
+  destinataireTelephone: string;
+  destinataireEmail: string;
   pickupAddress: string;
   pickupLat: number | null;
   pickupLng: number | null;
@@ -97,15 +103,19 @@ interface FormData {
   description: string;
   notes: string;
   employeeId: number | null;
+  destinataireEmployeeId: number | null;
 }
 
 const initialFormData: FormData = {
   deliveryTypeId: null,
   deliveryDate: '',
   deliveryTime: '',
-  clientName: '',
-  clientPhone: '',
-  clientEmail: '',
+  expediteurNom: '',
+  expediteurTelephone: '',
+  expediteurEmail: '',
+  destinataireNom: '',
+  destinataireTelephone: '',
+  destinataireEmail: '',
   pickupAddress: '',
   pickupLat: null,
   pickupLng: null,
@@ -115,22 +125,8 @@ const initialFormData: FormData = {
   description: '',
   notes: '',
   employeeId: null,
+  destinataireEmployeeId: null,
 };
-
-// Geocode address using Nominatim (OpenStreetMap)
-async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const q = encodeURIComponent(address + ', Senegal');
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-700" },
@@ -187,7 +183,11 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
   const [bookingRef, setBookingRef] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [destEmployeeSearch, setDestEmployeeSearch] = useState("");
+  const [destEmployeePopoverOpen, setDestEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [estimate, setEstimate] = useState<DeliveryEstimate | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
 
   // Fetch delivery types
   const { data: typesResponse } = useQuery({
@@ -231,6 +231,13 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
 
   const selectedEmployee = employees.find(e => e.id === formData.employeeId);
 
+  const filteredDestEmployees = employees.filter(e =>
+    `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
+  );
+  const selectedDestEmployee = formData.destinataireEmployeeId
+    ? employees.find(e => e.id === formData.destinataireEmployeeId)
+    : null;
+
   const createMutation = useMutation({
     mutationFn: (data: CreateDeliveryDto) => api.deliveries.create(data),
     onSuccess: (res) => {
@@ -251,9 +258,14 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
       deliveryTypeId: formData.deliveryTypeId,
       deliveryDate: formData.deliveryDate,
       deliveryTime: formData.deliveryTime,
-      clientName: formData.clientName,
-      clientPhone: formData.clientPhone,
-      clientEmail: formData.clientEmail || undefined,
+      expediteurNom: formData.expediteurNom,
+      expediteurTelephone: formData.expediteurTelephone,
+      expediteurEmail: formData.expediteurEmail || undefined,
+      expediteurEmployeeId: formData.employeeId || undefined,
+      destinataireNom: formData.destinataireNom,
+      destinataireTelephone: formData.destinataireTelephone,
+      destinataireEmail: formData.destinataireEmail || undefined,
+      destinataireEmployeeId: formData.destinataireEmployeeId || undefined,
       pickupAddress: formData.pickupAddress,
       pickupLat: formData.pickupLat ?? undefined,
       pickupLng: formData.pickupLng ?? undefined,
@@ -267,15 +279,38 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
     createMutation.mutate(payload);
   };
 
-  const handleNext = () => setCurrentStep(s => Math.min(s + 1, 5));
+  // Fetch estimate when reaching confirmation step
+  useEffect(() => {
+    if (currentStep === 6 && formData.deliveryTypeId && formData.pickupLat && formData.pickupLng && formData.dropoffLat && formData.dropoffLng) {
+      setEstimateLoading(true);
+      setEstimate(null);
+      api.deliveries.estimate({
+        deliveryTypeId: formData.deliveryTypeId,
+        pickupLat: formData.pickupLat,
+        pickupLng: formData.pickupLng,
+        dropoffLat: formData.dropoffLat,
+        dropoffLng: formData.dropoffLng,
+      }).then(res => {
+        const data = (res as any)?.data || res;
+        setEstimate(data);
+      }).catch(() => {
+        setEstimate(null);
+      }).finally(() => {
+        setEstimateLoading(false);
+      });
+    }
+  }, [currentStep, formData.deliveryTypeId, formData.pickupLat, formData.pickupLng, formData.dropoffLat, formData.dropoffLng]);
+
+  const handleNext = () => setCurrentStep(s => Math.min(s + 1, 6));
   const handleBack = () => setCurrentStep(s => Math.max(s - 1, 1));
 
   const canNext = (): boolean => {
     switch (currentStep) {
       case 1: return !!formData.deliveryTypeId && !!formData.deliveryDate && !!formData.deliveryTime;
       case 2: return !!formData.pickupAddress && !!formData.dropoffAddress && !!formData.pickupLat && !!formData.dropoffLat;
-      case 3: return !!formData.clientName && !!formData.clientPhone;
-      case 4: return true;
+      case 3: return !!formData.expediteurNom && !!formData.expediteurTelephone;
+      case 4: return !!formData.destinataireNom && !!formData.destinataireTelephone;
+      case 5: return true;
       default: return true;
     }
   };
@@ -360,13 +395,10 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                         }`}
                       >
                         {t.image && (
-                          <img src={t.image} alt={t.nom} className="w-10 h-10 object-contain mb-2 rounded" />
+                          <img src={t.image} alt={t.nom} className="w-12 h-12 object-contain mb-2 rounded" />
                         )}
                         <p className={`font-medium ${selected ? 'text-orange-700' : 'text-slate-700'}`}>{t.nom}</p>
-                        <p className="text-xs text-slate-400 mt-1">{t.description}</p>
-                        <p className="text-xs font-medium mt-1 text-slate-500">
-                          {t.prixParKm} FCFA/km &middot; min {t.prixMinimum} FCFA
-                        </p>
+                        {t.description && <p className="text-xs text-slate-400 mt-1">{t.description}</p>}
                       </button>
                     );
                   })}
@@ -420,27 +452,18 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="w-3 h-3 rounded-full bg-green-500" />
                 <span className="font-medium text-slate-700">Prise en charge</span>
               </div>
-              <div className="space-y-2">
-                <Label>Adresse *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-green-500" />
-                  <Input
-                    className="pl-10"
-                    placeholder="Ex: Almadies, Dakar"
-                    value={formData.pickupAddress}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pickupAddress: e.target.value, pickupLat: null, pickupLng: null }))}
-                    onBlur={async () => {
-                      if (formData.pickupAddress && !formData.pickupLat) {
-                        const coords = await geocodeAddress(formData.pickupAddress);
-                        if (coords) setFormData(prev => ({ ...prev, pickupLat: coords.lat, pickupLng: coords.lng }));
-                      }
-                    }}
-                  />
-                </div>
-                {formData.pickupLat && (
-                  <p className="text-xs text-green-600">Coordonnees detectees : {formData.pickupLat.toFixed(4)}, {formData.pickupLng?.toFixed(4)}</p>
-                )}
-              </div>
+              <AddressAutocomplete
+                value={formData.pickupAddress}
+                onChange={(val) => setFormData(prev => ({ ...prev, pickupAddress: val, pickupLat: null, pickupLng: null }))}
+                onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, pickupAddress: address, pickupLat: lat, pickupLng: lng }))}
+                placeholder="Tapez une adresse (ex: Ouakam, Dakar)"
+                iconColor="text-green-500"
+              />
+              {formData.pickupLat && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Adresse confirmee ({formData.pickupLat.toFixed(4)}, {formData.pickupLng?.toFixed(4)})
+                </p>
+              )}
             </div>
 
             <div className="flex justify-center">
@@ -455,50 +478,41 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="w-3 h-3 rounded-full bg-red-500" />
                 <span className="font-medium text-slate-700">Livraison</span>
               </div>
-              <div className="space-y-2">
-                <Label>Adresse *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-red-500" />
-                  <Input
-                    className="pl-10"
-                    placeholder="Ex: Plateau, Dakar"
-                    value={formData.dropoffAddress}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dropoffAddress: e.target.value, dropoffLat: null, dropoffLng: null }))}
-                    onBlur={async () => {
-                      if (formData.dropoffAddress && !formData.dropoffLat) {
-                        const coords = await geocodeAddress(formData.dropoffAddress);
-                        if (coords) setFormData(prev => ({ ...prev, dropoffLat: coords.lat, dropoffLng: coords.lng }));
-                      }
-                    }}
-                  />
-                </div>
-                {formData.dropoffLat && (
-                  <p className="text-xs text-green-600">Coordonnees detectees : {formData.dropoffLat.toFixed(4)}, {formData.dropoffLng?.toFixed(4)}</p>
-                )}
-              </div>
+              <AddressAutocomplete
+                value={formData.dropoffAddress}
+                onChange={(val) => setFormData(prev => ({ ...prev, dropoffAddress: val, dropoffLat: null, dropoffLng: null }))}
+                onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, dropoffAddress: address, dropoffLat: lat, dropoffLng: lng }))}
+                placeholder="Tapez une adresse (ex: Plateau, Dakar)"
+                iconColor="text-red-500"
+              />
+              {formData.dropoffLat && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Adresse confirmee ({formData.dropoffLat.toFixed(4)}, {formData.dropoffLng?.toFixed(4)})
+                </p>
+              )}
             </div>
           </motion.div>
         )}
 
-        {/* Step 3: Client */}
+        {/* Step 3: Expediteur */}
         {currentStep === 3 && (
           <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
+            <h3 className="text-lg font-semibold text-slate-800">Informations expediteur</h3>
 
             <div className="space-y-2">
-              <Label>Nom du client *</Label>
+              <Label>Nom de l&apos;expediteur *</Label>
               <Input
                 placeholder="Nom complet"
-                value={formData.clientName}
-                onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
+                value={formData.expediteurNom}
+                onChange={(e) => setFormData(prev => ({ ...prev, expediteurNom: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Telephone *</Label>
               <PhoneInput
-                value={formData.clientPhone}
-                onChange={(val) => setFormData(prev => ({ ...prev, clientPhone: val || '' }))}
+                value={formData.expediteurTelephone}
+                onChange={(val) => setFormData(prev => ({ ...prev, expediteurTelephone: val || '' }))}
               />
             </div>
 
@@ -507,8 +521,8 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               <Input
                 type="email"
                 placeholder="email@exemple.com"
-                value={formData.clientEmail}
-                onChange={(e) => setFormData(prev => ({ ...prev, clientEmail: e.target.value }))}
+                value={formData.expediteurEmail}
+                onChange={(e) => setFormData(prev => ({ ...prev, expediteurEmail: e.target.value }))}
               />
             </div>
 
@@ -548,9 +562,9 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                               setFormData(prev => ({
                                 ...prev,
                                 employeeId: emp.id,
-                                clientName: `${emp.prenom || ''} ${emp.nom || ''}`.trim(),
-                                clientPhone: emp.telephone || prev.clientPhone,
-                                clientEmail: emp.email || prev.clientEmail,
+                                expediteurNom: `${emp.prenom || ''} ${emp.nom || ''}`.trim(),
+                                expediteurTelephone: emp.telephone || prev.expediteurTelephone,
+                                expediteurEmail: emp.email || prev.expediteurEmail,
                               }));
                               setEmployeePopoverOpen(false);
                             }}
@@ -570,9 +584,99 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
           </motion.div>
         )}
 
-        {/* Step 4: Description & Notes */}
+        {/* Step 4: Destinataire */}
         {currentStep === 4 && (
           <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+            <h3 className="text-lg font-semibold text-slate-800">Informations destinataire</h3>
+
+            <div className="space-y-2">
+              <Label>Nom du destinataire *</Label>
+              <Input
+                placeholder="Nom complet"
+                value={formData.destinataireNom}
+                onChange={(e) => setFormData(prev => ({ ...prev, destinataireNom: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Telephone *</Label>
+              <PhoneInput
+                value={formData.destinataireTelephone}
+                onChange={(val) => setFormData(prev => ({ ...prev, destinataireTelephone: val || '' }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email (optionnel)</Label>
+              <Input
+                type="email"
+                placeholder="email@exemple.com"
+                value={formData.destinataireEmail}
+                onChange={(e) => setFormData(prev => ({ ...prev, destinataireEmail: e.target.value }))}
+              />
+            </div>
+
+            {/* Employee selector for destinataire */}
+            <div className="space-y-2">
+              <Label>Employe (optionnel)</Label>
+              <Popover open={destEmployeePopoverOpen} onOpenChange={setDestEmployeePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <User className="mr-2 h-4 w-4" />
+                    {selectedDestEmployee
+                      ? `${selectedDestEmployee.prenom || ''} ${selectedDestEmployee.nom || ''}`.trim()
+                      : 'Selectionner un employe'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Rechercher..."
+                      value={destEmployeeSearch}
+                      onValueChange={setDestEmployeeSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="p-2 text-center">
+                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                          <Button size="sm" variant="outline" onClick={() => { setDestEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
+                            <UserPlus className="w-4 h-4 mr-1" /> Ajouter
+                          </Button>
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredDestEmployees.map(emp => (
+                          <CommandItem
+                            key={emp.id}
+                            onSelect={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                destinataireEmployeeId: emp.id,
+                                destinataireNom: `${emp.prenom || ''} ${emp.nom || ''}`.trim(),
+                                destinataireTelephone: emp.telephone || prev.destinataireTelephone,
+                                destinataireEmail: emp.email || prev.destinataireEmail,
+                              }));
+                              setDestEmployeePopoverOpen(false);
+                            }}
+                          >
+                            <div>
+                              <p className="font-medium">{emp.prenom} {emp.nom}</p>
+                              <p className="text-xs text-slate-500">{emp.email || emp.telephone}</p>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step 5: Description & Notes */}
+        {currentStep === 5 && (
+          <motion.div key="step5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <h3 className="text-lg font-semibold text-slate-800">Details de la livraison</h3>
 
             <div className="space-y-2">
@@ -606,8 +710,12 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                   </p>
                 </div>
                 <div>
-                  <span className="text-slate-500">Client</span>
-                  <p className="font-medium text-slate-800">{formData.clientName}</p>
+                  <span className="text-slate-500">Expediteur</span>
+                  <p className="font-medium text-slate-800">{formData.expediteurNom}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500">Destinataire</span>
+                  <p className="font-medium text-slate-800">{formData.destinataireNom}</p>
                 </div>
                 <div>
                   <span className="text-slate-500">Prise en charge</span>
@@ -622,9 +730,9 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
           </motion.div>
         )}
 
-        {/* Step 5: Confirmation */}
-        {currentStep === 5 && (
-          <motion.div key="step5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+        {/* Step 6: Confirmation */}
+        {currentStep === 6 && (
+          <motion.div key="step6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <h3 className="text-lg font-semibold text-slate-800">Recapitulatif de la livraison</h3>
 
             {/* Addresses */}
@@ -663,16 +771,30 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               </div>
             </div>
 
-            {/* Client */}
-            <div className="p-6 rounded-xl border border-slate-200">
-              <p className="text-sm text-slate-500 mb-2">Client</p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
-                  {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            {/* Expediteur & Destinataire */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-6 rounded-xl border border-slate-200">
+                <p className="text-sm text-slate-500 mb-2">Expediteur</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
+                    {formData.expediteurNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{formData.expediteurNom}</p>
+                    <p className="text-sm text-slate-500">{formData.expediteurTelephone}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-slate-800">{formData.clientName}</p>
-                  <p className="text-sm text-slate-500">{formData.clientPhone}</p>
+              </div>
+              <div className="p-6 rounded-xl border border-slate-200">
+                <p className="text-sm text-slate-500 mb-2">Destinataire</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">
+                    {formData.destinataireNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{formData.destinataireNom}</p>
+                    <p className="text-sm text-slate-500">{formData.destinataireTelephone}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -685,12 +807,52 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               </div>
             )}
 
-            {/* Info */}
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
-              <p className="text-sm text-blue-700">
-                Le prix sera calcule automatiquement en fonction de la distance. La livraison sera en statut &quot;en attente&quot; jusqu&apos;a confirmation par l&apos;admin.
-              </p>
-            </div>
+            {/* Estimation du prix */}
+            {estimateLoading ? (
+              <div className="p-6 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                <span className="text-sm text-slate-600">Calcul du prix en cours...</span>
+              </div>
+            ) : estimate ? (
+              <div className="p-6 rounded-xl bg-orange-50 border border-orange-200 space-y-3">
+                <h4 className="font-semibold text-slate-800">Estimation du prix</h4>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Distance (Google Maps)</span>
+                  <span className="font-medium text-slate-800">{Number(estimate.distanceKm).toFixed(1)} km</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Tarif</span>
+                  <span className="font-medium text-slate-800">{Number(estimate.deliveryType.prixParKm).toLocaleString()} FCFA/km</span>
+                </div>
+                {estimate.isTva ? (
+                  <>
+                    <div className="flex justify-between items-center text-sm pt-2 border-t border-orange-200">
+                      <span className="text-slate-600">Total HT</span>
+                      <span className="font-medium text-slate-800">{Math.round(Number(estimate.totalHT)).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-600">TVA (18%)</span>
+                      <span className="font-medium text-slate-800">{Math.round(Number(estimate.tvaAmount)).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-orange-200">
+                      <span className="font-semibold text-slate-800">Total TTC</span>
+                      <span className="text-2xl font-bold text-orange-600">{Math.round(Number(estimate.totalTTC)).toLocaleString()} FCFA</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between items-center pt-2 border-t border-orange-200">
+                    <span className="font-semibold text-slate-800">Total</span>
+                    <span className="text-2xl font-bold text-orange-600">{Math.round(Number(estimate.originalPrice)).toLocaleString()} FCFA</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                <p className="text-sm text-blue-700">
+                  Le prix sera calcule automatiquement en fonction de la distance.
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -703,7 +865,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
           </Button>
         ) : <div />}
 
-        {currentStep < 5 ? (
+        {currentStep < 6 ? (
           <Button
             className="gradient-subito text-white border-0 gap-2"
             onClick={handleNext}
@@ -800,7 +962,8 @@ function DeliveriesList() {
     const term = searchTerm.toLowerCase();
     return (
       d.reference?.toLowerCase().includes(term) ||
-      d.clientName?.toLowerCase().includes(term) ||
+      d.expediteurNom?.toLowerCase().includes(term) ||
+      d.destinataireNom?.toLowerCase().includes(term) ||
       d.pickupAddress?.toLowerCase().includes(term) ||
       d.dropoffAddress?.toLowerCase().includes(term)
     );
@@ -849,7 +1012,8 @@ function DeliveriesList() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Reference</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Expediteur</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Destinataire</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Trajet</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Statut</th>
@@ -866,8 +1030,12 @@ function DeliveriesList() {
                         <span className="font-mono text-sm font-medium text-subito">{d.reference || `#${d.id}`}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-800 text-sm">{d.clientName || '—'}</p>
-                        <p className="text-xs text-slate-500">{d.clientPhone}</p>
+                        <p className="font-medium text-slate-800 text-sm">{d.expediteurNom || '—'}</p>
+                        <p className="text-xs text-slate-500">{d.expediteurTelephone}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-800 text-sm">{d.destinataireNom || '—'}</p>
+                        <p className="text-xs text-slate-500">{d.destinataireTelephone}</p>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 max-w-[200px]">
                         <p className="truncate">{d.pickupAddress}</p>
@@ -880,7 +1048,7 @@ function DeliveriesList() {
                         <Badge className={`${st.color} border-0 text-xs`}>{st.label}</Badge>
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-800">
-                        {d.totalPrice ? `${Number(d.totalPrice).toLocaleString()} FCFA` : '—'}
+                        {d.totalTTC ? `${Math.round(Number(d.totalTTC)).toLocaleString()} FCFA` : d.originalPrice ? `${Math.round(Number(d.originalPrice)).toLocaleString()} FCFA` : '—'}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedDelivery(d); setDetailOpen(true); }}>
@@ -972,18 +1140,35 @@ function DeliveriesList() {
                 </div>
               </div>
 
-              {/* Client */}
+              {/* Expediteur */}
               <div className="p-4 rounded-xl border border-slate-200">
-                <p className="text-xs text-slate-500 mb-2">Client</p>
+                <p className="text-xs text-slate-500 mb-2">Expediteur</p>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold text-sm">
-                    {deliveryDetail.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    {deliveryDetail.expediteurNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-medium text-slate-800">{deliveryDetail.clientName}</p>
+                    <p className="font-medium text-slate-800">{deliveryDetail.expediteurNom}</p>
                     <div className="flex items-center gap-3 text-xs text-slate-500">
-                      {deliveryDetail.clientPhone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{deliveryDetail.clientPhone}</span>}
-                      {deliveryDetail.clientEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{deliveryDetail.clientEmail}</span>}
+                      {deliveryDetail.expediteurTelephone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{deliveryDetail.expediteurTelephone}</span>}
+                      {deliveryDetail.expediteurEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{deliveryDetail.expediteurEmail}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Destinataire */}
+              <div className="p-4 rounded-xl border border-slate-200">
+                <p className="text-xs text-slate-500 mb-2">Destinataire</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm">
+                    {deliveryDetail.destinataireNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-800">{deliveryDetail.destinataireNom}</p>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      {deliveryDetail.destinataireTelephone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{deliveryDetail.destinataireTelephone}</span>}
+                      {deliveryDetail.destinataireEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{deliveryDetail.destinataireEmail}</span>}
                     </div>
                   </div>
                 </div>
@@ -1026,33 +1211,33 @@ function DeliveriesList() {
               )}
 
               {/* Distance & Price */}
-              {deliveryDetail.totalPrice && (
+              {(deliveryDetail.totalTTC || deliveryDetail.originalPrice) && (
                 <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 space-y-2">
-                  {deliveryDetail.distance && (
+                  {(deliveryDetail.distanceKm || deliveryDetail.distance) && (
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-600">Distance</span>
-                      <span className="font-medium text-slate-800">{Number(deliveryDetail.distance).toFixed(1)} km</span>
+                      <span className="font-medium text-slate-800">{Number(deliveryDetail.distanceKm || deliveryDetail.distance).toFixed(1)} km</span>
                     </div>
                   )}
-                  {user?.isTva ? (
+                  {deliveryDetail.isTva && deliveryDetail.totalHT ? (
                     <>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-600">Total HT</span>
-                        <span className="text-lg font-semibold text-slate-800">{Number(deliveryDetail.totalPrice).toLocaleString()} FCFA</span>
+                        <span className="text-lg font-semibold text-slate-800">{Math.round(Number(deliveryDetail.totalHT)).toLocaleString()} FCFA</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-600">TVA (18%)</span>
-                        <span className="font-medium text-slate-800">{Math.round(Number(deliveryDetail.totalPrice) * 0.18).toLocaleString()} FCFA</span>
+                        <span className="font-medium text-slate-800">{Math.round(Number(deliveryDetail.tvaAmount || 0)).toLocaleString()} FCFA</span>
                       </div>
                       <div className="flex justify-between items-center pt-2 border-t border-orange-200">
                         <span className="font-semibold text-slate-800">Total TTC</span>
-                        <span className="text-2xl font-bold text-orange-600">{Math.round(Number(deliveryDetail.totalPrice) * 1.18).toLocaleString()} FCFA</span>
+                        <span className="text-2xl font-bold text-orange-600">{Math.round(Number(deliveryDetail.totalTTC)).toLocaleString()} FCFA</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-slate-800">Total</span>
-                      <span className="text-2xl font-bold text-orange-600">{Number(deliveryDetail.totalPrice).toLocaleString()} FCFA</span>
+                      <span className="text-2xl font-bold text-orange-600">{Math.round(Number(deliveryDetail.originalPrice || deliveryDetail.totalTTC)).toLocaleString()} FCFA</span>
                     </div>
                   )}
                 </div>

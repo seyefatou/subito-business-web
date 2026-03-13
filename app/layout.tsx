@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description: 'Plateforme de gestion de flotte et services de transport',
 };
 
+
 export default function RootLayout({
   children,
 }: {

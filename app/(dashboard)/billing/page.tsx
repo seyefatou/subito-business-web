@@ -612,11 +612,11 @@ export default function Billing() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(0, 0, 0);
-      doc.text('L\'equipe Commerciale', margin, y);
+      doc.text('L\'equipe Commerciale', pageWidth - margin, y, { align: 'right' });
       y += 3;
 
       try {
-        doc.addImage(tamponBase64, 'JPEG', margin, y, 40, 40);
+        doc.addImage(tamponBase64, 'JPEG', pageWidth - margin - 40, y, 40, 40);
       } catch (e) {
         console.error('Tampon addImage error:', e);
       }

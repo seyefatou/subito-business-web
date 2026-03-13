@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -58,6 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -84,9 +85,17 @@ interface FormData {
   isOneWay: boolean;
   // Addresses
   adressePriseEnChargeDepartAller: string;
+  adressePriseEnChargeDepartAllerLat: number | null;
+  adressePriseEnChargeDepartAllerLng: number | null;
   adressePriseEnChargeArriveeAller: string;
+  adressePriseEnChargeArriveeAllerLat: number | null;
+  adressePriseEnChargeArriveeAllerLng: number | null;
   adressePriseEnChargeDepartRetour: string;
+  adressePriseEnChargeDepartRetourLat: number | null;
+  adressePriseEnChargeDepartRetourLng: number | null;
   adressePriseEnChargeArriveeRetour: string;
+  adressePriseEnChargeArriveeRetourLat: number | null;
+  adressePriseEnChargeArriveeRetourLng: number | null;
   // Options
   siegeBebes: number;
   animalDeCompagnie: boolean;
@@ -103,8 +112,8 @@ interface FormData {
 }
 
 const steps: Step[] = [
-  { id: 1, title: "Trajet", icon: MapPin },
-  { id: 2, title: "Client", icon: User },
+  { id: 1, title: "Client", icon: User },
+  { id: 2, title: "Trajet", icon: MapPin },
   { id: 3, title: "Vehicule", icon: Car },
   { id: 4, title: "Paiement", icon: CreditCard },
   { id: 5, title: "Confirmation", icon: Check },
@@ -132,9 +141,17 @@ export default function InterCity() {
     pickupTimeAller: "",
     isOneWay: true,
     adressePriseEnChargeDepartAller: "",
+    adressePriseEnChargeDepartAllerLat: null,
+    adressePriseEnChargeDepartAllerLng: null,
     adressePriseEnChargeArriveeAller: "",
+    adressePriseEnChargeArriveeAllerLat: null,
+    adressePriseEnChargeArriveeAllerLng: null,
     adressePriseEnChargeDepartRetour: "",
+    adressePriseEnChargeDepartRetourLat: null,
+    adressePriseEnChargeDepartRetourLng: null,
     adressePriseEnChargeArriveeRetour: "",
+    adressePriseEnChargeArriveeRetourLat: null,
+    adressePriseEnChargeArriveeRetourLng: null,
     siegeBebes: 0,
     animalDeCompagnie: false,
     smallBags: 0,
@@ -334,6 +351,25 @@ export default function InterCity() {
   const handleNext = () => {
     // Validate current step before proceeding
     if (currentStep === 1) {
+      if (!formData.employeeId) {
+        toast.error("Veuillez selectionner un voyageur");
+        return;
+      }
+      if (!formData.clientName) {
+        toast.error("Veuillez entrer le nom du client");
+        return;
+      }
+      if (!formData.clientPhone) {
+        toast.error("Veuillez entrer le numero de telephone");
+        return;
+      }
+      if (!isValidPhone(formData.clientPhone)) {
+        toast.error("Numero de telephone invalide");
+        return;
+      }
+    }
+
+    if (currentStep === 2) {
       if (!selectedPays) {
         toast.error("Veuillez selectionner un pays");
         return;
@@ -360,29 +396,6 @@ export default function InterCity() {
       }
       if (!formData.pickupTimeAller) {
         toast.error("Veuillez selectionner une heure de depart");
-        return;
-      }
-    }
-
-    if (currentStep === 2) {
-      if (!formData.employeeId) {
-        toast.error("Veuillez selectionner un voyageur");
-        return;
-      }
-      if (!formData.clientName) {
-        toast.error("Veuillez entrer le nom du client");
-        return;
-      }
-      if (!formData.clientPhone) {
-        toast.error("Veuillez entrer le numero de telephone");
-        return;
-      }
-      if (!isValidPhone(formData.clientPhone)) {
-        toast.error("Numero de telephone invalide");
-        return;
-      }
-      if (!formData.clientAddress) {
-        toast.error("Veuillez entrer l'adresse du client");
         return;
       }
     }
@@ -419,7 +432,11 @@ export default function InterCity() {
       clientPhone: formatPhoneForApi(formData.clientPhone),
       clientAddress: formData.clientAddress,
       adressePriseEnChargeDepartAller: formData.adressePriseEnChargeDepartAller,
+      adressePriseEnChargeDepartAllerLat: formData.adressePriseEnChargeDepartAllerLat || undefined,
+      adressePriseEnChargeDepartAllerLng: formData.adressePriseEnChargeDepartAllerLng || undefined,
       adressePriseEnChargeArriveeAller: formData.adressePriseEnChargeArriveeAller,
+      adressePriseEnChargeArriveeAllerLat: formData.adressePriseEnChargeArriveeAllerLat || undefined,
+      adressePriseEnChargeArriveeAllerLng: formData.adressePriseEnChargeArriveeAllerLng || undefined,
       serviceType: formData.isOneWay ? 'one_way' : 'round_trip',
       trajetInterVilleId: selectedTrajet.id,
       vehiculeId: formData.vehiculeId || undefined,
@@ -447,7 +464,11 @@ export default function InterCity() {
       bookingData.siegeBebesRetour = formData.siegeBebesRetour;
       bookingData.animalDeCompagnieRetour = formData.animalDeCompagnieRetour;
       (bookingData as any).adressePriseEnChargeDepartRetour = formData.adressePriseEnChargeDepartRetour || undefined;
+      (bookingData as any).adressePriseEnChargeDepartRetourLat = formData.adressePriseEnChargeDepartRetourLat || undefined;
+      (bookingData as any).adressePriseEnChargeDepartRetourLng = formData.adressePriseEnChargeDepartRetourLng || undefined;
       (bookingData as any).adressePriseEnChargeArriveeRetour = formData.adressePriseEnChargeArriveeRetour || undefined;
+      (bookingData as any).adressePriseEnChargeArriveeRetourLat = formData.adressePriseEnChargeArriveeRetourLat || undefined;
+      (bookingData as any).adressePriseEnChargeArriveeRetourLng = formData.adressePriseEnChargeArriveeRetourLng || undefined;
     }
 
     console.log('[INTER-CITY] Booking data:', JSON.stringify(bookingData, null, 2));
@@ -465,13 +486,13 @@ export default function InterCity() {
 
   const canContinue = (): boolean => {
     switch (currentStep) {
-      case 1: {
+      case 1:
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone));
+      case 2: {
         const baseValid = !!(selectedPays && selectedDepartId && selectedArriveeId && formData.adressePriseEnChargeDepartAller && formData.adressePriseEnChargeArriveeAller && formData.pickupDateAller && formData.pickupTimeAller);
         if (!formData.isOneWay) return baseValid && !!(formData.pickupDateRetour && formData.pickupTimeRetour);
         return baseValid;
       }
-      case 2:
-        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
       case 3:
         return !!formData.trajetInterVilleId;
       case 4:
@@ -605,10 +626,10 @@ export default function InterCity() {
       {/* Form content */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <AnimatePresence mode="wait">
-          {/* Step 1: Trip details */}
-          {currentStep === 1 && (
+          {/* Step 2: Trip details */}
+          {currentStep === 2 && (
             <motion.div
-              key="step1"
+              key="step2-trip"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -770,24 +791,30 @@ export default function InterCity() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
                         Adresse de prise en charge (depart) *
                       </Label>
-                      <Input
+                      <AddressAutocomplete
                         placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
                         value={formData.adressePriseEnChargeDepartAller}
-                        onChange={(e) => handleChange('adressePriseEnChargeDepartAller', e.target.value)}
+                        onChange={(val) => handleChange('adressePriseEnChargeDepartAller', val)}
+                        onSelect={(address, lat, lng) => {
+                          setFormData(prev => ({ ...prev, adressePriseEnChargeDepartAller: address, adressePriseEnChargeDepartAllerLat: lat, adressePriseEnChargeDepartAllerLng: lng }));
+                        }}
+                        iconColor="text-green-500"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
                         Adresse de depose (arrivee) *
                       </Label>
-                      <Input
+                      <AddressAutocomplete
                         placeholder="Ex: Gare routiere, Thies"
                         value={formData.adressePriseEnChargeArriveeAller}
-                        onChange={(e) => handleChange('adressePriseEnChargeArriveeAller', e.target.value)}
+                        onChange={(val) => handleChange('adressePriseEnChargeArriveeAller', val)}
+                        onSelect={(address, lat, lng) => {
+                          setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeAller: address, adressePriseEnChargeArriveeAllerLat: lat, adressePriseEnChargeArriveeAllerLng: lng }));
+                        }}
+                        iconColor="text-red-500"
                       />
                     </div>
                   </div>
@@ -933,24 +960,30 @@ export default function InterCity() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
                             Adresse de prise en charge (retour)
                           </Label>
-                          <Input
+                          <AddressAutocomplete
                             placeholder="Ex: Gare routiere, Thies"
                             value={formData.adressePriseEnChargeDepartRetour}
-                            onChange={(e) => handleChange('adressePriseEnChargeDepartRetour', e.target.value)}
+                            onChange={(val) => handleChange('adressePriseEnChargeDepartRetour', val)}
+                            onSelect={(address, lat, lng) => {
+                              setFormData(prev => ({ ...prev, adressePriseEnChargeDepartRetour: address, adressePriseEnChargeDepartRetourLat: lat, adressePriseEnChargeDepartRetourLng: lng }));
+                            }}
+                            iconColor="text-green-500"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
                             Adresse de depose (retour)
                           </Label>
-                          <Input
+                          <AddressAutocomplete
                             placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
                             value={formData.adressePriseEnChargeArriveeRetour}
-                            onChange={(e) => handleChange('adressePriseEnChargeArriveeRetour', e.target.value)}
+                            onChange={(val) => handleChange('adressePriseEnChargeArriveeRetour', val)}
+                            onSelect={(address, lat, lng) => {
+                              setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeRetour: address, adressePriseEnChargeArriveeRetourLat: lat, adressePriseEnChargeArriveeRetourLng: lng }));
+                            }}
+                            iconColor="text-red-500"
                           />
                         </div>
                       </div>
@@ -1049,10 +1082,10 @@ export default function InterCity() {
             </motion.div>
           )}
 
-          {/* Step 2: Client info */}
-          {currentStep === 2 && (
+          {/* Step 1: Client info */}
+          {currentStep === 1 && (
             <motion.div
-              key="step2"
+              key="step1-client"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1202,17 +1235,6 @@ export default function InterCity() {
                     placeholder="client@email.com"
                     value={formData.clientEmail}
                     onChange={(e) => handleChange('clientEmail', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Home className="w-4 h-4" />
-                    Adresse *
-                  </Label>
-                  <Input
-                    placeholder="Adresse du client"
-                    value={formData.clientAddress}
-                    onChange={(e) => handleChange('clientAddress', e.target.value)}
                   />
                 </div>
               </div>

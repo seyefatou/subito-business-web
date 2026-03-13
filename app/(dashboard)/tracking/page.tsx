@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, BookingResponse, TravelDocumentResponse, PaymentOption } from "@/lib/api";
+import { api, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption } from "@/lib/api";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -52,7 +52,7 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
-  CIRCUIT: { label: "Circuit", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
+  ACTIVITE: { label: "Activite", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-cyan-100 text-cyan-700" },
   FLOTTE: { label: "Flotte", icon: Car, color: "bg-pink-100 text-pink-700" },
 };
@@ -76,6 +76,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   rejected: { label: "Rejete", color: "bg-red-100 text-red-700" },
   processing: { label: "En traitement", color: "bg-amber-100 text-amber-700" },
   deleted: { label: "Supprime", color: "bg-slate-100 text-slate-500" },
+  paid: { label: "Paye", color: "bg-emerald-100 text-emerald-700" },
 };
 
 export default function Tracking() {
@@ -88,6 +89,7 @@ export default function Tracking() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payBookingId, setPayBookingId] = useState<number | null>(null);
+  const [payBookingServiceType, setPayBookingServiceType] = useState<string>('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
   const limit = 10;
 
@@ -102,14 +104,19 @@ export default function Tracking() {
 
   // Pay individual booking
   const payIndividualMutation = useMutation({
-    mutationFn: ({ id, method }: { id: number; method?: string }) =>
-      api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined),
+    mutationFn: ({ id, method, serviceType }: { id: number; method?: string; serviceType?: string }) => {
+      if (['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(serviceType || '')) {
+        return api.serviceReservations.pay(id, { paymentMethod: method as 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer' });
+      }
+      return api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined);
+    },
     onSuccess: () => {
       toast.success('Reservation payee avec succes');
       setShowPayDialog(false);
       setDetailOpen(false);
       setSelectedBooking(null);
       queryClient.invalidateQueries({ queryKey: ['bookings-compagny'] });
+      queryClient.invalidateQueries({ queryKey: ['service-reservations-compagny'] });
       queryClient.invalidateQueries({ queryKey: ['booking-detail'] });
     },
     onError: (err: Error) => {
@@ -127,6 +134,12 @@ export default function Tracking() {
   const { data: travelDocsResponse, isLoading: travelDocsLoading } = useQuery({
     queryKey: ['travel-docs-compagny', page],
     queryFn: () => api.travelDocuments.list({ page, limit }),
+  });
+
+  // Fetch service reservations (activite, logement, flotte)
+  const { data: serviceResResponse, isLoading: serviceResLoading } = useQuery({
+    queryKey: ['service-reservations-compagny', page],
+    queryFn: () => api.serviceReservations.list(page, limit),
   });
 
   // Parse bookings response: handle { list, page, pageSize, total } or { items, total, page, limit }
@@ -165,23 +178,54 @@ export default function Tracking() {
     updatedAt: td.updatedAt,
   }));
 
+  // Parse service reservations response
+  const serviceResRaw = serviceResResponse?.data as Record<string, unknown> | undefined;
+  const serviceResPayload = (serviceResRaw?.data ?? serviceResRaw) as Record<string, unknown> | undefined;
+  const serviceResArray: ServiceReservationResponse[] = (() => {
+    if (Array.isArray(serviceResPayload?.list)) return serviceResPayload.list as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload?.items)) return serviceResPayload.items as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload)) return serviceResPayload as unknown as ServiceReservationResponse[];
+    return [];
+  })();
+  const serviceResTotal = Number(serviceResPayload?.total ?? serviceResArray.length);
+
+  const serviceResAsBookings: BookingResponse[] = serviceResArray.map(sr => ({
+    id: sr.id,
+    reference: sr.reference || `SRV-${sr.id}`,
+    serviceType: sr.serviceType || 'ACTIVITE',
+    status: sr.status || 'pending',
+    paymentStatus: (sr as Record<string, unknown>).paymentStatus as string || undefined,
+    clientName: sr.clientName || '-',
+    clientPhone: sr.clientPhone || '',
+    clientEmail: sr.clientEmail || '',
+    totalPrice: Number(sr.totalPrice || 0),
+    paidBy: sr.paidBy as 'client' | 'company' | undefined,
+    paymentMethod: sr.paymentMethod || undefined,
+    canal: (sr as Record<string, unknown>).canal as string || undefined,
+    createdAt: sr.createdAt,
+    updatedAt: sr.updatedAt,
+  }));
+
   // Merge and sort by creation date (most recent first)
-  const bookings: BookingResponse[] = [...regularBookings, ...travelDocsAsBookings].sort(
+  const bookings: BookingResponse[] = [...regularBookings, ...travelDocsAsBookings, ...serviceResAsBookings].sort(
     (a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
   );
 
-  const totalBookingsCount = bookingsTotal + travelDocsTotal;
+  const totalBookingsCount = bookingsTotal + travelDocsTotal + serviceResTotal;
   const totalPages = Math.ceil(totalBookingsCount / limit) || 1;
 
-  const isLoadingAll = isLoading || travelDocsLoading;
+  const isLoadingAll = isLoading || travelDocsLoading || serviceResLoading;
 
-  // Fetch booking detail (handle travel docs separately)
+  // Fetch booking detail (handle travel docs and service reservations separately)
   const isTravelDoc = selectedBooking?.serviceType === 'visa_assistance';
+  const isServiceRes = ['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(selectedBooking?.serviceType || '');
   const { data: detailResponse, isLoading: detailLoading } = useQuery({
-    queryKey: ['booking-detail', selectedBooking?.id, isTravelDoc],
-    queryFn: () => isTravelDoc
-      ? api.travelDocuments.get(selectedBooking!.id)
-      : api.bookings.get(selectedBooking!.id),
+    queryKey: ['booking-detail', selectedBooking?.id, isTravelDoc, isServiceRes],
+    queryFn: () => {
+      if (isTravelDoc) return api.travelDocuments.get(selectedBooking!.id);
+      if (isServiceRes) return api.serviceReservations.get(selectedBooking!.id);
+      return api.bookings.get(selectedBooking!.id);
+    },
     enabled: !!selectedBooking?.id && detailOpen,
   });
   const rawDetail = detailResponse?.data;
@@ -288,7 +332,7 @@ export default function Tracking() {
               <SelectItem value="inter_city">Inter-ville</SelectItem>
               <SelectItem value="vtc_hourly">VTC Horaire</SelectItem>
               <SelectItem value="visa_assistance">Documents Voyage</SelectItem>
-              <SelectItem value="CIRCUIT">Circuit</SelectItem>
+              <SelectItem value="ACTIVITE">Activite</SelectItem>
               <SelectItem value="LOGEMENT">Logement</SelectItem>
               <SelectItem value="FLOTTE">Flotte</SelectItem>
             </SelectContent>
@@ -303,6 +347,7 @@ export default function Tracking() {
               <SelectItem value="confirmed">Confirme</SelectItem>
               <SelectItem value="in_progress">En cours</SelectItem>
               <SelectItem value="completed">Termine</SelectItem>
+              <SelectItem value="paid">Paye</SelectItem>
               <SelectItem value="cancelled">Annule</SelectItem>
               <SelectItem value="processing">En traitement</SelectItem>
               <SelectItem value="deleted">Supprime</SelectItem>
@@ -784,15 +829,17 @@ export default function Tracking() {
                 </div>
               )}
 
-              {/* Pay button — only when reservation is completed */}
-              {String(bookingDetail.status || '').toLowerCase() === 'completed' && String((bookingDetail as any).paymentStatus || '').toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
+              {/* Pay button — only when reservation is completed and not yet paid */}
+              {String(bookingDetail.status || '').toLowerCase() === 'completed' && String(bookingDetail.status || '').toLowerCase() !== 'paid' && String((bookingDetail as any).paymentStatus || '').toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
                   onClick={() => {
                     const id = bookingDetail.id;
+                    const sType = bookingDetail.serviceType || '';
                     setDetailOpen(false);
                     setTimeout(() => {
                       setPayBookingId(id);
+                      setPayBookingServiceType(sType);
                       setSelectedPayMethod('');
                       setShowPayDialog(true);
                     }, 150);
@@ -857,7 +904,7 @@ export default function Tracking() {
               disabled={!selectedPayMethod || payIndividualMutation.isPending}
               onClick={() => {
                 if (payBookingId && selectedPayMethod) {
-                  payIndividualMutation.mutate({ id: payBookingId, method: selectedPayMethod });
+                  payIndividualMutation.mutate({ id: payBookingId, method: selectedPayMethod, serviceType: payBookingServiceType });
                 }
               }}
             >

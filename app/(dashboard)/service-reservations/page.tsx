@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -78,7 +79,7 @@ import { useAuth } from "@/lib/auth-context";
 import EmployeeForm from "@/components/employees/EmployeeForm";
 
 // ==================== TYPES ====================
-type ServiceType = 'CIRCUIT' | 'LOGEMENT' | 'FLOTTE';
+type ServiceType = 'ACTIVITE' | 'LOGEMENT' | 'FLOTTE';
 
 interface StepDef {
   id: number;
@@ -129,7 +130,7 @@ const initialFormData: FormData = {
 };
 
 const serviceTypeLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  CIRCUIT: { label: "Circuit", icon: MapPin, color: "bg-emerald-100 text-emerald-700" },
+  ACTIVITE: { label: "Activite", icon: MapPin, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-blue-100 text-blue-700" },
   FLOTTE: { label: "Flotte", icon: Car, color: "bg-purple-100 text-purple-700" },
 };
@@ -144,50 +145,51 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 // ==================== MAIN COMPONENT ====================
+const servicePageConfig: Record<string, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
+  ACTIVITE: { title: "Activite", subtitle: "Reservez une activite pour vos employes", icon: MapPin },
+  LOGEMENT: { title: "Logement", subtitle: "Reservez un logement pour vos employes", icon: Hotel },
+  FLOTTE: { title: "Flotte", subtitle: "Louez un vehicule pour vos employes", icon: Car },
+};
+
 export default function ServiceReservations() {
-  const [activeTab, setActiveTab] = useState("new");
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get('type') as ServiceType | null;
+  const config = typeParam && servicePageConfig[typeParam] ? servicePageConfig[typeParam] : null;
+  const HeaderIcon = config?.icon || Compass;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-3 rounded-xl gradient-subito">
-          <Compass className="w-6 h-6 text-white" />
+          <HeaderIcon className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Reservations Services</h1>
-          <p className="text-slate-500">Circuits, logements et vehicules de location</p>
+          <h1 className="text-2xl font-bold text-slate-800">{config?.title || 'Reservations Services'}</h1>
+          <p className="text-slate-500">{config?.subtitle || 'Circuits, logements et vehicules de location'}</p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="new">Nouvelle reservation</TabsTrigger>
-          <TabsTrigger value="list">Mes reservations</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="new" className="mt-6">
-          <NewReservationForm onSuccess={() => setActiveTab("list")} />
-        </TabsContent>
-
-        <TabsContent value="list" className="mt-6">
-          <ReservationsList />
-        </TabsContent>
-      </Tabs>
+      <NewReservationForm key={typeParam || 'all'} defaultServiceType={typeParam || undefined} onSuccess={() => {}} />
     </div>
   );
 }
 
 // ==================== NEW RESERVATION FORM ====================
-function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
+function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () => void; defaultServiceType?: ServiceType }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [currentStep, setCurrentStep] = useState(defaultServiceType ? 2 : 1);
+  const [formData, setFormData] = useState<FormData>({
+    ...initialFormData,
+    serviceType: defaultServiceType || '',
+  });
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
   const [showAddEmployee, setShowAddEmployee] = useState(false);
 
   // Fetch employees
@@ -214,7 +216,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
   const { data: circuitsResponse, isLoading: circuitsLoading } = useQuery({
     queryKey: ['circuits-public'],
     queryFn: () => api.circuits.listPublic(1, 50),
-    enabled: formData.serviceType === 'CIRCUIT',
+    enabled: formData.serviceType === 'ACTIVITE',
   });
   const circuitsRaw = circuitsResponse?.data;
   const circuits: Circuit[] = Array.isArray(circuitsRaw)
@@ -300,7 +302,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
   const selectedVehicule = vehicules.find(v => v.id === formData.vehiculeLocationId);
 
   const calculateTotal = (): number => {
-    if (formData.serviceType === 'CIRCUIT' && selectedCircuit) {
+    if (formData.serviceType === 'ACTIVITE' && selectedCircuit) {
       return (selectedCircuit.prix || 0) * formData.nombrePersonnes;
     }
     if (formData.serviceType === 'LOGEMENT' && selectedLogement) {
@@ -332,7 +334,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
       if (!formData.serviceType) { toast.error("Veuillez choisir un type de service"); return; }
     }
     if (currentStep === 2) {
-      if (formData.serviceType === 'CIRCUIT' && !formData.circuitId) { toast.error("Veuillez selectionner un circuit"); return; }
+      if (formData.serviceType === 'ACTIVITE' && !formData.circuitId) { toast.error("Veuillez selectionner un circuit"); return; }
       if (formData.serviceType === 'LOGEMENT' && !formData.logementId) { toast.error("Veuillez selectionner un logement"); return; }
       if (formData.serviceType === 'FLOTTE' && !formData.vehiculeLocationId) { toast.error("Veuillez selectionner un vehicule"); return; }
     }
@@ -350,7 +352,8 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    const minStep = defaultServiceType ? 2 : 1;
+    if (currentStep > minStep) setCurrentStep(currentStep - 1);
   };
 
   const handleSubmit = () => {
@@ -366,12 +369,12 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
       totalPrice: calculateTotal(),
       employeeId: formData.employeeId || undefined,
       notes: formData.notes || undefined,
-      nombrePersonnes: formData.serviceType === 'CIRCUIT' ? formData.nombrePersonnes : undefined,
+      nombrePersonnes: formData.serviceType === 'ACTIVITE' ? formData.nombrePersonnes : undefined,
       adresseLivraison: formData.serviceType === 'FLOTTE' ? formData.adresseLivraison : undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
       paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : toBookingPaymentMethod(formData.payment_method),
     };
-    if (formData.serviceType === 'CIRCUIT') dto.circuitId = formData.circuitId!;
+    if (formData.serviceType === 'ACTIVITE') dto.circuitId = formData.circuitId!;
     if (formData.serviceType === 'LOGEMENT') dto.logementId = formData.logementId!;
     if (formData.serviceType === 'FLOTTE') dto.vehiculeLocationId = formData.vehiculeLocationId!;
 
@@ -406,7 +409,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
           <Button variant="outline" onClick={handleReset}>
             Nouvelle reservation
           </Button>
-          <Button className="gradient-subito text-white border-0" onClick={onSuccess}>
+          <Button className="gradient-subito text-white border-0" onClick={() => router.push('/tracking')}>
             Voir mes reservations
           </Button>
         </div>
@@ -419,31 +422,34 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
     <div className="max-w-4xl mx-auto">
       {/* Progress steps */}
       <div className="flex items-center justify-between mb-8">
-        {steps.map((step, index) => {
-          const isActive = step.id === currentStep;
-          const isCompleted = step.id < currentStep;
-          const StepIcon = step.icon;
-          return (
-            <React.Fragment key={step.id}>
-              <div className="flex flex-col items-center gap-2">
-                <div className={`
-                  w-10 h-10 rounded-full flex items-center justify-center transition-all
-                  ${isActive ? 'gradient-subito text-white shadow-lg' : ''}
-                  ${isCompleted ? 'bg-green-500 text-white' : ''}
-                  ${!isActive && !isCompleted ? 'bg-slate-100 text-slate-400' : ''}
-                `}>
-                  {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
+        {(() => {
+          const displaySteps = defaultServiceType ? steps.filter(s => s.id !== 1) : steps;
+          return displaySteps.map((step, index) => {
+            const isActive = step.id === currentStep;
+            const isCompleted = step.id < currentStep;
+            const StepIcon = step.icon;
+            return (
+              <React.Fragment key={step.id}>
+                <div className="flex flex-col items-center gap-2">
+                  <div className={`
+                    w-10 h-10 rounded-full flex items-center justify-center transition-all
+                    ${isActive ? 'gradient-subito text-white shadow-lg' : ''}
+                    ${isCompleted ? 'bg-green-500 text-white' : ''}
+                    ${!isActive && !isCompleted ? 'bg-slate-100 text-slate-400' : ''}
+                  `}>
+                    {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
+                  </div>
+                  <span className={`text-xs font-medium ${isActive ? 'text-orange-600' : 'text-slate-400'}`}>
+                    {step.title}
+                  </span>
                 </div>
-                <span className={`text-xs font-medium ${isActive ? 'text-orange-600' : 'text-slate-400'}`}>
-                  {step.title}
-                </span>
-              </div>
-              {index < steps.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-2 ${step.id < currentStep ? 'bg-green-500' : 'bg-slate-200'}`} />
-              )}
-            </React.Fragment>
-          );
-        })}
+                {index < displaySteps.length - 1 && (
+                  <div className={`flex-1 h-0.5 mx-2 ${step.id < currentStep ? 'bg-green-500' : 'bg-slate-200'}`} />
+                )}
+              </React.Fragment>
+            );
+          });
+        })()}
       </div>
 
       {/* Step content */}
@@ -464,7 +470,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {([
-                  { type: 'CIRCUIT' as ServiceType, label: 'Circuit touristique', desc: 'Excursions et visites guidees', icon: MapPin, gradient: 'from-emerald-500 to-teal-500' },
+                  { type: 'ACTIVITE' as ServiceType, label: 'Activite', desc: 'Excursions et visites guidees', icon: MapPin, gradient: 'from-emerald-500 to-teal-500' },
                   { type: 'LOGEMENT' as ServiceType, label: 'Logement', desc: 'Hotels, riads et residences', icon: Hotel, gradient: 'from-blue-500 to-indigo-500' },
                   { type: 'FLOTTE' as ServiceType, label: 'Location vehicule', desc: 'Vehicules de location avec ou sans chauffeur', icon: Car, gradient: 'from-purple-500 to-pink-500' },
                 ]).map((service) => {
@@ -507,15 +513,30 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-slate-800 mb-2">
-                  {formData.serviceType === 'CIRCUIT' && 'Choisissez un circuit'}
+                  {formData.serviceType === 'ACTIVITE' && 'Choisissez un circuit'}
                   {formData.serviceType === 'LOGEMENT' && 'Choisissez un logement'}
                   {formData.serviceType === 'FLOTTE' && 'Choisissez un vehicule'}
                 </h2>
                 <p className="text-slate-500">Selectionnez parmi les options disponibles</p>
               </div>
 
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder={
+                    formData.serviceType === 'ACTIVITE' ? 'Rechercher un circuit...' :
+                    formData.serviceType === 'LOGEMENT' ? 'Rechercher un logement...' :
+                    'Rechercher un vehicule...'
+                  }
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
               {/* Circuits */}
-              {formData.serviceType === 'CIRCUIT' && (
+              {formData.serviceType === 'ACTIVITE' && (
                 circuitsLoading ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -527,7 +548,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {circuits.map((circuit) => {
+                    {circuits.filter(c => !itemSearch || (c.titre || '').toLowerCase().includes(itemSearch.toLowerCase()) || (c.ville || '').toLowerCase().includes(itemSearch.toLowerCase()) || (c.descriptionCourte || '').toLowerCase().includes(itemSearch.toLowerCase())).map((circuit) => {
                       const selected = formData.circuitId === circuit.id;
                       return (
                         <motion.div
@@ -574,7 +595,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {logements.map((logement) => {
+                    {logements.filter(l => !itemSearch || (l.nom || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.ville || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.type || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.description || '').toLowerCase().includes(itemSearch.toLowerCase())).map((logement) => {
                       const selected = formData.logementId === logement.id;
                       return (
                         <motion.div
@@ -626,7 +647,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicules.map((vehicule) => {
+                    {vehicules.filter(v => !itemSearch || (v.marque || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.modele || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.type || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.zoneOperations || '').toLowerCase().includes(itemSearch.toLowerCase())).map((vehicule) => {
                       const selected = formData.vehiculeLocationId === vehicule.id;
                       return (
                         <motion.div
@@ -789,7 +810,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                 </div>
 
                 {/* Dates / Nombre de personnes */}
-                {formData.serviceType === 'CIRCUIT' ? (
+                {formData.serviceType === 'ACTIVITE' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Date *</Label>
@@ -962,7 +983,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
                 </div>
 
                 {/* Selected item */}
-                {formData.serviceType === 'CIRCUIT' && selectedCircuit && (
+                {formData.serviceType === 'ACTIVITE' && selectedCircuit && (
                   <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
                     <p className="font-semibold text-slate-800">{selectedCircuit.titre}</p>
                     {selectedCircuit.ville && <p className="text-sm text-slate-500">{selectedCircuit.ville}</p>}
@@ -1003,12 +1024,12 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
 
                 {/* Dates */}
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">{formData.serviceType === 'CIRCUIT' ? 'Date' : 'Date de debut'}</span>
+                  <span className="text-sm text-slate-500">{formData.serviceType === 'ACTIVITE' ? 'Date' : 'Date de debut'}</span>
                   <span className="text-sm font-medium text-slate-800">
                     {formData.dateDebut ? format(new Date(formData.dateDebut), 'dd MMM yyyy', { locale: fr }) : '-'}
                   </span>
                 </div>
-                {formData.serviceType !== 'CIRCUIT' && formData.dateFin && (
+                {formData.serviceType !== 'ACTIVITE' && formData.dateFin && (
                   <div className="flex justify-between">
                     <span className="text-sm text-slate-500">Date de fin</span>
                     <span className="text-sm font-medium text-slate-800">
@@ -1067,7 +1088,7 @@ function NewReservationForm({ onSuccess }: { onSuccess: () => void }) {
         <Button
           variant="outline"
           onClick={handleBack}
-          disabled={currentStep === 1}
+          disabled={currentStep === (defaultServiceType ? 2 : 1)}
           className="gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -1200,7 +1221,7 @@ function ReservationsList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous les services</SelectItem>
-              <SelectItem value="CIRCUIT">Circuit</SelectItem>
+              <SelectItem value="ACTIVITE">Circuit</SelectItem>
               <SelectItem value="LOGEMENT">Logement</SelectItem>
               <SelectItem value="FLOTTE">Flotte</SelectItem>
             </SelectContent>

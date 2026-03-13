@@ -265,7 +265,11 @@ export interface CreateAirportShuttleBookingDto {
   passengers: number;
   flightNumber?: string;
   adressePriseEnChargeAller: string;
+  adressePriseEnChargeAllerLat?: number;
+  adressePriseEnChargeAllerLng?: number;
   adressePriseEnChargeRetour?: string;
+  adressePriseEnChargeRetourLat?: number;
+  adressePriseEnChargeRetourLng?: number;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
@@ -273,12 +277,25 @@ export interface CreateAirportShuttleBookingDto {
   siegeBebes?: number;
   animalDeCompagnie?: boolean;
   adresseSupplement?: number;
+  adresseSupplementAller?: Array<{ adresse: string; lat: number; lng: number }>;
   specialRequests?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  siegeBebesRetour?: number;
+  animalDeCompagnieRetour?: boolean;
+  adresseSupplementRetour?: Array<{ adresse: string; lat: number; lng: number }>;
+  departureTimeRetour?: string;
+  arrivalTimeRetour?: string;
   paidBy: 'company' | 'client';
   paymentMethod?: string;
   companyCode?: string;
   customerId?: number;
   employeeId?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  surchargeAmount?: number;
+  surchargePercent?: number;
+  canal?: string;
 }
 
 export interface CreateInterCityBookingDto {
@@ -293,7 +310,17 @@ export interface CreateInterCityBookingDto {
   pickupDateRetour?: string;
   pickupTimeRetour?: string;
   adressePriseEnChargeDepartAller?: string;
+  adressePriseEnChargeDepartAllerLat?: number;
+  adressePriseEnChargeDepartAllerLng?: number;
   adressePriseEnChargeArriveeAller?: string;
+  adressePriseEnChargeArriveeAllerLat?: number;
+  adressePriseEnChargeArriveeAllerLng?: number;
+  adressePriseEnChargeDepartRetour?: string;
+  adressePriseEnChargeDepartRetourLat?: number;
+  adressePriseEnChargeDepartRetourLng?: number;
+  adressePriseEnChargeArriveeRetour?: string;
+  adressePriseEnChargeArriveeRetourLat?: number;
+  adressePriseEnChargeArriveeRetourLng?: number;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
@@ -304,12 +331,24 @@ export interface CreateInterCityBookingDto {
   animalDeCompagnieRetour?: boolean;
   smallBags?: number;
   largeBags?: number;
+  adresseSupplement?: number;
+  adresseSupplementAller?: Array<{ adresse: string; lat: number; lng: number }>;
+  adresseSupplementRetour?: Array<{ adresse: string; lat: number; lng: number }>;
   specialRequests?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  departureTimeRetour?: string;
+  arrivalTimeRetour?: string;
   paidBy: 'company' | 'client';
   paymentMethod?: string;
   companyCode?: string;
   customerId?: number;
   employeeId?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  surchargeAmount?: number;
+  surchargePercent?: number;
+  canal?: string;
 }
 
 export interface CreateVtcHourlyBookingDto {
@@ -319,6 +358,8 @@ export interface CreateVtcHourlyBookingDto {
   scheduledDatetime: string;
   pickupAddress: string;
   adressePriseEnCharge?: string;
+  adressePriseEnChargeLat?: number;
+  adressePriseEnChargeLng?: number;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
@@ -329,6 +370,11 @@ export interface CreateVtcHourlyBookingDto {
   companyCode?: string;
   customerId?: number;
   employeeId?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  surchargeAmount?: number;
+  surchargePercent?: number;
+  canal?: string;
 }
 
 export interface CreateVisaAssistanceRequestDto {
@@ -696,7 +742,7 @@ export interface VehiculeLocation {
 }
 
 export interface CreateServiceReservationDto {
-  serviceType: 'CIRCUIT' | 'LOGEMENT' | 'FLOTTE';
+  serviceType: 'ACTIVITE' | 'LOGEMENT' | 'FLOTTE';
   circuitId?: number;
   logementId?: number;
   vehiculeLocationId?: number;
@@ -748,9 +794,14 @@ export interface CreateDeliveryDto {
   deliveryTypeId: number;
   deliveryDate: string;
   deliveryTime: string;
-  clientName: string;
-  clientPhone: string;
-  clientEmail?: string;
+  expediteurNom: string;
+  expediteurTelephone: string;
+  expediteurEmail?: string;
+  expediteurEmployeeId?: number;
+  destinataireNom: string;
+  destinataireTelephone: string;
+  destinataireEmail?: string;
+  destinataireEmployeeId?: number;
   pickupAddress: string;
   pickupLat?: number;
   pickupLng?: number;
@@ -762,6 +813,16 @@ export interface CreateDeliveryDto {
   employeeId?: number;
 }
 
+export interface DeliveryEstimate {
+  deliveryType: { id: number; nom: string; prixParKm: number; prixMinimum: number };
+  distanceKm: number;
+  originalPrice: number;
+  totalHT: number;
+  tvaAmount: number;
+  totalTTC: number;
+  isTva: boolean;
+}
+
 export interface DeliveryResponse {
   id: number;
   reference?: string;
@@ -769,9 +830,12 @@ export interface DeliveryResponse {
   deliveryTypeId?: number;
   deliveryDate?: string;
   deliveryTime?: string;
-  clientName?: string;
-  clientPhone?: string;
-  clientEmail?: string;
+  expediteurNom?: string;
+  expediteurTelephone?: string;
+  expediteurEmail?: string;
+  destinataireNom?: string;
+  destinataireTelephone?: string;
+  destinataireEmail?: string;
   pickupAddress?: string;
   pickupLat?: number;
   pickupLng?: number;
@@ -781,13 +845,26 @@ export interface DeliveryResponse {
   description?: string;
   notes?: string;
   totalPrice?: number;
+  originalPrice?: string;
+  totalHT?: string;
+  tvaAmount?: string;
+  totalTTC?: string;
+  isTva?: boolean;
+  distanceKm?: number;
   distance?: number;
+  discountAmount?: string | null;
+  discountPercent?: string | null;
+  surchargeAmount?: string | null;
+  surchargePercent?: string | null;
+  paymentStatus?: string;
+  paymentMethod?: string | null;
+  paidBy?: string;
+  deliveryCode?: string;
+  confirmationCode?: string;
   employeeId?: number;
   deliveryType?: { id: number; name?: string; description?: string; prixParKm?: number; prixMinimum?: number };
   livreur?: { id: number; nom?: string; prenom?: string; telephone?: string };
   trackingHistory?: Array<{ status: string; timestamp: string; comment?: string }>;
-  paidBy?: string;
-  paymentMethod?: string;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
@@ -1428,6 +1505,9 @@ class ApiClient {
   deliveries = {
     types: () =>
       this.request<DeliveryType[]>('/delivery-types/public'),
+
+    estimate: (data: { deliveryTypeId: number; pickupLat: number; pickupLng: number; dropoffLat: number; dropoffLng: number }) =>
+      this.authPost<DeliveryEstimate>('/deliveries/company/estimate', data),
 
     create: (data: CreateDeliveryDto) =>
       this.authPost<DeliveryResponse>('/deliveries/company', data),
