@@ -106,7 +106,7 @@ export default function Tracking() {
   const payIndividualMutation = useMutation({
     mutationFn: ({ id, method, serviceType }: { id: number; method?: string; serviceType?: string }) => {
       if (['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(serviceType || '')) {
-        return api.serviceReservations.pay(id, { paymentMethod: method as 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer' });
+        return api.serviceReservations.pay(id, { paymentMethod: method as 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer' }) as any;
       }
       return api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined);
     },
