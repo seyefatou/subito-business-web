@@ -214,7 +214,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100">
             <div className="flex items-center gap-3">
               <img
-                src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo-subito.jpeg`}
+                src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo-subito.jpeg`}
                 alt="Subito"
                 className="h-10 w-auto"
               />

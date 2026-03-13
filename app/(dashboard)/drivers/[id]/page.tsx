@@ -48,23 +48,40 @@ interface Driver {
   department?: string;
   rating?: number;
   certifications?: string[];
+  infractions_count?: number;
 }
 
 interface FuelRequest {
   id: string;
   driver_name: string;
+  vehicle_registration: string;
+  quantity_liters?: number;
+  actual_cost?: number;
+  estimated_cost?: number;
   created_date: string;
+  station_name?: string;
+  odometer_reading?: number;
 }
 
 interface MaintenanceRecord {
   id: string;
+  vehicle_id: string;
   vehicle_registration: string;
+  description?: string;
+  cost?: number;
+  date: string;
   created_date: string;
 }
 
 interface DriverAssignment {
   id: string;
   driver_name: string;
+  vehicle_registration: string;
+  assignment_type: string;
+  status: string;
+  start_date: string;
+  end_date?: string;
+  notes?: string;
   created_date: string;
 }
 
@@ -76,6 +93,8 @@ interface Department {
 interface Vehicle {
   id: string;
   registration: string;
+  brand: string;
+  model: string;
 }
 
 interface PageProps {

@@ -1,7 +1,7 @@
 'use client';
 
 // API Client for mysubito-v2-api
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = 'https://api.mysubito.net/v1';
 
 // Token keys for localStorage
 const TOKEN_KEY = 'subito_compagny_token';
@@ -1113,7 +1113,7 @@ class ApiClient {
 
           // Refresh failed — logout
           this.clearAuth();
-          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '/business') + '/login?expired=true';
+          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/login?expired=true';
           return new Promise<never>(() => {});
         }
 

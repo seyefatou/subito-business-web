@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  basePath: '/business',
+  output: 'standalone',
   images: {
     remotePatterns: [
       {

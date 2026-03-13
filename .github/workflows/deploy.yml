@@ -1,0 +1,24 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - production
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        run: |
+          cd /var/www/mysubito/business/subito-business-web
+          git pull origin production
+
+      - name: Deploy with Docker Compose
+        run: |
+          cd /var/www/mysubito/business/subito-business-web
+          docker compose down
+          docker compose build --no-cache
+          docker compose up -d

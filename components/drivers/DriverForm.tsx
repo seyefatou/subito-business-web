@@ -146,7 +146,7 @@ export default function DriverForm({
       ...formData,
       infractions_count: parseInt(String(formData.infractions_count)) || 0,
       rating: formData.rating ? parseFloat(formData.rating) : null,
-    };
+    } as DriverFormData & { infractions_count: number; rating: number | null };
     onSubmit(submitData);
   };
 

@@ -580,9 +580,9 @@ export default function OrderForm({
             </DialogDescription>
           </DialogHeader>
           <EmployeeForm
-            employee={{ email: formData.beneficiary_email }}
-            departments={departments}
-            onSubmit={handleAddEmployee}
+            employee={{ email: formData.beneficiary_email } as any}
+            departments={departments as any}
+            onSubmit={handleAddEmployee as any}
             onCancel={() => setShowAddEmployeeDialog(false)}
             isSubmitting={false}
           />

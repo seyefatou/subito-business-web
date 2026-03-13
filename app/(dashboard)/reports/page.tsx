@@ -266,7 +266,7 @@ export default function Reports() {
 
       let logoBase64: string | null = null;
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo_subito_facture.png`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo_subito_facture.png`);
         if (res.ok) {
           const blob = await res.blob();
           logoBase64 = await new Promise<string>((resolve, reject) => {
@@ -364,7 +364,6 @@ export default function Reports() {
           tableWidth: 90,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
@@ -401,7 +400,6 @@ export default function Reports() {
           margin: { left: margin, right: margin },
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 
@@ -438,7 +436,6 @@ export default function Reports() {
           margin: { left: margin, right: margin },
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         y = (doc as any).lastAutoTable.finalY + 10;
       }
 

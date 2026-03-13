@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,14 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -45,7 +53,7 @@ export default function LoginPage() {
       await login(email, password);
       toast.success('Connexion reussie');
       // Force navigation using window.location for reliable redirect
-      window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '/business') + '/dashboard';
+      window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/dashboard';
     } catch (error: unknown) {
       const err = error as { message?: string };
       toast.error(err.message || 'Identifiants incorrects');
@@ -77,7 +85,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img
-              src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/business'}/logo-subito.jpeg`}
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo-subito.jpeg`}
               alt="Subito"
               className="h-12 w-auto"
             />
