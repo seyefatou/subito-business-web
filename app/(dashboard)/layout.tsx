@@ -63,7 +63,7 @@ const navigation: NavigationItem[] = [
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
   { name: "Flotte", href: "/service-reservations?type=FLOTTE", icon: Car },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
-  { name: "Livraisons", href: "/deliveries", icon: Package },
+  // { name: "Livraisons", href: "/deliveries", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },
   // { name: "Devis Entretien", href: "/maintenance-quotes", icon: Wrench },
