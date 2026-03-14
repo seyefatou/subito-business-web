@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption } from "@/lib/api";
+import { api, ApiResponse, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption } from "@/lib/api";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -219,9 +219,9 @@ export default function Tracking() {
   // Fetch booking detail (handle travel docs and service reservations separately)
   const isTravelDoc = selectedBooking?.serviceType === 'visa_assistance';
   const isServiceRes = ['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(selectedBooking?.serviceType || '');
-  const { data: detailResponse, isLoading: detailLoading } = useQuery({
+  const { data: detailResponse, isLoading: detailLoading } = useQuery<ApiResponse<BookingResponse | TravelDocumentResponse | ServiceReservationResponse>>({
     queryKey: ['booking-detail', selectedBooking?.id, isTravelDoc, isServiceRes],
-    queryFn: () => {
+    queryFn: async () => {
       if (isTravelDoc) return api.travelDocuments.get(selectedBooking!.id);
       if (isServiceRes) return api.serviceReservations.get(selectedBooking!.id);
       return api.bookings.get(selectedBooking!.id);
