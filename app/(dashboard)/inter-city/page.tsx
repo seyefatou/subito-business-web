@@ -58,7 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -801,6 +801,7 @@ export default function InterCity() {
                           setFormData(prev => ({ ...prev, adressePriseEnChargeDepartAller: address, adressePriseEnChargeDepartAllerLat: lat, adressePriseEnChargeDepartAllerLng: lng }));
                         }}
                         iconColor="text-green-500"
+                        countryCode={countryNameToCode(selectedPays)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -815,6 +816,7 @@ export default function InterCity() {
                           setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeAller: address, adressePriseEnChargeArriveeAllerLat: lat, adressePriseEnChargeArriveeAllerLng: lng }));
                         }}
                         iconColor="text-red-500"
+                        countryCode={countryNameToCode(selectedPays)}
                       />
                     </div>
                   </div>
@@ -970,6 +972,7 @@ export default function InterCity() {
                               setFormData(prev => ({ ...prev, adressePriseEnChargeDepartRetour: address, adressePriseEnChargeDepartRetourLat: lat, adressePriseEnChargeDepartRetourLng: lng }));
                             }}
                             iconColor="text-green-500"
+                            countryCode={countryNameToCode(selectedPays)}
                           />
                         </div>
                         <div className="space-y-2">
@@ -984,6 +987,7 @@ export default function InterCity() {
                               setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeRetour: address, adressePriseEnChargeArriveeRetourLat: lat, adressePriseEnChargeArriveeRetourLng: lng }));
                             }}
                             iconColor="text-red-500"
+                            countryCode={countryNameToCode(selectedPays)}
                           />
                         </div>
                       </div>

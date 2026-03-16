@@ -701,21 +701,80 @@ export interface Circuit {
   [key: string]: unknown;
 }
 
+export interface Activite {
+  id: number;
+  titre: string;
+  descriptionCourte?: string;
+  descriptionComplete?: string;
+  duree?: string;
+  ville?: string;
+  prix?: number;
+  maxParticipants?: number;
+  inclus?: string[];
+  nonInclus?: string[];
+  typeAnnulation?: string;
+  images?: string[];
+  statut?: string;
+  [key: string]: unknown;
+}
+
+export interface ActiviteCircuitItem {
+  id: number;
+  titre: string;
+  descriptionCourte?: string;
+  descriptionComplete?: string;
+  duree?: string;
+  ville?: string;
+  prix?: number;
+  maxParticipants?: number;
+  inclus?: string[];
+  nonInclus?: string[];
+  typeAnnulation?: string;
+  images?: string[];
+  statut?: string;
+  type: 'circuit' | 'activite';
+  [key: string]: unknown;
+}
+
+export interface ChambreHotel {
+  id: number;
+  typeChambre?: string;
+  nom?: string;
+  description?: string;
+  capacite?: number;
+  nombreUnites?: number;
+  prixParNuit?: number;
+  prixWeekend?: number;
+  images?: string[];
+  equipements?: string[];
+  salleDeBain?: number;
+  logementId?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
 export interface Logement {
   id: number;
   nom: string;
-  type?: string; // HOTEL, RIAD, RESIDENCE, etc.
+  type?: string; // HOTEL, VILLA, APPARTEMENT, RIAD, RESIDENCE, etc.
+  categorie?: string; // HOTELIER, LOGEMENT_INDEPENDANT, etc.
   nbreEtoiles?: number;
   pays?: string;
   ville?: string;
   adresseExacte?: string;
   description?: string;
+  heureCheckIn?: string;
+  heureCheckOut?: string;
   prixParNuit?: number;
   prixWeekend?: number;
   equipements?: string[];
   capacite?: number;
-  chambres?: number;
+  nbreChambres?: number;
+  salleDeBain?: number;
+  chambresHotel?: ChambreHotel[];
   images?: string[];
+  typeAnnulation?: string;
   statut?: string;
   [key: string]: unknown;
 }
@@ -744,7 +803,9 @@ export interface VehiculeLocation {
 export interface CreateServiceReservationDto {
   serviceType: 'ACTIVITE' | 'LOGEMENT' | 'FLOTTE';
   circuitId?: number;
+  activiteId?: number;
   logementId?: number;
+  chambreId?: number;
   vehiculeLocationId?: number;
   clientName: string;
   clientPhone: string;
@@ -1483,6 +1544,17 @@ class ApiClient {
 
     getPublic: (id: number) =>
       this.request<Circuit>(`/circuits/public/${id}`),
+
+    listActivitesEtCircuits: () =>
+      this.request<ActiviteCircuitItem[]>(`/circuits/public/activites-et-circuits`),
+  };
+
+  activites = {
+    listPublic: (page = 1, limit = 50) =>
+      this.request<PaginatedData<Activite>>(`/activites/public?page=${page}&limit=${limit}`),
+
+    getPublic: (id: number) =>
+      this.request<Activite>(`/activites/public/${id}`),
   };
 
   logements = {

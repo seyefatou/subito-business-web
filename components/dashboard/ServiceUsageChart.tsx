@@ -28,7 +28,7 @@ const serviceLabels: Record<string, string> = {
   livraison: "Livraison",
   assistance: "Assistance",
   carburant: "Carburant",
-  flotte: "Flotte",
+  flotte: "Location de vehicule",
   administratif: "Administratif",
 };
 

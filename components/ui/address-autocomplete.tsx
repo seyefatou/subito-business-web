@@ -1,27 +1,15 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
-
-// Photon/OSM address suggestion
-interface PhotonFeature {
-  type: string;
-  geometry: {
-    type: string;
-    coordinates: [number, number]; // [longitude, latitude]
-  };
-  properties: {
-    name?: string;
-    street?: string;
-    housenumber?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    osm_key?: string;
-    osm_value?: string;
-  };
-}
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface AddressSuggestion {
   display_name: string;
@@ -29,26 +17,54 @@ export interface AddressSuggestion {
   lon: string;
 }
 
-function formatPhotonAddress(props: PhotonFeature['properties']): string {
-  const parts: string[] = [];
-  if (props.name) parts.push(props.name);
-  if (props.housenumber && props.street) {
-    parts.push(`${props.housenumber} ${props.street}`);
-  } else if (props.street) {
-    parts.push(props.street);
-  }
-  if (props.city) parts.push(props.city);
-  if (props.state && props.state !== props.city) parts.push(props.state);
-  if (props.country) parts.push(props.country);
-  return parts.join(', ') || 'Adresse inconnue';
+export const COUNTRIES = [
+  { code: 'sn', name: 'Senegal', flag: '🇸🇳' },
+  { code: 'ci', name: 'Cote d\'Ivoire', flag: '🇨🇮' },
+  { code: 'ml', name: 'Mali', flag: '🇲🇱' },
+  { code: 'gn', name: 'Guinee', flag: '🇬🇳' },
+  { code: 'bf', name: 'Burkina Faso', flag: '🇧🇫' },
+  { code: 'bj', name: 'Benin', flag: '🇧🇯' },
+  { code: 'tg', name: 'Togo', flag: '🇹🇬' },
+  { code: 'ne', name: 'Niger', flag: '🇳🇪' },
+  { code: 'mr', name: 'Mauritanie', flag: '🇲🇷' },
+  { code: 'gm', name: 'Gambie', flag: '🇬🇲' },
+  { code: 'cm', name: 'Cameroun', flag: '🇨🇲' },
+  { code: 'ga', name: 'Gabon', flag: '🇬🇦' },
+  { code: 'cg', name: 'Congo', flag: '🇨🇬' },
+  { code: 'ma', name: 'Maroc', flag: '🇲🇦' },
+  { code: 'tn', name: 'Tunisie', flag: '🇹🇳' },
+  { code: 'fr', name: 'France', flag: '🇫🇷' },
+];
+
+// Helper: convertir un nom de pays en code ISO
+export function countryNameToCode(name: string): string {
+  const map: Record<string, string> = {
+    'senegal': 'sn', 'sénégal': 'sn',
+    'cotedivoire': 'ci', "cote d'ivoire": 'ci', "côte d'ivoire": 'ci',
+    'mali': 'ml',
+    'guinee': 'gn', 'guinée': 'gn',
+    'burkina faso': 'bf', 'burkina': 'bf',
+    'benin': 'bj', 'bénin': 'bj',
+    'togo': 'tg',
+    'niger': 'ne',
+    'mauritanie': 'mr',
+    'gambie': 'gm',
+    'cameroun': 'cm',
+    'gabon': 'ga',
+    'congo': 'cg',
+    'maroc': 'ma',
+    'tunisie': 'tn',
+    'france': 'fr',
+  };
+  return map[name.toLowerCase()] || 'sn';
 }
 
-export async function searchAddresses(query: string): Promise<AddressSuggestion[]> {
+export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
   if (!query || query.length < 2) return [];
   try {
     const q = encodeURIComponent(query);
     const res = await fetch(
-      `https://photon.komoot.io/api/?q=${q}&limit=6&lang=fr&lat=14.6928&lon=-17.4441`,
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&limit=6&countrycodes=${countryCode}&accept-language=fr`,
       {
         headers: {
           'User-Agent': 'SubitoBusiness/1.0 (contact@subitobusiness.com)',
@@ -56,11 +72,10 @@ export async function searchAddresses(query: string): Promise<AddressSuggestion[
       }
     );
     const data = await res.json();
-    const features: PhotonFeature[] = data.features || [];
-    return features.map((f) => ({
-      display_name: formatPhotonAddress(f.properties),
-      lat: String(f.geometry.coordinates[1]),
-      lon: String(f.geometry.coordinates[0]),
+    return (data || []).map((item: any) => ({
+      display_name: item.display_name,
+      lat: item.lat,
+      lon: item.lon,
     }));
   } catch {
     return [];
@@ -74,6 +89,9 @@ export function AddressAutocomplete({
   placeholder,
   iconColor = 'text-green-500',
   className,
+  countryCode = 'sn',
+  showCountrySelect = false,
+  onCountryChange,
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -81,6 +99,9 @@ export function AddressAutocomplete({
   placeholder?: string;
   iconColor?: string;
   className?: string;
+  countryCode?: string;
+  showCountrySelect?: boolean;
+  onCountryChange?: (code: string) => void;
 }) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -94,7 +115,7 @@ export function AddressAutocomplete({
     if (text.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
-      const results = await searchAddresses(text);
+      const results = await searchAddresses(text, countryCode);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
       setLoading(false);
@@ -118,35 +139,61 @@ export function AddressAutocomplete({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const selectedCountry = COUNTRIES.find(c => c.code === countryCode);
+
   return (
-    <div ref={containerRef} className={`relative ${className || ''}`}>
-      <MapPin className={`absolute left-3 top-3 w-4 h-4 ${iconColor}`} />
-      <Input
-        className="pl-10"
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => handleInputChange(e.target.value)}
-        onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-      />
-      {loading && (
-        <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-slate-400" />
-      )}
-      {showSuggestions && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-          {suggestions.map((s, i) => (
-            <button
-              key={i}
-              className="w-full text-left px-4 py-3 hover:bg-orange-50 transition-colors border-b border-slate-100 last:border-0"
-              onClick={() => handleSelect(s)}
-            >
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-slate-700 leading-snug">{s.display_name}</p>
+    <div className={className || ''}>
+      {showCountrySelect && (
+        <div className="mb-2">
+          <Select value={countryCode} onValueChange={(val) => onCountryChange?.(val)}>
+            <SelectTrigger className="w-full h-11 rounded-xl border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">{selectedCountry?.flag}</span>
+                <span className="font-medium text-slate-700">{selectedCountry?.name || 'Choisir un pays'}</span>
               </div>
-            </button>
-          ))}
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map(country => (
+                <SelectItem key={country.code} value={country.code}>
+                  <span className="flex items-center gap-2.5">
+                    <span className="text-lg">{country.flag}</span>
+                    <span>{country.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
+      <div ref={containerRef} className="relative">
+        <MapPin className={`absolute left-3 top-3 w-4 h-4 ${iconColor}`} />
+        <Input
+          className="pl-10"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+        />
+        {loading && (
+          <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin text-slate-400" />
+        )}
+        {showSuggestions && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                className="w-full text-left px-4 py-3 hover:bg-orange-50 transition-colors border-b border-slate-100 last:border-0"
+                onClick={() => handleSelect(s)}
+              >
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-slate-700 leading-snug">{s.display_name}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

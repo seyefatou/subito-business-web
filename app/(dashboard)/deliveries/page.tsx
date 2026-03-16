@@ -186,6 +186,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
   const [destEmployeeSearch, setDestEmployeeSearch] = useState("");
   const [destEmployeePopoverOpen, setDestEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [deliveryCountry, setDeliveryCountry] = useState('sn');
   const [estimate, setEstimate] = useState<DeliveryEstimate | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
 
@@ -458,6 +459,9 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                 onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, pickupAddress: address, pickupLat: lat, pickupLng: lng }))}
                 placeholder="Tapez une adresse (ex: Ouakam, Dakar)"
                 iconColor="text-green-500"
+                countryCode={deliveryCountry}
+                showCountrySelect={true}
+                onCountryChange={setDeliveryCountry}
               />
               {formData.pickupLat && (
                 <p className="text-xs text-green-600 flex items-center gap-1">
@@ -484,6 +488,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                 onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, dropoffAddress: address, dropoffLat: lat, dropoffLng: lng }))}
                 placeholder="Tapez une adresse (ex: Plateau, Dakar)"
                 iconColor="text-red-500"
+                countryCode={deliveryCountry}
               />
               {formData.dropoffLat && (
                 <p className="text-xs text-green-600 flex items-center gap-1">

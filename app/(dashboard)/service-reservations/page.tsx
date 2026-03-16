@@ -65,7 +65,10 @@ import confetti from "canvas-confetti";
 import {
   api,
   Circuit,
+  Activite,
+  ActiviteCircuitItem,
   Logement,
+  ChambreHotel,
   VehiculeLocation,
   CreateServiceReservationDto,
   CreateEmployeeDto,
@@ -95,10 +98,16 @@ const steps: StepDef[] = [
   { id: 5, title: "Confirmation", icon: Check },
 ];
 
+type ActiviteFilterType = 'all' | 'circuit' | 'activite';
+type LogementFilterType = 'all' | 'hotel' | 'appartement';
+
 interface FormData {
   serviceType: ServiceType | '';
   circuitId: number | null;
+  activiteId: number | null;
+  selectedItemType: 'circuit' | 'activite' | null;
   logementId: number | null;
+  chambreId: number | null;
   vehiculeLocationId: number | null;
   clientName: string;
   clientPhone: string;
@@ -115,7 +124,10 @@ interface FormData {
 const initialFormData: FormData = {
   serviceType: '',
   circuitId: null,
+  activiteId: null,
+  selectedItemType: null,
   logementId: null,
+  chambreId: null,
   vehiculeLocationId: null,
   clientName: '',
   clientPhone: '',
@@ -132,7 +144,7 @@ const initialFormData: FormData = {
 const serviceTypeLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   ACTIVITE: { label: "Activite", icon: MapPin, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-blue-100 text-blue-700" },
-  FLOTTE: { label: "Flotte", icon: Car, color: "bg-purple-100 text-purple-700" },
+  FLOTTE: { label: "Location de vehicule", icon: Car, color: "bg-purple-100 text-purple-700" },
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -148,7 +160,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 const servicePageConfig: Record<string, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
   ACTIVITE: { title: "Activite", subtitle: "Reservez une activite pour vos employes", icon: MapPin },
   LOGEMENT: { title: "Logement", subtitle: "Reservez un logement pour vos employes", icon: Hotel },
-  FLOTTE: { title: "Flotte", subtitle: "Louez un vehicule pour vos employes", icon: Car },
+  FLOTTE: { title: "Location de vehicule", subtitle: "Louez un vehicule pour vos employes", icon: Car },
 };
 
 export default function ServiceReservations() {
@@ -190,6 +202,9 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [itemSearch, setItemSearch] = useState("");
+  const [activiteFilter, setActiviteFilter] = useState<ActiviteFilterType>('all');
+  const [logementFilter, setLogementFilter] = useState<LogementFilterType>('all');
+  const [showChambresModal, setShowChambresModal] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
 
   // Fetch employees
@@ -215,13 +230,36 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   // Fetch circuits
   const { data: circuitsResponse, isLoading: circuitsLoading } = useQuery({
     queryKey: ['circuits-public'],
-    queryFn: () => api.circuits.listPublic(1, 50),
+    queryFn: () => api.circuits.listPublic(1, 100),
     enabled: formData.serviceType === 'ACTIVITE',
   });
   const circuitsRaw = circuitsResponse?.data;
-  const circuits: Circuit[] = Array.isArray(circuitsRaw)
+  const circuitsList: Circuit[] = Array.isArray(circuitsRaw)
     ? circuitsRaw
     : (circuitsRaw as any)?.items || (circuitsRaw as any)?.list || [];
+
+  // Fetch activités
+  const { data: activitesResponse, isLoading: activitesLoading } = useQuery({
+    queryKey: ['activites-public'],
+    queryFn: () => api.activites.listPublic(1, 100),
+    enabled: formData.serviceType === 'ACTIVITE',
+  });
+  const activitesRaw = activitesResponse?.data;
+  const activitesList: Activite[] = Array.isArray(activitesRaw)
+    ? activitesRaw
+    : (activitesRaw as any)?.items || (activitesRaw as any)?.list || [];
+
+  // Combiner circuits et activités
+  const allActivitesCircuits: ActiviteCircuitItem[] = [
+    ...circuitsList.map(c => ({ ...c, type: 'circuit' as const })),
+    ...activitesList.map(a => ({ ...a, type: 'activite' as const })),
+  ];
+  const activitesCircuitsLoading = circuitsLoading || activitesLoading;
+
+  // Filtrer par type (circuit / activite / tous)
+  const filteredActivitesCircuits = activiteFilter === 'all'
+    ? allActivitesCircuits
+    : allActivitesCircuits.filter(item => item.type === activiteFilter);
 
   // Fetch logements
   const { data: logementsResponse, isLoading: logementsLoading } = useQuery({
@@ -297,8 +335,13 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const selectedCircuit = circuits.find(c => c.id === formData.circuitId);
+  const selectedCircuit = allActivitesCircuits.find(c =>
+    (formData.selectedItemType === 'activite' && c.type === 'activite' && c.id === formData.activiteId) ||
+    (formData.selectedItemType === 'circuit' && c.type === 'circuit' && c.id === formData.circuitId)
+  );
   const selectedLogement = logements.find(l => l.id === formData.logementId);
+  const selectedChambre = selectedLogement?.chambresHotel?.find((ch: ChambreHotel) => ch.id === formData.chambreId);
+  const isHotelType = selectedLogement && (selectedLogement.type || '').toLowerCase().includes('hotel');
   const selectedVehicule = vehicules.find(v => v.id === formData.vehiculeLocationId);
 
   const calculateTotal = (): number => {
@@ -306,13 +349,15 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       return (selectedCircuit.prix || 0) * formData.nombrePersonnes;
     }
     if (formData.serviceType === 'LOGEMENT' && selectedLogement) {
+      // Pour un hôtel, utiliser le prix de la chambre sélectionnée
+      const prixNuit = (isHotelType && selectedChambre) ? (selectedChambre.prixParNuit || 0) : (selectedLogement.prixParNuit || 0);
       if (formData.dateDebut && formData.dateFin) {
         const start = new Date(formData.dateDebut);
         const end = new Date(formData.dateFin);
         const nights = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-        return (selectedLogement.prixParNuit || 0) * nights;
+        return prixNuit * nights;
       }
-      return selectedLogement.prixParNuit || 0;
+      return prixNuit;
     }
     if (formData.serviceType === 'FLOTTE' && selectedVehicule) {
       if (formData.dateDebut && formData.dateFin) {
@@ -334,8 +379,14 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       if (!formData.serviceType) { toast.error("Veuillez choisir un type de service"); return; }
     }
     if (currentStep === 2) {
-      if (formData.serviceType === 'ACTIVITE' && !formData.circuitId) { toast.error("Veuillez selectionner un circuit"); return; }
+      if (formData.serviceType === 'ACTIVITE' && !formData.circuitId && !formData.activiteId) { toast.error("Veuillez selectionner un circuit ou une activite"); return; }
       if (formData.serviceType === 'LOGEMENT' && !formData.logementId) { toast.error("Veuillez selectionner un logement"); return; }
+      if (formData.serviceType === 'LOGEMENT' && formData.logementId) {
+        const lg = logements.find(l => l.id === formData.logementId);
+        if (lg && (lg.type || '').toLowerCase().includes('hotel') && lg.chambresHotel?.length && !formData.chambreId) {
+          toast.error("Veuillez selectionner une chambre"); return;
+        }
+      }
       if (formData.serviceType === 'FLOTTE' && !formData.vehiculeLocationId) { toast.error("Veuillez selectionner un vehicule"); return; }
     }
     if (currentStep === 3) {
@@ -374,16 +425,22 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       paidBy: isCompanyPayment ? 'company' : 'client',
       paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : toBookingPaymentMethod(formData.payment_method),
     };
-    if (formData.serviceType === 'ACTIVITE') dto.circuitId = formData.circuitId!;
-    if (formData.serviceType === 'LOGEMENT') dto.logementId = formData.logementId!;
+    if (formData.serviceType === 'ACTIVITE') {
+      if (formData.selectedItemType === 'activite') dto.activiteId = formData.activiteId!;
+      else dto.circuitId = formData.circuitId!;
+    }
+    if (formData.serviceType === 'LOGEMENT') {
+      dto.logementId = formData.logementId!;
+      if (formData.chambreId) dto.chambreId = formData.chambreId;
+    }
     if (formData.serviceType === 'FLOTTE') dto.vehiculeLocationId = formData.vehiculeLocationId!;
 
     createMutation.mutate(dto);
   };
 
   const handleReset = () => {
-    setFormData(initialFormData);
-    setCurrentStep(1);
+    setFormData({ ...initialFormData, serviceType: defaultServiceType || '' });
+    setCurrentStep(defaultServiceType ? 2 : 1);
     setBookingSuccess(false);
     setBookingRef("");
   };
@@ -483,6 +540,8 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                       onClick={() => {
                         handleChange('serviceType', service.type);
                         handleChange('circuitId', null);
+                        handleChange('activiteId', null);
+                        handleChange('selectedItemType', null);
                         handleChange('logementId', null);
                         handleChange('vehiculeLocationId', null);
                       }}
@@ -513,7 +572,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-slate-800 mb-2">
-                  {formData.serviceType === 'ACTIVITE' && 'Choisissez un circuit'}
+                  {formData.serviceType === 'ACTIVITE' && 'Choisissez une activite ou un circuit'}
                   {formData.serviceType === 'LOGEMENT' && 'Choisissez un logement'}
                   {formData.serviceType === 'FLOTTE' && 'Choisissez un vehicule'}
                 </h2>
@@ -525,8 +584,8 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   placeholder={
-                    formData.serviceType === 'ACTIVITE' ? 'Rechercher un circuit...' :
-                    formData.serviceType === 'LOGEMENT' ? 'Rechercher un logement...' :
+                    formData.serviceType === 'ACTIVITE' ? 'Rechercher par nom, ville ou montant...' :
+                    formData.serviceType === 'LOGEMENT' ? 'Rechercher par hotel, appartement, chambre, ville...' :
                     'Rechercher un vehicule...'
                   }
                   value={itemSearch}
@@ -535,103 +594,341 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                 />
               </div>
 
-              {/* Circuits */}
+              {/* Activités & Circuits */}
               {formData.serviceType === 'ACTIVITE' && (
-                circuitsLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                <>
+                  {/* Filtre par type */}
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'all' as ActiviteFilterType, label: 'Tous' },
+                      { value: 'circuit' as ActiviteFilterType, label: 'Circuits' },
+                      { value: 'activite' as ActiviteFilterType, label: 'Activites' },
+                    ]).map((filter) => (
+                      <Button
+                        key={filter.value}
+                        variant={activiteFilter === filter.value ? 'default' : 'outline'}
+                        size="sm"
+                        className={activiteFilter === filter.value ? 'gradient-subito text-white border-0' : ''}
+                        onClick={() => setActiviteFilter(filter.value)}
+                      >
+                        {filter.label}
+                        {filter.value !== 'all' && (
+                          <span className="ml-1.5 text-xs opacity-75">
+                            ({allActivitesCircuits.filter(i => filter.value === 'all' || i.type === filter.value).length})
+                          </span>
+                        )}
+                      </Button>
+                    ))}
                   </div>
-                ) : circuits.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400">
-                    <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="font-medium">Aucun circuit disponible</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {circuits.filter(c => !itemSearch || (c.titre || '').toLowerCase().includes(itemSearch.toLowerCase()) || (c.ville || '').toLowerCase().includes(itemSearch.toLowerCase()) || (c.descriptionCourte || '').toLowerCase().includes(itemSearch.toLowerCase())).map((circuit) => {
-                      const selected = formData.circuitId === circuit.id;
-                      return (
-                        <motion.div
-                          key={circuit.id}
-                          whileHover={{ scale: 1.01 }}
-                          onClick={() => handleChange('circuitId', circuit.id)}
-                          className={`
-                            rounded-xl border-2 p-4 cursor-pointer transition-all
-                            ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
-                          `}
-                        >
-                          {circuit.images?.[0] && (
-                            <img src={circuit.images[0]} alt={circuit.titre} className="w-full h-32 object-cover rounded-lg mb-3" />
-                          )}
-                          <h3 className="font-semibold text-slate-800">{circuit.titre}</h3>
-                          {circuit.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{circuit.ville}</p>}
-                          {circuit.descriptionCourte && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{circuit.descriptionCourte}</p>}
-                          <div className="flex items-center justify-between mt-3">
-                            {circuit.duree && <Badge className="bg-slate-100 text-slate-700 border-0"><Clock className="w-3 h-3 mr-1" />{circuit.duree}</Badge>}
-                            <span className="font-bold text-orange-600">{circuit.prix?.toLocaleString()} FCFA</span>
-                          </div>
-                          {selected && (
-                            <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                              <Check className="w-4 h-4 text-white" />
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )
+
+                  {activitesCircuitsLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    </div>
+                  ) : filteredActivitesCircuits.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">Aucune offre disponible</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredActivitesCircuits
+                        .filter(c => {
+                          if (!itemSearch) return true;
+                          const search = itemSearch.toLowerCase();
+                          return (c.titre || '').toLowerCase().includes(search)
+                            || (c.ville || '').toLowerCase().includes(search)
+                            || (c.descriptionCourte || '').toLowerCase().includes(search)
+                            || (c.prix != null && c.prix.toString().includes(search));
+                        })
+                        .map((item) => {
+                          const isCircuit = item.type === 'circuit';
+                          const selected = isCircuit
+                            ? (formData.circuitId === item.id && formData.selectedItemType === 'circuit')
+                            : (formData.activiteId === item.id && formData.selectedItemType === 'activite');
+                          return (
+                            <motion.div
+                              key={`${item.type}-${item.id}`}
+                              whileHover={{ scale: 1.01 }}
+                              onClick={() => {
+                                if (isCircuit) {
+                                  handleChange('circuitId', item.id);
+                                  handleChange('activiteId', null);
+                                  handleChange('selectedItemType', 'circuit');
+                                } else {
+                                  handleChange('activiteId', item.id);
+                                  handleChange('circuitId', null);
+                                  handleChange('selectedItemType', 'activite');
+                                }
+                              }}
+                              className={`
+                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
+                                ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                              `}
+                            >
+                              {item.images?.[0] && (
+                                <img src={item.images[0]} alt={item.titre} className="w-full h-32 object-cover rounded-lg mb-3" />
+                              )}
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-slate-800">{item.titre}</h3>
+                                <Badge className={`text-xs border-0 ${isCircuit ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                  {isCircuit ? 'Circuit' : 'Activite'}
+                                </Badge>
+                              </div>
+                              {item.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{item.ville}</p>}
+                              {item.descriptionCourte && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{item.descriptionCourte}</p>}
+                              <div className="flex items-center justify-between mt-3">
+                                {item.duree && <Badge className="bg-slate-100 text-slate-700 border-0"><Clock className="w-3 h-3 mr-1" />{item.duree}</Badge>}
+                                <span className="font-bold text-orange-600">{item.prix?.toLocaleString()} FCFA</span>
+                              </div>
+                              {selected && (
+                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Logements */}
               {formData.serviceType === 'LOGEMENT' && (
-                logementsLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                <>
+                  {/* Filtre par type de logement */}
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'all' as LogementFilterType, label: 'Tous' },
+                      { value: 'hotel' as LogementFilterType, label: 'Hotels' },
+                      { value: 'appartement' as LogementFilterType, label: 'Appartements' },
+                    ]).map((filter) => (
+                      <Button
+                        key={filter.value}
+                        variant={logementFilter === filter.value ? 'default' : 'outline'}
+                        size="sm"
+                        className={logementFilter === filter.value ? 'gradient-subito text-white border-0' : ''}
+                        onClick={() => setLogementFilter(filter.value)}
+                      >
+                        {filter.label}
+                        {filter.value !== 'all' && (
+                          <span className="ml-1.5 text-xs opacity-75">
+                            ({logements.filter(l => {
+                              const t = (l.type || '').toLowerCase();
+                              if (filter.value === 'hotel') return t.includes('hotel');
+                              if (filter.value === 'appartement') return t.includes('appart') || t.includes('residence') || t.includes('villa');
+                              return true;
+                            }).length})
+                          </span>
+                        )}
+                      </Button>
+                    ))}
                   </div>
-                ) : logements.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400">
-                    <Hotel className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="font-medium">Aucun logement disponible</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {logements.filter(l => !itemSearch || (l.nom || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.ville || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.type || '').toLowerCase().includes(itemSearch.toLowerCase()) || (l.description || '').toLowerCase().includes(itemSearch.toLowerCase())).map((logement) => {
-                      const selected = formData.logementId === logement.id;
-                      return (
-                        <motion.div
-                          key={logement.id}
-                          whileHover={{ scale: 1.01 }}
-                          onClick={() => handleChange('logementId', logement.id)}
-                          className={`
-                            rounded-xl border-2 p-4 cursor-pointer transition-all
-                            ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
-                          `}
-                        >
-                          {logement.images?.[0] && (
-                            <img src={logement.images[0]} alt={logement.nom} className="w-full h-32 object-cover rounded-lg mb-3" />
-                          )}
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-slate-800">{logement.nom}</h3>
-                            {logement.nbreEtoiles && (
-                              <div className="flex items-center">
-                                {Array.from({ length: logement.nbreEtoiles }).map((_, i) => (
-                                  <Star key={i} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                ))}
+
+                  {logementsLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    </div>
+                  ) : logements.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <Hotel className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">Aucun logement disponible</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {logements
+                        .filter(l => {
+                          // Filtre par type
+                          if (logementFilter !== 'all') {
+                            const t = (l.type || '').toLowerCase();
+                            if (logementFilter === 'hotel' && !t.includes('hotel')) return false;
+                            if (logementFilter === 'appartement' && !t.includes('appart') && !t.includes('residence') && !t.includes('villa')) return false;
+                          }
+                          // Recherche textuelle
+                          if (!itemSearch) return true;
+                          const search = itemSearch.toLowerCase();
+                          return (l.nom || '').toLowerCase().includes(search)
+                            || (l.ville || '').toLowerCase().includes(search)
+                            || (l.type || '').toLowerCase().includes(search)
+                            || (l.description || '').toLowerCase().includes(search)
+                            || (l.nbreChambres != null && l.nbreChambres.toString().includes(search))
+                            || (l.prixParNuit != null && l.prixParNuit.toString().includes(search))
+                            || (l.chambresHotel || []).some((ch: ChambreHotel) =>
+                              (ch.nom || '').toLowerCase().includes(search)
+                              || (ch.typeChambre || '').toLowerCase().includes(search)
+                              || (ch.prixParNuit != null && ch.prixParNuit.toString().includes(search))
+                            );
+                        })
+                        .map((logement) => {
+                          const selected = formData.logementId === logement.id;
+                          const isHotel = (logement.type || '').toLowerCase().includes('hotel');
+                          return (
+                            <motion.div
+                              key={logement.id}
+                              whileHover={{ scale: 1.01 }}
+                              onClick={() => {
+                                handleChange('logementId', logement.id);
+                                handleChange('chambreId', null);
+                                if (isHotel && logement.chambresHotel && logement.chambresHotel.length > 0) {
+                                  setShowChambresModal(true);
+                                }
+                              }}
+                              className={`
+                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
+                                ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                              `}
+                            >
+                              {logement.images?.[0] && (
+                                <img src={logement.images[0]} alt={logement.nom} className="w-full h-32 object-cover rounded-lg mb-3" />
+                              )}
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-slate-800">{logement.nom}</h3>
+                                {logement.nbreEtoiles && (
+                                  <div className="flex items-center">
+                                    {Array.from({ length: logement.nbreEtoiles }).map((_, i) => (
+                                      <Star key={i} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          {logement.type && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs mb-1">{logement.type}</Badge>}
-                          {logement.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{logement.ville}{logement.pays ? `, ${logement.pays}` : ''}</p>}
-                          {logement.description && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{logement.description}</p>}
-                          <div className="flex items-center justify-between mt-3">
-                            {logement.capacite && <span className="text-xs text-slate-500"><Users className="w-3 h-3 inline mr-1" />{logement.capacite} pers.</span>}
-                            <span className="font-bold text-orange-600">{logement.prixParNuit?.toLocaleString()} FCFA/nuit</span>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )
+                              <div className="flex items-center gap-1.5 mb-1">
+                                {logement.type && (
+                                  <Badge className={`text-xs border-0 ${isHotel ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {logement.type}
+                                  </Badge>
+                                )}
+                                {isHotel && logement.chambresHotel && logement.chambresHotel.length > 0 && (
+                                  <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
+                                    {logement.chambresHotel.length} type{logement.chambresHotel.length > 1 ? 's' : ''} de chambre
+                                  </Badge>
+                                )}
+                                {!isHotel && logement.nbreChambres && (
+                                  <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
+                                    {logement.nbreChambres} chambre{logement.nbreChambres > 1 ? 's' : ''}
+                                  </Badge>
+                                )}
+                              </div>
+                              {logement.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{logement.ville}{logement.pays ? `, ${logement.pays}` : ''}</p>}
+                              {logement.description && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{logement.description}</p>}
+                              <div className="flex items-center justify-between mt-3">
+                                {logement.capacite && <span className="text-xs text-slate-500"><Users className="w-3 h-3 inline mr-1" />{logement.capacite} pers.</span>}
+                                {isHotel && logement.chambresHotel?.length ? (
+                                  <span className="font-bold text-orange-600">
+                                    A partir de {Math.min(...logement.chambresHotel.map(ch => ch.prixParNuit || 0)).toLocaleString()} FCFA/nuit
+                                  </span>
+                                ) : (
+                                  <span className="font-bold text-orange-600">{logement.prixParNuit?.toLocaleString()} FCFA/nuit</span>
+                                )}
+                              </div>
+                              {selected && (
+                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* Indicateur chambre sélectionnée */}
+                  {selectedLogement && isHotelType && selectedChambre && (
+                    <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                      <Check className="w-5 h-5 text-orange-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-800">
+                          {selectedLogement.nom} - {selectedChambre.nom || selectedChambre.typeChambre}
+                        </p>
+                        <p className="text-xs text-slate-500">{selectedChambre.prixParNuit?.toLocaleString()} FCFA/nuit</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setShowChambresModal(true)}>
+                        Changer
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Modale de sélection de chambre */}
+                  <Dialog open={showChambresModal} onOpenChange={setShowChambresModal}>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Hotel className="w-5 h-5 text-orange-600" />
+                          {selectedLogement?.nom} - Choisir une chambre
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="grid grid-cols-1 gap-4 mt-4">
+                        {selectedLogement?.chambresHotel?.map((chambre: ChambreHotel) => {
+                          const chambreSelected = formData.chambreId === chambre.id;
+                          return (
+                            <motion.div
+                              key={chambre.id}
+                              whileHover={{ scale: 1.01 }}
+                              onClick={() => {
+                                handleChange('chambreId', chambre.id);
+                                setShowChambresModal(false);
+                              }}
+                              className={`
+                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
+                                ${chambreSelected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                              `}
+                            >
+                              <div className="flex gap-4">
+                                {chambre.images?.[0] && (
+                                  <img src={chambre.images[0]} alt={chambre.nom || chambre.typeChambre} className="w-32 h-24 object-cover rounded-lg shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-semibold text-slate-800">{chambre.nom || chambre.typeChambre}</h4>
+                                    {chambre.typeChambre && chambre.nom && (
+                                      <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">{chambre.typeChambre}</Badge>
+                                    )}
+                                  </div>
+                                  {chambre.description && <p className="text-sm text-slate-500 mb-2">{chambre.description}</p>}
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {chambre.capacite && (
+                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
+                                        <Users className="w-3 h-3 mr-1" />{chambre.capacite} pers.
+                                      </Badge>
+                                    )}
+                                    {chambre.salleDeBain && (
+                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
+                                        {chambre.salleDeBain} salle{chambre.salleDeBain > 1 ? 's' : ''} de bain
+                                      </Badge>
+                                    )}
+                                    {chambre.nombreUnites && (
+                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
+                                        {chambre.nombreUnites} disponible{chambre.nombreUnites > 1 ? 's' : ''}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {chambre.equipements && chambre.equipements.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-2">
+                                      {chambre.equipements.map((eq, i) => (
+                                        <span key={i} className="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded">{eq}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-orange-600">{chambre.prixParNuit?.toLocaleString()} FCFA/nuit</span>
+                                    {chambre.prixWeekend && (
+                                      <span className="text-xs text-slate-500">({chambre.prixWeekend.toLocaleString()} FCFA/weekend)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {chambreSelected && (
+                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </>
               )}
 
               {/* Vehicules */}
@@ -647,7 +944,15 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicules.filter(v => !itemSearch || (v.marque || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.modele || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.type || '').toLowerCase().includes(itemSearch.toLowerCase()) || (v.zoneOperations || '').toLowerCase().includes(itemSearch.toLowerCase())).map((vehicule) => {
+                    {vehicules.filter(v => {
+                      if (!itemSearch) return true;
+                      const s = itemSearch.toLowerCase();
+                      return (v.marque || '').toLowerCase().includes(s)
+                        || (v.modele || '').toLowerCase().includes(s)
+                        || (v.type || '').toLowerCase().includes(s)
+                        || (v.zoneOperations || '').toLowerCase().includes(s)
+                        || (v.prixParJour != null && v.prixParJour.toString().includes(s));
+                    }).map((vehicule) => {
                       const selected = formData.vehiculeLocationId === vehicule.id;
                       return (
                         <motion.div
@@ -996,6 +1301,9 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                     <p className="font-semibold text-slate-800">{selectedLogement.nom}</p>
                     {selectedLogement.ville && <p className="text-sm text-slate-500">{selectedLogement.ville}</p>}
                     {selectedLogement.type && <p className="text-sm text-slate-500">{selectedLogement.type}</p>}
+                    {selectedChambre && (
+                      <p className="text-sm text-slate-500">Chambre: {selectedChambre.nom || selectedChambre.typeChambre}</p>
+                    )}
                   </div>
                 )}
                 {formData.serviceType === 'FLOTTE' && selectedVehicule && (

@@ -54,7 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
@@ -769,6 +769,7 @@ export default function AirportShuttle() {
                       setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
                     }}
                     iconColor="text-orange-500"
+                    countryCode={countryNameToCode(selectedPays)}
                   />
                 </div>
               </div>
@@ -830,6 +831,7 @@ export default function AirportShuttle() {
                         setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
                       }}
                       iconColor="text-blue-500"
+                      countryCode={countryNameToCode(selectedPays)}
                     />
                   </div>
                 </div>

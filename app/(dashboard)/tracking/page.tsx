@@ -54,11 +54,12 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
   ACTIVITE: { label: "Activite", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-cyan-100 text-cyan-700" },
-  FLOTTE: { label: "Flotte", icon: Car, color: "bg-pink-100 text-pink-700" },
+  FLOTTE: { label: "Location de vehicule", icon: Car, color: "bg-pink-100 text-pink-700" },
 };
 
 const canalLabels: Record<string, string> = {
   Company: "Plateforme Entreprise",
+  company: "Plateforme Entreprise",
   "App Mobile": "Application Mobile",
   WhatsApp: "WhatsApp",
   Web: "Site Web",
@@ -334,7 +335,7 @@ export default function Tracking() {
               <SelectItem value="visa_assistance">Documents Voyage</SelectItem>
               <SelectItem value="ACTIVITE">Activite</SelectItem>
               <SelectItem value="LOGEMENT">Logement</SelectItem>
-              <SelectItem value="FLOTTE">Flotte</SelectItem>
+              <SelectItem value="FLOTTE">Location de vehicule</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>

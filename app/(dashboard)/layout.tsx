@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   MapPin,
@@ -56,14 +56,14 @@ const navigation: NavigationItem[] = [
   { name: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
   { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Navette Aéroport", href: "/airport-shuttle", icon: MapPin },
+  { name: "Livraisons de courrier", href: "/deliveries", icon: Package },
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
   { name: "Inter-villes", href: "/inter-city", icon: Car },
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
   { name: "Activite", href: "/service-reservations?type=ACTIVITE", icon: Compass },
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
-  { name: "Flotte", href: "/service-reservations?type=FLOTTE", icon: Car },
+  { name: "Location de vehicule", href: "/service-reservations?type=FLOTTE", icon: Car },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
-  // { name: "Livraisons", href: "/deliveries", icon: Package },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },
   // { name: "Devis Entretien", href: "/maintenance-quotes", icon: Wrench },
@@ -82,6 +82,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
@@ -152,14 +153,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (href === "/dashboard") {
       return pathname === "/dashboard";
     }
-    // Handle hrefs with query params (e.g. /service-reservations?type=CIRCUIT)
+    // Handle hrefs with query params (e.g. /service-reservations?type=ACTIVITE)
     if (href.includes('?')) {
       const [hrefPath, hrefQuery] = href.split('?');
       if (pathname !== hrefPath) return false;
-      const currentParams = new URLSearchParams(window.location.search);
       const expectedParams = new URLSearchParams(hrefQuery);
       const keys = Array.from(expectedParams.keys());
-      return keys.every(key => currentParams.get(key) === expectedParams.get(key));
+      return keys.every(key => searchParams.get(key) === expectedParams.get(key));
     }
     return pathname === href || pathname.startsWith(href + "/");
   };

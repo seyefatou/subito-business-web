@@ -57,7 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -324,7 +324,7 @@ export default function HourlyVTC() {
       case 2:
         return !!(formData.pickupDate && formData.pickupTime && formData.pickupLocation);
       case 3:
-        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone) && formData.clientAddress);
+        return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone));
       case 4:
         return true;
       default:
@@ -375,10 +375,6 @@ export default function HourlyVTC() {
       }
       if (!isValidPhone(formData.clientPhone)) {
         toast.error("Numero de telephone invalide (ex: +221 77 123 45 67)");
-        return;
-      }
-      if (!formData.clientAddress) {
-        toast.error("Veuillez entrer l'adresse du client");
         return;
       }
     }
@@ -723,6 +719,7 @@ export default function HourlyVTC() {
                   }}
                   placeholder="Adresse complete"
                   iconColor="text-orange-600"
+                  countryCode={countryNameToCode(formData.country)}
                 />
               </div>
 
@@ -893,18 +890,8 @@ export default function HourlyVTC() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Adresse *</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <Textarea
-                    placeholder="Ex: Cite Keur Gorgui, Villa 123, Dakar"
-                    className="pl-10 min-h-[80px]"
-                    value={formData.clientAddress}
-                    onChange={(e) => handleChange('clientAddress', e.target.value)}
-                  />
-                </div>
-              </div>
+
+
             </motion.div>
           )}
 
