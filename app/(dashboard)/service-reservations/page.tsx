@@ -191,11 +191,26 @@ export default function ServiceReservations() {
 function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () => void; defaultServiceType?: ServiceType }) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(defaultServiceType ? 2 : 1);
-  const [formData, setFormData] = useState<FormData>({
-    ...initialFormData,
-    serviceType: defaultServiceType || '',
+  const [formData, setFormData] = useState<FormData>(() => {
+    const logementIdParam = searchParams.get('logementId');
+    const chambreIdParam = searchParams.get('chambreId');
+    const vehiculeIdParam = searchParams.get('vehiculeLocationId');
+    const circuitIdParam = searchParams.get('circuitId');
+    const activiteIdParam = searchParams.get('activiteId');
+    const selectedItemTypeParam = searchParams.get('selectedItemType') as 'circuit' | 'activite' | null;
+    return {
+      ...initialFormData,
+      serviceType: defaultServiceType || '',
+      logementId: logementIdParam ? Number(logementIdParam) : null,
+      chambreId: chambreIdParam ? Number(chambreIdParam) : null,
+      vehiculeLocationId: vehiculeIdParam ? Number(vehiculeIdParam) : null,
+      circuitId: circuitIdParam ? Number(circuitIdParam) : null,
+      activiteId: activiteIdParam ? Number(activiteIdParam) : null,
+      selectedItemType: selectedItemTypeParam || null,
+    };
   });
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
@@ -204,7 +219,8 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const [itemSearch, setItemSearch] = useState("");
   const [activiteFilter, setActiviteFilter] = useState<ActiviteFilterType>('all');
   const [logementFilter, setLogementFilter] = useState<LogementFilterType>('all');
-  const [showChambresModal, setShowChambresModal] = useState(false);
+  const [logementChambresFilter, setLogementChambresFilter] = useState<number | null>(null);
+  const [vehiculePlacesFilter, setVehiculePlacesFilter] = useState<number | null>(null);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
 
   // Fetch employees
@@ -651,15 +667,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                               key={`${item.type}-${item.id}`}
                               whileHover={{ scale: 1.01 }}
                               onClick={() => {
-                                if (isCircuit) {
-                                  handleChange('circuitId', item.id);
-                                  handleChange('activiteId', null);
-                                  handleChange('selectedItemType', 'circuit');
-                                } else {
-                                  handleChange('activiteId', item.id);
-                                  handleChange('circuitId', null);
-                                  handleChange('selectedItemType', 'activite');
-                                }
+                                router.push(`/service-reservations/activite/${item.id}?type=${item.type}&returnTo=${encodeURIComponent('/service-reservations?type=ACTIVITE')}`);
                               }}
                               className={`
                                 relative rounded-xl border-2 p-4 cursor-pointer transition-all
@@ -726,6 +734,40 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                     ))}
                   </div>
 
+                  {/* Filtre par nombre de chambres (appartements/villas) */}
+                  {logementFilter !== 'hotel' && (() => {
+                    const chambresValues = Array.from(new Set(
+                      logements
+                        .filter(l => !(l.type || '').toLowerCase().includes('hotel') || logementFilter === 'all')
+                        .map(l => l.nbreChambres)
+                        .filter((c): c is number => c != null && c > 0)
+                    )).sort((a, b) => a - b);
+                    return chambresValues.length > 0 ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-slate-500 font-medium">Chambres :</span>
+                        <Button
+                          variant={logementChambresFilter === null ? 'default' : 'outline'}
+                          size="sm"
+                          className={logementChambresFilter === null ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                          onClick={() => setLogementChambresFilter(null)}
+                        >
+                          Toutes
+                        </Button>
+                        {chambresValues.map((nb) => (
+                          <Button
+                            key={nb}
+                            variant={logementChambresFilter === nb ? 'default' : 'outline'}
+                            size="sm"
+                            className={logementChambresFilter === nb ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                            onClick={() => setLogementChambresFilter(nb)}
+                          >
+                            {nb} ch.
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+
                   {logementsLoading ? (
                     <div className="flex items-center justify-center py-16">
                       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -744,6 +786,10 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                             const t = (l.type || '').toLowerCase();
                             if (logementFilter === 'hotel' && !t.includes('hotel')) return false;
                             if (logementFilter === 'appartement' && !t.includes('appart') && !t.includes('residence') && !t.includes('villa')) return false;
+                          }
+                          // Filtre par nombre de chambres
+                          if (logementChambresFilter !== null) {
+                            if (l.nbreChambres !== logementChambresFilter) return false;
                           }
                           // Recherche textuelle
                           if (!itemSearch) return true;
@@ -768,10 +814,10 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                               key={logement.id}
                               whileHover={{ scale: 1.01 }}
                               onClick={() => {
-                                handleChange('logementId', logement.id);
-                                handleChange('chambreId', null);
                                 if (isHotel && logement.chambresHotel && logement.chambresHotel.length > 0) {
-                                  setShowChambresModal(true);
+                                  router.push(`/service-reservations/hotel/${logement.id}?returnTo=${encodeURIComponent('/service-reservations?type=LOGEMENT')}`);
+                                } else {
+                                  router.push(`/service-reservations/logement/${logement.id}?returnTo=${encodeURIComponent('/service-reservations?type=LOGEMENT')}`);
                                 }
                               }}
                               className={`
@@ -842,153 +888,110 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                         </p>
                         <p className="text-xs text-slate-500">{selectedChambre.prixParNuit?.toLocaleString()} FCFA/nuit</p>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => setShowChambresModal(true)}>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/service-reservations/hotel/${selectedLogement.id}?returnTo=${encodeURIComponent('/service-reservations?type=LOGEMENT')}`)}>
                         Changer
                       </Button>
                     </div>
                   )}
 
-                  {/* Modale de sélection de chambre */}
-                  <Dialog open={showChambresModal} onOpenChange={setShowChambresModal}>
-                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                          <Hotel className="w-5 h-5 text-orange-600" />
-                          {selectedLogement?.nom} - Choisir une chambre
-                        </DialogTitle>
-                      </DialogHeader>
-                      <div className="grid grid-cols-1 gap-4 mt-4">
-                        {selectedLogement?.chambresHotel?.map((chambre: ChambreHotel) => {
-                          const chambreSelected = formData.chambreId === chambre.id;
-                          return (
-                            <motion.div
-                              key={chambre.id}
-                              whileHover={{ scale: 1.01 }}
-                              onClick={() => {
-                                handleChange('chambreId', chambre.id);
-                                setShowChambresModal(false);
-                              }}
-                              className={`
-                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
-                                ${chambreSelected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
-                              `}
-                            >
-                              <div className="flex gap-4">
-                                {chambre.images?.[0] && (
-                                  <img src={chambre.images[0]} alt={chambre.nom || chambre.typeChambre} className="w-32 h-24 object-cover rounded-lg shrink-0" />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h4 className="font-semibold text-slate-800">{chambre.nom || chambre.typeChambre}</h4>
-                                    {chambre.typeChambre && chambre.nom && (
-                                      <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">{chambre.typeChambre}</Badge>
-                                    )}
-                                  </div>
-                                  {chambre.description && <p className="text-sm text-slate-500 mb-2">{chambre.description}</p>}
-                                  <div className="flex flex-wrap gap-1 mb-2">
-                                    {chambre.capacite && (
-                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                                        <Users className="w-3 h-3 mr-1" />{chambre.capacite} pers.
-                                      </Badge>
-                                    )}
-                                    {chambre.salleDeBain && (
-                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                                        {chambre.salleDeBain} salle{chambre.salleDeBain > 1 ? 's' : ''} de bain
-                                      </Badge>
-                                    )}
-                                    {chambre.nombreUnites && (
-                                      <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                                        {chambre.nombreUnites} disponible{chambre.nombreUnites > 1 ? 's' : ''}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {chambre.equipements && chambre.equipements.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-2">
-                                      {chambre.equipements.map((eq, i) => (
-                                        <span key={i} className="text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded">{eq}</span>
-                                      ))}
-                                    </div>
-                                  )}
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-orange-600">{chambre.prixParNuit?.toLocaleString()} FCFA/nuit</span>
-                                    {chambre.prixWeekend && (
-                                      <span className="text-xs text-slate-500">({chambre.prixWeekend.toLocaleString()} FCFA/weekend)</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              {chambreSelected && (
-                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                                  <Check className="w-4 h-4 text-white" />
-                                </div>
-                              )}
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
                 </>
               )}
 
               {/* Vehicules */}
               {formData.serviceType === 'FLOTTE' && (
-                vehiculesLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                  </div>
-                ) : vehicules.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400">
-                    <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="font-medium">Aucun vehicule disponible</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicules.filter(v => {
-                      if (!itemSearch) return true;
-                      const s = itemSearch.toLowerCase();
-                      return (v.marque || '').toLowerCase().includes(s)
-                        || (v.modele || '').toLowerCase().includes(s)
-                        || (v.type || '').toLowerCase().includes(s)
-                        || (v.zoneOperations || '').toLowerCase().includes(s)
-                        || (v.prixParJour != null && v.prixParJour.toString().includes(s));
-                    }).map((vehicule) => {
-                      const selected = formData.vehiculeLocationId === vehicule.id;
-                      return (
-                        <motion.div
-                          key={vehicule.id}
-                          whileHover={{ scale: 1.01 }}
-                          onClick={() => handleChange('vehiculeLocationId', vehicule.id)}
-                          className={`
-                            rounded-xl border-2 p-4 cursor-pointer transition-all
-                            ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
-                          `}
+                <>
+                  {/* Filtre par nombre de places */}
+                  {!vehiculesLoading && vehicules.length > 0 && (() => {
+                    const placesValues = Array.from(new Set(
+                      vehicules.map(v => v.places).filter((p): p is number => p != null && p > 0)
+                    )).sort((a, b) => a - b);
+                    return placesValues.length > 0 ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-slate-500 font-medium">Places :</span>
+                        <Button
+                          variant={vehiculePlacesFilter === null ? 'default' : 'outline'}
+                          size="sm"
+                          className={vehiculePlacesFilter === null ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                          onClick={() => setVehiculePlacesFilter(null)}
                         >
-                          {vehicule.images?.[0] && (
-                            <img src={vehicule.images[0]} alt={`${vehicule.marque} ${vehicule.modele}`} className="w-full h-32 object-cover rounded-lg mb-3" />
-                          )}
-                          <h3 className="font-semibold text-slate-800">{vehicule.marque} {vehicule.modele}</h3>
-                          {vehicule.annee && <span className="text-xs text-slate-500">{vehicule.annee}</span>}
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {vehicule.type && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{vehicule.type}</Badge>}
-                            {vehicule.places && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Users className="w-3 h-3 mr-1" />{vehicule.places} places</Badge>}
-                            {vehicule.transmission && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Settings2 className="w-3 h-3 mr-1" />{vehicule.transmission}</Badge>}
-                            {vehicule.carburant && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Fuel className="w-3 h-3 mr-1" />{vehicule.carburant}</Badge>}
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-500">
-                            {vehicule.climatisation && <span>Climatisation</span>}
-                            {vehicule.chauffeur && <span>Chauffeur</span>}
-                            {vehicule.gps && <span>GPS</span>}
-                          </div>
-                          <div className="flex items-center justify-between mt-3">
-                            {vehicule.zoneOperations && <span className="text-xs text-slate-500"><MapPin className="w-3 h-3 inline mr-1" />{vehicule.zoneOperations}</span>}
-                            <span className="font-bold text-orange-600">{vehicule.prixParJour?.toLocaleString()} FCFA/jour</span>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )
+                          Toutes
+                        </Button>
+                        {placesValues.map((nb) => (
+                          <Button
+                            key={nb}
+                            variant={vehiculePlacesFilter === nb ? 'default' : 'outline'}
+                            size="sm"
+                            className={vehiculePlacesFilter === nb ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                            onClick={() => setVehiculePlacesFilter(nb)}
+                          >
+                            {nb} place{nb > 1 ? 's' : ''}
+                            <span className="ml-1 opacity-75">({vehicules.filter(v => v.places === nb).length})</span>
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {vehiculesLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                    </div>
+                  ) : vehicules.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400">
+                      <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">Aucun vehicule disponible</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {vehicules.filter(v => {
+                        // Filtre par places
+                        if (vehiculePlacesFilter !== null && v.places !== vehiculePlacesFilter) return false;
+                        // Recherche textuelle
+                        if (!itemSearch) return true;
+                        const s = itemSearch.toLowerCase();
+                        return (v.marque || '').toLowerCase().includes(s)
+                          || (v.modele || '').toLowerCase().includes(s)
+                          || (v.type || '').toLowerCase().includes(s)
+                          || (v.zoneOperations || '').toLowerCase().includes(s)
+                          || (v.prixParJour != null && v.prixParJour.toString().includes(s));
+                      }).map((vehicule) => {
+                        const selected = formData.vehiculeLocationId === vehicule.id;
+                        return (
+                          <motion.div
+                            key={vehicule.id}
+                            whileHover={{ scale: 1.01 }}
+                            onClick={() => router.push(`/service-reservations/vehicule/${vehicule.id}?returnTo=${encodeURIComponent('/service-reservations?type=FLOTTE')}`)}
+                            className={`
+                              rounded-xl border-2 p-4 cursor-pointer transition-all
+                              ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                            `}
+                          >
+                            {vehicule.images?.[0] && (
+                              <img src={vehicule.images[0]} alt={`${vehicule.marque} ${vehicule.modele}`} className="w-full h-32 object-cover rounded-lg mb-3" />
+                            )}
+                            <h3 className="font-semibold text-slate-800">{vehicule.marque} {vehicule.modele}</h3>
+                            {vehicule.annee && <span className="text-xs text-slate-500">{vehicule.annee}</span>}
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {vehicule.type && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{vehicule.type}</Badge>}
+                              {vehicule.places && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Users className="w-3 h-3 mr-1" />{vehicule.places} places</Badge>}
+                              {vehicule.transmission && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Settings2 className="w-3 h-3 mr-1" />{vehicule.transmission}</Badge>}
+                              {vehicule.carburant && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Fuel className="w-3 h-3 mr-1" />{vehicule.carburant}</Badge>}
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-500">
+                              {vehicule.climatisation && <span>Climatisation</span>}
+                              {vehicule.chauffeur && <span>Chauffeur</span>}
+                              {vehicule.gps && <span>GPS</span>}
+                            </div>
+                            <div className="flex items-center justify-between mt-3">
+                              {vehicule.zoneOperations && <span className="text-xs text-slate-500"><MapPin className="w-3 h-3 inline mr-1" />{vehicule.zoneOperations}</span>}
+                              <span className="font-bold text-orange-600">{vehicule.prixParJour?.toLocaleString()} FCFA/jour</span>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
