@@ -72,9 +72,9 @@ export default function ActiviteDetailPage() {
     );
   }
 
-  const images = item.images || [];
-  const inclus = item.inclus || [];
-  const nonInclus = item.nonInclus || [];
+  const images = Array.isArray(item.images) ? item.images : [];
+  const inclus = Array.isArray(item.inclus) ? item.inclus : typeof item.inclus === 'string' ? (item.inclus as string).split(',').map(s => s.trim()).filter(Boolean) : [];
+  const nonInclus = Array.isArray(item.nonInclus) ? item.nonInclus : typeof item.nonInclus === 'string' ? (item.nonInclus as string).split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const handleReserve = () => {
     if (isCircuit) {

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Car,
@@ -11,6 +12,11 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Plane,
+  Hotel,
+  MapPin,
+  Compass,
+  Route,
   LucideIcon
 } from "lucide-react";
 import { format } from "date-fns";
@@ -24,6 +30,8 @@ interface Activity {
   department?: string;
   status: string;
   created_date?: string;
+  final_cost?: number;
+  estimated_cost?: number;
 }
 
 interface ActivityTimelineProps {
@@ -33,14 +41,41 @@ interface ActivityTimelineProps {
 const serviceIcons: Record<string, LucideIcon> = {
   airport_shuttle: Car,
   inter_city: Car,
+  intercity: Car,
   vtc_hourly: Clock,
-  visa_assistance: FileText,
+  travel_document: FileText,
+  flight_reservation: Plane,
+  hotel_reservation: Hotel,
+  flight_and_hotel: Plane,
   transport: Car,
   livraison: Package,
   administratif: FileText,
   carburant: Fuel,
   flotte: Wrench,
   assistance: AlertTriangle,
+  CIRCUIT: Route,
+  LOGEMENT: MapPin,
+  FLOTTE: Car,
+};
+
+const serviceLabels: Record<string, string> = {
+  airport_shuttle: "Navette Aeroport",
+  inter_city: "Inter-ville",
+  intercity: "Inter-ville",
+  vtc_hourly: "VTC Horaire",
+  travel_document: "Document de voyage",
+  flight_reservation: "Navette Aeroport",
+  hotel_reservation: "Logement",
+  flight_and_hotel: "Vol + Hotel",
+  transport: "Transport",
+  livraison: "Livraison",
+  carburant: "Carburant",
+  flotte: "Location vehicule",
+  CIRCUIT: "Circuit touristique",
+  LOGEMENT: "Logement",
+  FLOTTE: "Location vehicule",
+  assistance: "Assistance",
+  administratif: "Administratif",
 };
 
 const statusColors: Record<string, string> = {
@@ -65,10 +100,10 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
   if (activities.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Activités récentes</h3>
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">Activites recentes</h3>
         <div className="text-center py-8 text-slate-400">
           <Clock className="w-10 h-10 mx-auto mb-3 opacity-50" />
-          <p>Aucune activité récente</p>
+          <p>Aucune activite recente</p>
         </div>
       </div>
     );
@@ -77,10 +112,10 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-slate-800">Activités récentes</h3>
-        <button className="text-sm text-subito font-medium hover:underline flex items-center gap-1">
+        <h3 className="text-lg font-semibold text-slate-800">Activites recentes</h3>
+        <Link href="/tracking" className="text-sm text-subito font-medium hover:underline flex items-center gap-1">
           Voir tout <ArrowRight className="w-4 h-4" />
-        </button>
+        </Link>
       </div>
 
       <div className="space-y-4">
@@ -88,6 +123,12 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
           const Icon = (activity.service_category && serviceIcons[activity.service_category])
             ? serviceIcons[activity.service_category]
             : Package;
+
+          const label = (activity.service_category && serviceLabels[activity.service_category])
+            ? serviceLabels[activity.service_category]
+            : activity.service_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Commande';
+
+          const cost = activity.final_cost || activity.estimated_cost || 0;
 
           return (
             <motion.div
@@ -105,10 +146,11 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium text-slate-800 truncate">
-                      {activity.service_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      {label}
                     </p>
                     <p className="text-sm text-slate-500 truncate">
-                      {activity.beneficiary_name || 'Non assigné'} • {activity.department || 'Général'}
+                      {activity.beneficiary_name || 'Non assigne'}
+                      {cost > 0 && <span className="ml-1">• {cost.toLocaleString()} FCFA</span>}
                     </p>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${statusColors[activity.status] || 'bg-slate-100 text-slate-600'}`}>
@@ -117,7 +159,7 @@ export default function ActivityTimeline({ activities = [] }: ActivityTimelinePr
                 </div>
 
                 <p className="text-xs text-slate-400 mt-1">
-                  {activity.created_date && format(new Date(activity.created_date), "d MMM 'à' HH:mm", { locale: fr })}
+                  {activity.created_date && format(new Date(activity.created_date), "d MMM 'a' HH:mm", { locale: fr })}
                 </p>
               </div>
             </motion.div>

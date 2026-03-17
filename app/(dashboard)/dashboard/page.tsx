@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, DashboardData, TravelDocumentResponse } from "@/lib/api";
+import { api, DashboardData, TravelDocumentResponse, ServiceReservationResponse } from "@/lib/api";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -30,10 +30,9 @@ const SERVICE_LABELS: Record<string, string> = {
   inter_city: 'Inter-villes',
   intercity: 'Inter-villes',
   vtc_hourly: 'VTC à l\'heure',
-  visa_assistance: 'Visa / Assistance',
   travel_document: 'Document de voyage',
-  flight_reservation: 'Réservation vol',
-  hotel_reservation: 'Réservation hôtel',
+  flight_reservation: 'Navette Aéroport',
+  hotel_reservation: 'Logement',
   flight_and_hotel: 'Vol + Hôtel',
   CIRCUIT: 'Circuit touristique',
   LOGEMENT: 'Logement',
@@ -97,7 +96,21 @@ export default function Dashboard() {
       || (travelDocsData as Record<string, unknown>)?.list as TravelDocumentResponse[]
       || [];
 
-  const isLoading = loadingBookings || loadingTravel;
+  // 5. Recent service reservations (logement, activite, flotte)
+  const { data: serviceResResponse, isLoading: loadingServiceRes } = useQuery({
+    queryKey: ['service-reservations-recent'],
+    queryFn: () => api.serviceReservations.list(1, 10),
+  });
+  const serviceResRaw = serviceResResponse?.data as Record<string, unknown> | undefined;
+  const serviceResPayload = (serviceResRaw?.data ?? serviceResRaw) as Record<string, unknown> | undefined;
+  const recentServiceRes: ServiceReservationResponse[] = (() => {
+    if (Array.isArray(serviceResPayload?.list)) return serviceResPayload.list as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload?.items)) return serviceResPayload.items as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload)) return serviceResPayload as unknown as ServiceReservationResponse[];
+    return [];
+  })();
+
+  const isLoading = loadingBookings || loadingTravel || loadingServiceRes;
 
   // ==================== COMPUTED DATA ====================
 
@@ -132,6 +145,13 @@ export default function Dashboard() {
     serviceMap[key].count += item.count;
     serviceMap[key].total += item.total;
   }
+  // Add service reservations (logement, activite, flotte) to serviceMap
+  for (const sr of recentServiceRes) {
+    const key = sr.serviceType || 'ACTIVITE';
+    if (!serviceMap[key]) serviceMap[key] = { count: 0, total: 0 };
+    serviceMap[key].count += 1;
+    serviceMap[key].total += Number(sr.totalPrice || 0);
+  }
 
   // Most used service (by count)
   const topServiceEntry = Object.entries(serviceMap).sort((a, b) => b[1].count - a[1].count)[0];
@@ -156,20 +176,43 @@ export default function Dashboard() {
     beneficiary_name: b.clientName || '',
   }));
 
-  const travelDocOrders = recentTravelDocs.map(td => ({
-    id: `td-${td.id}`,
-    created_date: td.createdAt || '',
-    final_cost: (td as Record<string, unknown>).totalPrice as number || (td as Record<string, unknown>).amount as number || 0,
-    estimated_cost: (td as Record<string, unknown>).totalPrice as number || (td as Record<string, unknown>).amount as number || 0,
-    service_category: 'visa_assistance',
-    service_type: 'visa_assistance',
-    status: td.status || 'pending',
+  const travelDocOrders = recentTravelDocs.map(td => {
+    const raw = td as Record<string, unknown>;
+    const docType = raw.flightReservation && raw.hotelReservation
+      ? 'flight_and_hotel'
+      : raw.flightReservation
+        ? 'flight_reservation'
+        : raw.hotelReservation
+          ? 'hotel_reservation'
+          : 'travel_document';
+    return {
+      id: `td-${td.id}`,
+      created_date: td.createdAt || '',
+      final_cost: (raw.totalPrice as number) || (raw.amount as number) || 0,
+      estimated_cost: (raw.totalPrice as number) || (raw.amount as number) || 0,
+      service_category: docType,
+      service_type: docType,
+      status: td.status || 'pending',
+      departure_address: '',
+      arrival_address: '',
+      beneficiary_name: [td.firstName, td.lastName].filter(Boolean).join(' ') || (raw.clientName as string) || '-',
+    };
+  });
+
+  const serviceResOrders = recentServiceRes.map(sr => ({
+    id: `sr-${sr.id}`,
+    created_date: sr.createdAt || '',
+    final_cost: Number(sr.totalPrice || 0),
+    estimated_cost: Number(sr.totalPrice || 0),
+    service_category: sr.serviceType || 'ACTIVITE',
+    service_type: sr.serviceType || 'ACTIVITE',
+    status: sr.status || 'pending',
     departure_address: '',
     arrival_address: '',
-    beneficiary_name: [td.firstName, td.lastName].filter(Boolean).join(' ') || (td as Record<string, unknown>).clientName as string || '-',
+    beneficiary_name: sr.clientName || '-',
   }));
 
-  const orders = [...bookingOrders, ...travelDocOrders].sort(
+  const orders = [...bookingOrders, ...travelDocOrders, ...serviceResOrders].sort(
     (a, b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
   );
 
@@ -287,7 +330,7 @@ export default function Dashboard() {
 
         {/* Right column - Chart */}
         <div>
-          <ServiceUsageChart orders={orders} />
+          <ServiceUsageChart serviceDistribution={serviceMap} />
         </div>
       </div>
 
@@ -309,7 +352,8 @@ export default function Dashboard() {
               { label: "Inter-villes", icon: "🚗", href: "/inter-city" },
               { label: "VTC Horaire", icon: "🕐", href: "/hourly-vtc" },
               { label: "Documents Voyage", icon: "📄", href: "/travel-documents" },
-              { label: "Reservations Services", icon: "🗺️", href: "/service-reservations" },
+              { label: "Livraison de courrier", icon: "📦", href: "/livraisons-courrier" },
+              { label: "Suivi de commande", icon: "📍", href: "/orders" },
             ].map((action) => (
               <Link key={action.label} href={action.href}>
                 <motion.div
