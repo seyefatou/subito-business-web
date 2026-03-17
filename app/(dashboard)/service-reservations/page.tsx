@@ -337,7 +337,6 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
         handleChange('clientName', `${emp.prenom} ${emp.nom}`);
         if (emp.email) handleChange('clientEmail', emp.email);
         if (emp.telephone) handleChange('clientPhone', emp.telephone);
-        if (emp.adresse) handleChange('adresseLivraison', emp.adresse);
       }
       setShowAddEmployee(false);
       toast.success("Employe ajoute avec succes");
@@ -1053,7 +1052,6 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                                     handleChange('clientName', `${emp.prenom} ${emp.nom}`);
                                     if (emp.email) handleChange('clientEmail', emp.email);
                                     if (emp.telephone) handleChange('clientPhone', emp.telephone);
-                                    if (emp.adresse) handleChange('adresseLivraison', emp.adresse);
                                     setEmployeeSearch("");
                                     setEmployeePopoverOpen(false);
                                   }}

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, BookingStatsData, DashboardData } from "@/lib/api";
+import { api, BookingStatsData, TravelDocStatsData, DashboardData, ServiceReservationResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -53,11 +53,14 @@ const SERVICE_LABELS: Record<string, string> = {
   inter_city: 'Inter-villes',
   intercity: 'Inter-villes',
   vtc_hourly: 'VTC à l\'heure',
-  visa_assistance: 'Visa / Assistance',
   travel_document: 'Document de voyage',
-  flight_reservation: 'Réservation vol',
-  hotel_reservation: 'Réservation hôtel',
+  flight_reservation: 'Navette Aéroport',
+  hotel_reservation: 'Logement',
   flight_and_hotel: 'Vol + Hôtel',
+  ACTIVITE: 'Activité',
+  LOGEMENT: 'Logement',
+  FLOTTE: 'Location véhicule',
+  CIRCUIT: 'Circuit touristique',
 };
 
 function extractData<T>(response: unknown): T | null {
@@ -108,31 +111,62 @@ export default function Reports() {
   });
   const bookingStats = extractData<BookingStatsData>(bookingStatsRaw);
 
-  // 2. Booking dashboard (global KPIs)
+  // 2. Travel docs stats (filtered by period)
+  const { data: travelStatsRaw, isLoading: loadingTravelStats } = useQuery({
+    queryKey: ['travel-stats', startDate, endDate],
+    queryFn: () => api.travelDocuments.stats(startDate, endDate),
+  });
+  const travelStats = extractData<TravelDocStatsData>(travelStatsRaw);
+
+  // 3. Service reservations list (logement, activite, flotte)
+  const { data: serviceResResponse, isLoading: loadingServiceRes } = useQuery({
+    queryKey: ['service-reservations-report'],
+    queryFn: () => api.serviceReservations.list(1, 100),
+  });
+  const serviceResRaw = serviceResResponse?.data as Record<string, unknown> | undefined;
+  const serviceResPayload = (serviceResRaw?.data ?? serviceResRaw) as Record<string, unknown> | undefined;
+  const serviceResList: ServiceReservationResponse[] = (() => {
+    if (Array.isArray(serviceResPayload?.list)) return serviceResPayload.list as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload?.items)) return serviceResPayload.items as ServiceReservationResponse[];
+    if (Array.isArray(serviceResPayload)) return serviceResPayload as unknown as ServiceReservationResponse[];
+    return [];
+  })();
+  // Filter by date range
+  const filteredServiceRes = serviceResList.filter(sr => {
+    const d = sr.createdAt ? sr.createdAt.slice(0, 10) : '';
+    return d >= startDate && d <= endDate;
+  });
+
+  // 4. Booking dashboard (global KPIs)
   const { data: bookingDashRaw } = useQuery({
     queryKey: ['booking-dashboard'],
     queryFn: () => api.bookings.dashboard(),
   });
   const bookingDash = extractData<DashboardData>(bookingDashRaw);
 
-  const isLoading = loadingBookingStats;
+  const isLoading = loadingBookingStats || loadingTravelStats || loadingServiceRes;
 
   // ==================== COMPUTED DATA ====================
 
-  // KPIs — from bookings/compagny/stats
-  const kpis = bookingStats?.kpis;
-  const totalBookings = kpis?.totalOrders ?? bookingStats?.totalBookings ?? 0;
-  const totalRevenue = kpis?.totalExpenses ?? bookingStats?.totalRevenue ?? 0;
-  const avgPrice = kpis?.averageValue ?? bookingStats?.averagePrice ?? (totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0);
-  const completionRate = kpis?.completionRate ?? 0;
+  // KPIs — merge bookings + travel docs + service reservations
+  const bkKpis = bookingStats?.kpis;
+  const tdKpis = travelStats?.kpis;
+  const srTotal = filteredServiceRes.reduce((sum, sr) => sum + Number(sr.totalPrice || 0), 0);
+  const srCount = filteredServiceRes.length;
+
+  const totalBookings = (bkKpis?.totalOrders ?? bookingStats?.totalBookings ?? 0) + (tdKpis?.totalOrders ?? 0) + srCount;
+  const totalRevenue = (bkKpis?.totalExpenses ?? bookingStats?.totalRevenue ?? 0) + (tdKpis?.totalExpenses ?? 0) + srTotal;
+  const avgPrice = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
+  const completionRate = bkKpis?.completionRate ?? 0;
 
   // By status (from booking stats)
   const byStatus = bookingStats?.byStatus || {};
 
-  // By service — from bookingStats.expensesByCategory or fallback to bookingDash.byService
+  // By service — merge bookings + travel docs + service reservations
   const byServiceData = useMemo(() => {
     const map: Record<string, number> = {};
 
+    // Bookings
     if (bookingStats?.expensesByCategory?.length) {
       for (const item of bookingStats.expensesByCategory) {
         const label = SERVICE_LABELS[item.category] || item.category?.replace(/_/g, ' ') || 'Autre';
@@ -145,23 +179,52 @@ export default function Reports() {
       });
     }
 
+    // Travel docs
+    if (travelStats?.expensesByCategory?.length) {
+      for (const item of travelStats.expensesByCategory) {
+        const label = SERVICE_LABELS[item.category] || item.category?.replace(/_/g, ' ') || 'Document de voyage';
+        map[label] = (map[label] || 0) + Number(item.total);
+      }
+    }
+
+    // Service reservations (logement, activite, flotte)
+    for (const sr of filteredServiceRes) {
+      const label = SERVICE_LABELS[sr.serviceType || ''] || sr.serviceType || 'Autre';
+      map[label] = (map[label] || 0) + Number(sr.totalPrice || 0);
+    }
+
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [bookingStats, bookingDash]);
+  }, [bookingStats, bookingDash, travelStats, filteredServiceRes]);
 
-  // By department (from bookingStats.expensesByDepartment)
+  // By department — merge bookings + travel docs
   const byDeptData = useMemo(() => {
-    if (!bookingStats?.expensesByDepartment?.length) return [];
-    return bookingStats.expensesByDepartment
-      .map(d => ({ name: d.departmentName || 'Sans département', value: Number(d.total) }))
-      .sort((a, b) => b.value - a.value);
-  }, [bookingStats]);
+    const map: Record<string, number> = {};
 
-  // Monthly evolution (from bookingStats.monthlyEvolution)
+    // Bookings
+    for (const d of bookingStats?.expensesByDepartment || []) {
+      const name = d.departmentName || 'Sans département';
+      map[name] = (map[name] || 0) + Number(d.total);
+    }
+
+    // Travel docs
+    for (const d of travelStats?.expensesByDepartment || []) {
+      const name = d.departmentName || 'Sans département';
+      map[name] = (map[name] || 0) + Number(d.total);
+    }
+
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [bookingStats, travelStats]);
+
+  // Monthly evolution — merge bookings + travel docs
   const monthlyData = useMemo(() => {
-    if (!bookingStats?.monthlyEvolution?.length) {
-      // Fallback: generate empty months
+    const bkEvo = bookingStats?.monthlyEvolution || [];
+    const tdEvo = travelStats?.monthlyEvolution || [];
+
+    if (!bkEvo.length && !tdEvo.length) {
       const data = [];
       for (let i = 5; i >= 0; i--) {
         data.push({
@@ -171,12 +234,23 @@ export default function Reports() {
       }
       return data;
     }
-    return bookingStats.monthlyEvolution.map(m => ({
-      month: m.label || m.month,
-      total: Number(m.total) / 1000, // in thousands for readability
+
+    const map: Record<string, number> = {};
+    for (const m of bkEvo) {
+      const key = m.label || m.month;
+      map[key] = (map[key] || 0) + Number(m.total);
+    }
+    for (const m of tdEvo) {
+      const key = m.label || m.month;
+      map[key] = (map[key] || 0) + Number(m.total);
+    }
+
+    return Object.entries(map).map(([month, total]) => ({
+      month,
+      total: total / 1000,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingStats]);
+  }, [bookingStats, travelStats]);
 
   // ==================== EXPORTS ====================
 

@@ -509,7 +509,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               <Input
                 placeholder="Nom complet"
                 value={formData.expediteurNom}
-                onChange={(e) => setFormData(prev => ({ ...prev, expediteurNom: e.target.value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, expediteurNom: e.target.value, employeeId: null, expediteurTelephone: '', expediteurEmail: '' }))}
               />
             </div>
 
@@ -599,7 +599,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               <Input
                 placeholder="Nom complet"
                 value={formData.destinataireNom}
-                onChange={(e) => setFormData(prev => ({ ...prev, destinataireNom: e.target.value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, destinataireNom: e.target.value, destinataireEmployeeId: null, destinataireTelephone: '', destinataireEmail: '' }))}
               />
             </div>
 
