@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Check,
@@ -339,7 +339,8 @@ export default function HotelDetailPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4">
+          {/* Cards grille */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredChambres.map((chambre: ChambreHotel) => {
               const isSelected = selectedChambreId === chambre.id;
               const chambreImages = chambre.images || [];
@@ -348,127 +349,186 @@ export default function HotelDetailPage() {
               return (
                 <motion.div
                   key={chambre.id}
-                  whileHover={{ scale: 1.005 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => handleSelectChambre(chambre.id)}
                   className={`
                     relative bg-white rounded-xl border-2 overflow-hidden cursor-pointer transition-all
-                    ${isSelected ? 'border-orange-400 bg-orange-50/30 shadow-lg shadow-orange-100' : 'border-slate-200 hover:border-slate-300'}
+                    ${isSelected ? 'border-orange-400 shadow-lg shadow-orange-100 ring-2 ring-orange-200' : 'border-slate-200 hover:border-slate-300 hover:shadow-md'}
                   `}
                 >
-                  <div className="flex flex-col md:flex-row">
-                    {/* Images de la chambre */}
-                    <div className="relative w-full md:w-72 h-52 md:h-auto bg-slate-100 shrink-0">
-                      {chambreImages.length > 0 ? (
-                        <>
-                          <img
-                            src={chambreImages[imgIndex]}
-                            alt={chambre.nom || chambre.typeChambre}
-                            className="w-full h-full object-cover"
-                          />
-                          {chambreImages.length > 1 && (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setChambreImageIndex(chambre.id, (imgIndex - 1 + chambreImages.length) % chambreImages.length);
-                                }}
-                                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition"
-                              >
-                                <ChevronLeft className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setChambreImageIndex(chambre.id, (imgIndex + 1) % chambreImages.length);
-                                }}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition"
-                              >
-                                <ChevronRight className="w-4 h-4" />
-                              </button>
-                              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
-                                {imgIndex + 1}/{chambreImages.length}
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center min-h-[12rem]">
-                          <ImageIcon className="w-12 h-12 text-slate-300" />
-                        </div>
+                  {/* Image */}
+                  <div className="relative h-44 bg-slate-100">
+                    {chambreImages.length > 0 ? (
+                      <>
+                        <img
+                          src={chambreImages[imgIndex]}
+                          alt={chambre.nom || chambre.typeChambre}
+                          className="w-full h-full object-cover"
+                        />
+                        {chambreImages.length > 1 && (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setChambreImageIndex(chambre.id, (imgIndex - 1 + chambreImages.length) % chambreImages.length);
+                              }}
+                              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setChambreImageIndex(chambre.id, (imgIndex + 1) % chambreImages.length);
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                              {imgIndex + 1}/{chambreImages.length}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-10 h-10 text-slate-300" />
+                      </div>
+                    )}
+                    {/* Badge selection */}
+                    {isSelected && (
+                      <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center shadow-lg">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    {/* Badge type */}
+                    {chambre.typeChambre && (
+                      <div className="absolute top-2 left-2">
+                        <Badge className="bg-black/50 text-white border-0 text-xs backdrop-blur-sm">{chambre.typeChambre}</Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Infos compactes */}
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-semibold text-slate-800 truncate">
+                      {chambre.nom || chambre.typeChambre}
+                    </h3>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {chambre.capacite && (
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <Users className="w-3 h-3" />{chambre.capacite} pers.
+                        </span>
+                      )}
+                      {chambre.salleDeBain && (
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <Bath className="w-3 h-3" />{chambre.salleDeBain} SdB
+                        </span>
+                      )}
+                      {chambre.nombreUnites && (
+                        <span className="text-xs text-green-600 font-medium">
+                          {chambre.nombreUnites} dispo.
+                        </span>
                       )}
                     </div>
 
-                    {/* Infos chambre */}
-                    <div className="flex-1 p-5 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-lg font-semibold text-slate-800">
-                              {chambre.nom || chambre.typeChambre}
-                            </h3>
-                            {chambre.typeChambre && chambre.nom && (
-                              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">{chambre.typeChambre}</Badge>
-                            )}
-                          </div>
-                          {chambre.description && (
-                            <p className="text-sm text-slate-500">{chambre.description}</p>
-                          )}
-                        </div>
-                        {isSelected && (
-                          <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center shrink-0">
-                            <Check className="w-4 h-4 text-white" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Badges infos */}
-                      <div className="flex flex-wrap gap-2">
-                        {chambre.capacite && (
-                          <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                            <Users className="w-3 h-3 mr-1" />{chambre.capacite} pers.
-                          </Badge>
-                        )}
-                        {chambre.salleDeBain && (
-                          <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                            <Bath className="w-3 h-3 mr-1" />{chambre.salleDeBain} salle{chambre.salleDeBain > 1 ? 's' : ''} de bain
-                          </Badge>
-                        )}
-                        {chambre.nombreUnites && (
-                          <Badge className="bg-green-100 text-green-700 border-0 text-xs">
-                            {chambre.nombreUnites} disponible{chambre.nombreUnites > 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Equipements */}
-                      {chambre.equipements && chambre.equipements.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {chambre.equipements.map((eq, i) => (
-                            <span key={i} className="text-xs text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">
-                              {eq}
-                            </span>
-                          ))}
-                        </div>
+                    <div className="pt-1 border-t border-slate-100">
+                      <span className="text-lg font-bold text-orange-600">
+                        {chambre.prixParNuit?.toLocaleString()} FCFA
+                      </span>
+                      <span className="text-xs text-slate-500"> /nuit</span>
+                      {chambre.prixWeekend && (
+                        <p className="text-xs text-slate-400">{chambre.prixWeekend.toLocaleString()} FCFA/weekend</p>
                       )}
-
-                      {/* Prix */}
-                      <div className="flex items-center gap-3 pt-1">
-                        <span className="text-lg font-bold text-orange-600">
-                          {chambre.prixParNuit?.toLocaleString()} FCFA
-                          <span className="text-sm font-normal text-slate-500"> /nuit</span>
-                        </span>
-                        {chambre.prixWeekend && (
-                          <span className="text-sm text-slate-500">
-                            ({chambre.prixWeekend.toLocaleString()} FCFA/weekend)
-                          </span>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </motion.div>
               );
             })}
           </div>
+
+          {/* Detail de la chambre selectionnee */}
+          <AnimatePresence>
+            {selectedChambre && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-white rounded-xl border-2 border-orange-300 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <Bed className="w-5 h-5 text-orange-600" />
+                      {selectedChambre.nom || selectedChambre.typeChambre}
+                    </h3>
+                    <Badge className="bg-orange-100 text-orange-700 border-0">Selectionnee</Badge>
+                  </div>
+
+                  {/* Galerie d'images de la chambre */}
+                  {selectedChambre.images && selectedChambre.images.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {selectedChambre.images.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img}
+                          alt={`${selectedChambre.nom || selectedChambre.typeChambre} ${i + 1}`}
+                          className="shrink-0 w-40 h-28 object-cover rounded-lg border border-slate-200"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedChambre.description && (
+                    <p className="text-sm text-slate-600">{selectedChambre.description}</p>
+                  )}
+
+                  {/* Infos detaillees */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {selectedChambre.capacite && (
+                      <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
+                        <Users className="w-4 h-4 text-orange-500" />
+                        <span>{selectedChambre.capacite} personne{selectedChambre.capacite > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {selectedChambre.salleDeBain && (
+                      <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
+                        <Bath className="w-4 h-4 text-orange-500" />
+                        <span>{selectedChambre.salleDeBain} salle{selectedChambre.salleDeBain > 1 ? 's' : ''} de bain</span>
+                      </div>
+                    )}
+                    {selectedChambre.nombreUnites && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg p-3">
+                        <DoorOpen className="w-4 h-4 text-green-600" />
+                        <span>{selectedChambre.nombreUnites} disponible{selectedChambre.nombreUnites > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm bg-orange-50 rounded-lg p-3">
+                      <span className="font-bold text-orange-600">{selectedChambre.prixParNuit?.toLocaleString()} FCFA</span>
+                      <span className="text-slate-500">/nuit</span>
+                    </div>
+                  </div>
+
+                  {/* Equipements */}
+                  {selectedChambre.equipements && selectedChambre.equipements.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 mb-2">Equipements</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedChambre.equipements.map((eq, i) => (
+                          <span key={i} className="text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                            {eq}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

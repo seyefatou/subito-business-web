@@ -197,25 +197,6 @@ export default function AirportShuttle() {
     ? paysRaw.map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || String(p)).filter(Boolean)
     : [];
 
-  // Fetch villes for selected country
-  const { data: villesResponse } = useQuery({
-    queryKey: ['villes', selectedPays],
-    queryFn: () => api.reference.getVilles(selectedPays),
-    enabled: !!selectedPays,
-  });
-  const villesRaw = villesResponse?.data;
-  const allVilles: Ville[] = Array.isArray(villesRaw)
-    ? villesRaw
-    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
-
-  // Separate cities and airports based on isAeroport
-  const villes = allVilles.filter(v => !v.isAeroport);
-  const aeroports = allVilles.filter(v => v.isAeroport);
-
-  // Based on direction: depart list and arrivee list
-  const departOptions = formData.direction === 'from_airport' ? aeroports : villes;
-  const arriveeOptions = formData.direction === 'from_airport' ? villes : aeroports;
-
   // Fetch airport routes (each trajet = 1 route + 1 vehicule + 1 prix)
   const { data: trajetsResponse } = useQuery({
     queryKey: ['trajet-aeroport'],
@@ -226,15 +207,55 @@ export default function AirportShuttle() {
     ? trajetsRaw
     : (trajetsRaw as any)?.list || (trajetsRaw as any)?.items || [];
 
+  // Fetch villes for selected country (fallback)
+  const { data: villesResponse } = useQuery({
+    queryKey: ['villes', selectedPays],
+    queryFn: () => api.reference.getVilles(selectedPays),
+    enabled: !!selectedPays,
+  });
+  const villesRaw = villesResponse?.data;
+  const villesFromApi: Ville[] = Array.isArray(villesRaw)
+    ? villesRaw
+    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
+
+  // Extract unique villes from trajets (guaranteed matching IDs)
+  const villesFromTrajets = React.useMemo(() => {
+    const map = new Map<number, Ville>();
+    trajets.forEach(t => {
+      if (t.villeDepart) map.set(t.villeDepart.id, t.villeDepart);
+      if (t.villeArrivee) map.set(t.villeArrivee.id, t.villeArrivee);
+    });
+    return Array.from(map.values());
+  }, [trajets]);
+
+  // Use villes from trajets if available, otherwise fall back to API
+  const allVilles: Ville[] = villesFromTrajets.length > 0 ? villesFromTrajets : villesFromApi;
+
+  // Filter by selected country if one is selected
+  const filteredVilles = selectedPays
+    ? allVilles.filter(v => v.pays?.toLowerCase() === selectedPays.toLowerCase())
+    : allVilles;
+
+  // Separate cities and airports based on isAeroport
+  const villes = filteredVilles.filter(v => !v.isAeroport);
+  const aeroports = filteredVilles.filter(v => v.isAeroport);
+
+  // Based on direction: depart list and arrivee list
+  const departOptions = formData.direction === 'from_airport' ? aeroports : villes;
+  const arriveeOptions = formData.direction === 'from_airport' ? villes : aeroports;
+
   // Helper to get ville display name (API returns nom or name)
   const getVilleName = (v?: Ville | null): string => v?.nom || v?.name || '';
 
   // Find ALL matching trajets for a given depart+arrivee (each has a different vehicule)
+  // API always stores: villeDepart = airport, villeArrivee = city
   const findMatchingTrajets = (departId: number, arriveeId: number): TrajetAeroport[] => {
     if (formData.direction === 'to_airport') {
-      return trajets.filter(t => t.villeDepart?.id === departId && t.villeArrivee?.id === arriveeId);
+      // User selected: depart=city, arrivee=airport → match API's villeArrivee=city, villeDepart=airport
+      return trajets.filter(t => t.villeDepart?.id === arriveeId && t.villeArrivee?.id === departId);
     } else {
-      return trajets.filter(t => t.villeArrivee?.id === departId && t.villeDepart?.id === arriveeId);
+      // User selected: depart=airport, arrivee=city → matches API structure directly
+      return trajets.filter(t => t.villeDepart?.id === departId && t.villeArrivee?.id === arriveeId);
     }
   };
 
@@ -330,7 +351,6 @@ export default function AirportShuttle() {
 
     if (currentStep === 2) {
       if (!selectedDepartId || !selectedArriveeId) { toast.error("Veuillez selectionner le depart et l'arrivee"); return; }
-      if (matchingTrajets.length === 0) { toast.error("Aucun trajet disponible pour cette route"); return; }
       if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
       if (!formData.departure_time) { toast.error("Veuillez selectionner une heure de depart"); return; }
       if (!formData.address) { toast.error("Veuillez entrer une adresse"); return; }
@@ -340,6 +360,7 @@ export default function AirportShuttle() {
         if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
         if (!formData.return_address) { toast.error("Veuillez entrer une adresse de prise en charge retour"); return; }
       }
+      if (matchingTrajets.length === 0) { toast.error("Aucun trajet disponible pour cette route"); return; }
     }
 
     if (currentStep === 3) {
@@ -401,7 +422,7 @@ export default function AirportShuttle() {
       case 1:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone));
       case 2: {
-        const baseValid = !!(selectedDepartId && selectedArriveeId && matchingTrajets.length > 0 && formData.departure_date && formData.departure_time && formData.address);
+        const baseValid = !!(selectedDepartId && selectedArriveeId && formData.departure_date && formData.departure_time && formData.address);
         const flightValid = formData.direction === 'from_airport' ? !!formData.flight_number : true;
         if (formData.is_round_trip) return baseValid && flightValid && !!(formData.return_date && formData.return_time && formData.return_address);
         return baseValid && flightValid;
