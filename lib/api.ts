@@ -948,6 +948,121 @@ export interface DeliveryType {
   isActive?: boolean;
 }
 
+// ==================== INSURANCE TYPES ====================
+export interface InsuranceReferenceItem {
+  id?: string | number;
+  code: string;
+  name?: string;
+  label?: string;
+  description?: string;
+  // Brand-specific fields (from /ref/brands)
+  brandCode?: string;
+  brandLabel?: string;
+  typeCode?: string;
+  typeLabel?: string;
+  country?: string;
+  // Coverage-specific fields (from /ref/coverages)
+  categoryId?: number;
+  orderGuarantee?: number;
+  options?: Array<{ key: string; value: string; label: string }> | null;
+}
+
+export type InsuranceReferenceType =
+  | 'activities'
+  | 'car-types'
+  | 'categories'
+  | 'products'
+  | 'brands'
+  | 'energies'
+  | 'policy-fees'
+  | 'durations'
+  | 'coverages'
+  | 'csps'
+  | 'titles'
+  | 'countries'
+  | 'discounts';
+
+export interface CreateInsuranceSimulationDto {
+  productCode: string;
+  packCode: string;
+  durationCode: string;
+  countryCode: string;
+  vehicle: {
+    energyCode: string;
+    fiscalPower: number;
+    numberOfPlaces: number;
+    registrationNumber: string;
+    replacementCost: number;
+    marketValue: number;
+    dateOfFirstRegistration: string;
+    brandCode: string;
+    modelCode: string;
+    carTypeCode: string;
+    otherBrand?: string;
+    otherModel?: string;
+  };
+  coverages: Array<{
+    code: string;
+    option: string | null;
+  }>;
+  discountCode?: string;
+  bonus?: number;
+  malus?: number;
+  commercialReduction?: number;
+  customerId?: number;
+}
+
+export interface InsuranceSimulationResponse {
+  id: number;
+  simulationId: number;
+  productCode: string;
+  packCode: string;
+  durationCode: string;
+  countryCode: string;
+  grossPrime: number;
+  taxe: number;
+  policyCost: number;
+  netPrime: number;
+  totalPrime: number;
+  status: string;
+  createdAt: string;
+  vehicleData?: Record<string, unknown>;
+  coverages?: Array<{ code: string; option: string | null }>;
+  [key: string]: unknown;
+}
+
+export interface CreateInsuranceContractDto {
+  simulationId: number;
+  referenceTrxPayment: string;
+  startDate: string;
+  customer: {
+    title: string;
+    lastName: string;
+    firstName: string;
+    address: string;
+    mobilePhone: string;
+    email: string;
+    cin: string;
+    birthdate: string;
+    city: string;
+    activity?: string;
+    csp: string;
+    nationality: string;
+    nativeCountry: string;
+  };
+}
+
+export interface InsuranceContractResponse {
+  contractNumber: string;
+  simulationId: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  totalPremium: number;
+  currency: string;
+  [key: string]: unknown;
+}
+
 // ==================== ERROR TRANSLATION ====================
 const ERROR_TRANSLATIONS: Record<string, string> = {
   // Auth
@@ -1140,7 +1255,14 @@ class ApiClient {
     console.log(`[API] ${endpoint} -> ${response.status}`);
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Une erreur est survenue' }));
+      const text = await response.text();
+      let error: { message?: string; [k: string]: unknown };
+      try {
+        error = JSON.parse(text);
+      } catch {
+        console.error(`[API] Non-JSON ${response.status} response on ${endpoint}:`, text.slice(0, 500));
+        error = { message: `Erreur ${response.status}` };
+      }
 
       const rawMsg = error.message;
       const msg = rawMsg ? translateErrors(rawMsg) : `Erreur ${response.status}`;
@@ -1228,6 +1350,33 @@ class ApiClient {
       method: 'DELETE',
       headers: this.getAuthHeader(),
     });
+  }
+
+  // Helper: authenticated binary download (PDF, ZIP, etc.)
+  private async authDownloadBlob(endpoint: string): Promise<Blob> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const token = this.getAuthToken();
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        const newToken = await this.attemptRefreshToken();
+        if (newToken) {
+          const retry = await fetch(url, {
+            headers: { Authorization: `Bearer ${newToken}` },
+          });
+          if (retry.ok) return retry.blob();
+        }
+        this.clearAuth();
+        if (typeof window !== 'undefined') {
+          window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/login?expired=true';
+        }
+        throw new Error('Session expirée');
+      }
+      throw new Error(`Erreur ${response.status} lors du téléchargement`);
+    }
+    return response.blob();
   }
 
   // ==================== COMPAGNY AUTH ====================
@@ -1563,6 +1712,17 @@ class ApiClient {
 
     getPublic: (id: number) =>
       this.request<Logement>(`/logements/public/${id}`),
+
+    searchPublic: (params: { location?: string; dateArrivee?: string; dateDepart?: string; nbChambres?: number; nbAdultes?: number; nbEnfants?: number }) => {
+      const q = new URLSearchParams();
+      if (params.location) q.set('location', params.location);
+      if (params.dateArrivee) q.set('dateArrivee', params.dateArrivee);
+      if (params.dateDepart) q.set('dateDepart', params.dateDepart);
+      if (params.nbChambres) q.set('nbChambres', params.nbChambres.toString());
+      if (params.nbAdultes) q.set('nbAdultes', params.nbAdultes.toString());
+      if (params.nbEnfants) q.set('nbEnfants', params.nbEnfants.toString());
+      return this.request<Logement[]>(`/logements/public/search?${q.toString()}`);
+    },
   };
 
   vehiculesLocation = {
@@ -1597,6 +1757,50 @@ class ApiClient {
 
     cancel: (id: number) =>
       this.authPatch<DeliveryResponse>(`/deliveries/company/${id}/cancel`),
+  };
+
+  // ==================== INSURANCE COMPANY ====================
+  insurance = {
+    // 1. Récupérer les données de référence AXA
+    getReference: (type: InsuranceReferenceType, params?: { productCode?: string; categoryCode?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.productCode) q.set('productCode', params.productCode);
+      if (params?.categoryCode) q.set('categoryCode', params.categoryCode);
+      const qs = q.toString();
+      return this.authGet<InsuranceReferenceItem[]>(`/insurance/compagny/ref/${type}${qs ? `?${qs}` : ''}`);
+    },
+
+    // 1b. Produits par catégorie (path: /ref/categories/{id}/products)
+    getProductsByCategory: (categoryId: string | number) =>
+      this.authGet<unknown[]>(`/insurance/compagny/ref/categories/${categoryId}/products`),
+
+    // 2. Créer une simulation tarifaire
+    createSimulation: (data: CreateInsuranceSimulationDto) =>
+      this.authPost<InsuranceSimulationResponse>('/insurance/compagny/simulations', data),
+
+    // 3. Lister les simulations
+    listSimulations: (page = 1, limit = 20) =>
+      this.authGet<{ data: InsuranceSimulationResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
+        `/insurance/compagny/simulations?page=${page}&limit=${limit}`
+      ),
+
+    // 4. Télécharger le PDF du devis
+    downloadSimulationPdf: (simulationId: number) =>
+      this.authDownloadBlob(`/insurance/compagny/simulations/${simulationId}/pdf`),
+
+    // 5. Créer un contrat d'assurance
+    createContract: (data: CreateInsuranceContractDto) =>
+      this.authPost<InsuranceContractResponse>('/insurance/compagny/contracts', data),
+
+    // 6. Lister les contrats
+    listContracts: (page = 1, limit = 20) =>
+      this.authGet<{ data: InsuranceContractResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
+        `/insurance/compagny/contracts?page=${page}&limit=${limit}`
+      ),
+
+    // 7. Télécharger les documents du contrat (ZIP)
+    downloadContractDocuments: (contractNumber: string) =>
+      this.authDownloadBlob(`/insurance/compagny/contracts/${contractNumber}/download`),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================

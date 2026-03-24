@@ -30,7 +30,8 @@ import {
   Copy,
   Share2,
   Compass,
-  Hotel
+  Hotel,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +64,7 @@ const navigation: NavigationItem[] = [
   { name: "Activite", href: "/service-reservations?type=ACTIVITE", icon: Compass },
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
   { name: "Location de vehicule", href: "/service-reservations?type=FLOTTE", icon: Car },
+  { name: "Assurance", href: "/insurance", icon: Shield },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },

@@ -16,6 +16,11 @@ import {
   Loader2,
   Banknote,
   Inbox,
+  Eye,
+  Phone,
+  Mail,
+  Car,
+  Plane,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,10 +43,12 @@ interface PriseEnChargeItem {
   serviceType: string;
   clientName: string;
   clientPhone?: string;
+  clientEmail?: string;
   amount: number;
   status: string;
   paymentStatus: string;
   createdAt: string;
+  raw: Record<string, unknown>; // données brutes pour les détails
 }
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -66,6 +73,7 @@ function extractList(response: unknown): PaymentRequest[] {
 export default function PendingValidations() {
   const queryClient = useQueryClient();
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<PriseEnChargeItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -95,10 +103,12 @@ export default function PendingValidations() {
         serviceType: (pr.serviceType || '') as string,
         clientName: (pr.clientName || pr['customerName'] || '') as string,
         clientPhone: (pr['clientPhone'] || pr['customerPhone'] || '') as string,
+        clientEmail: (pr['clientEmail'] || pr['customerEmail'] || '') as string,
         amount: Number(pr['totalPrice'] ?? pr.amount ?? 0),
         status: pr.status,
         paymentStatus: (pr['paymentStatus'] || 'pending_company_approval') as string,
         createdAt: (pr.createdAt || pr['pickupDate'] || '') as string,
+        raw: pr as unknown as Record<string, unknown>,
       });
     }
 
@@ -109,10 +119,12 @@ export default function PendingValidations() {
         type: 'travel-document',
         serviceType: 'travel_document',
         clientName: (pr.clientName || pr['customerName'] || pr['nom'] || '') as string,
+        clientEmail: (pr['clientEmail'] || pr['email'] || '') as string,
         amount: Number(pr['totalPrice'] ?? pr.amount ?? 0),
         status: pr.status,
         paymentStatus: (pr['paymentStatus'] || 'pending_company_approval') as string,
         createdAt: (pr.createdAt || '') as string,
+        raw: pr as unknown as Record<string, unknown>,
       });
     }
 
@@ -302,6 +314,15 @@ export default function PendingValidations() {
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={() => { setSelectedItem(item); setShowDetailDialog(true); }}
+                          className="gap-1 h-8 text-xs"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Details
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => approveMutation.mutate(item)}
                           disabled={isMutating}
                           className="gradient-subito text-white border-0 gap-1 h-8 text-xs"
@@ -328,6 +349,122 @@ export default function PendingValidations() {
           </div>
         </div>
       )}
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Details de la demande</DialogTitle>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="space-y-5 pt-2">
+              {/* Info générale */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 space-y-2">
+                  <p className="text-xs text-slate-500 font-medium uppercase">Reference</p>
+                  <p className="font-mono font-semibold text-slate-800">{selectedItem.bookingCode || `#${selectedItem.id}`}</p>
+                  <Badge className="bg-amber-100 text-amber-700 border-0 mt-1">
+                    <Clock className="w-3 h-3 mr-1" /> En attente
+                  </Badge>
+                </div>
+                <div className="p-4 rounded-xl bg-orange-50 space-y-2">
+                  <p className="text-xs text-slate-500 font-medium uppercase">Montant</p>
+                  <p className="text-2xl font-bold text-orange-600">{selectedItem.amount.toLocaleString('fr-FR')} FCFA</p>
+                </div>
+              </div>
+
+              {/* Service */}
+              <div className="p-4 rounded-xl bg-slate-50 space-y-3">
+                <p className="text-xs text-slate-500 font-medium uppercase">Service</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-slate-400" />
+                    <span className="text-slate-700">{SERVICE_LABELS[selectedItem.serviceType] || selectedItem.serviceType?.replace(/_/g, ' ') || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <span className="text-slate-700">{selectedItem.createdAt ? format(new Date(selectedItem.createdAt), "d MMMM yyyy 'a' HH:mm", { locale: fr }) : '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Client */}
+              <div className="p-4 rounded-xl bg-slate-50 space-y-3">
+                <p className="text-xs text-slate-500 font-medium uppercase">Client</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span className="font-medium text-slate-800">{selectedItem.clientName || '—'}</span>
+                  </div>
+                  {selectedItem.clientPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      <span className="text-slate-700">{selectedItem.clientPhone}</span>
+                    </div>
+                  )}
+                  {selectedItem.clientEmail && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-slate-400" />
+                      <span className="text-slate-700">{selectedItem.clientEmail}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Détails supplémentaires depuis raw */}
+              {(() => {
+                const r = selectedItem.raw;
+                const details: Array<{ label: string; value: string }> = [];
+                if (r['pickupAddress'] || r['pickupLocation']) details.push({ label: 'Lieu de prise en charge', value: String(r['pickupAddress'] || r['pickupLocation'] || '') });
+                if (r['dropoffAddress'] || r['dropoffLocation']) details.push({ label: 'Destination', value: String(r['dropoffAddress'] || r['dropoffLocation'] || '') });
+                if (r['pickupDate']) details.push({ label: 'Date de prise en charge', value: format(new Date(r['pickupDate'] as string), "d MMMM yyyy 'a' HH:mm", { locale: fr }) });
+                if (r['nbPassengers'] || r['nombrePassagers']) details.push({ label: 'Passagers', value: String(r['nbPassengers'] || r['nombrePassagers'] || '') });
+                if (r['vehicleType'] || r['typeVehicule']) details.push({ label: 'Type de vehicule', value: String(r['vehicleType'] || r['typeVehicule'] || '') });
+                if (r['flightNumber'] || r['numeroVol']) details.push({ label: 'N° de vol', value: String(r['flightNumber'] || r['numeroVol'] || '') });
+                if (r['departureCity'] || r['villeDepart']) details.push({ label: 'Ville depart', value: String(r['departureCity'] || r['villeDepart'] || '') });
+                if (r['arrivalCity'] || r['villeArrivee']) details.push({ label: 'Ville arrivee', value: String(r['arrivalCity'] || r['villeArrivee'] || '') });
+                if (r['documentType'] || r['typeDocument']) details.push({ label: 'Type de document', value: String(r['documentType'] || r['typeDocument'] || '') });
+                if (r['notes']) details.push({ label: 'Notes', value: String(r['notes']) });
+                if (r['duration'] || r['duree']) details.push({ label: 'Duree', value: String(r['duration'] || r['duree'] || '') });
+                return details.length > 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-50 space-y-3">
+                    <p className="text-xs text-slate-500 font-medium uppercase">Details de la reservation</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      {details.map((d, i) => (
+                        <div key={i}>
+                          <span className="text-slate-500">{d.label} :</span>{' '}
+                          <span className="font-medium text-slate-800">{d.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Actions */}
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+                  Fermer
+                </Button>
+                <Button
+                  onClick={() => { setShowDetailDialog(false); approveMutation.mutate(selectedItem); }}
+                  disabled={isMutating}
+                  className="gradient-subito text-white border-0"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1" /> Approuver
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { setShowDetailDialog(false); setShowRejectDialog(true); }}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <XCircle className="w-4 h-4 mr-1" /> Refuser
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>

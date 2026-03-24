@@ -220,6 +220,9 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const [activiteFilter, setActiviteFilter] = useState<ActiviteFilterType>('all');
   const [logementFilter, setLogementFilter] = useState<LogementFilterType>('all');
   const [logementChambresFilter, setLogementChambresFilter] = useState<number | null>(null);
+  // Recherche logement
+  const [logementSearch, setLogementSearch] = useState({ location: '', dateArrivee: '', dateDepart: '', nbChambres: 0, nbAdultes: 0, nbEnfants: 0 });
+  const [logementSearchTriggered, setLogementSearchTriggered] = useState(false);
   const [vehiculePlacesFilter, setVehiculePlacesFilter] = useState<number | null>(null);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
 
@@ -277,10 +280,22 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
     ? allActivitesCircuits
     : allActivitesCircuits.filter(item => item.type === activiteFilter);
 
-  // Fetch logements
+  // Fetch logements — recherche si déclenchée, sinon liste complète
+  const logementSearchParams = {
+    location: logementSearch.location || undefined,
+    dateArrivee: logementSearch.dateArrivee || undefined,
+    dateDepart: logementSearch.dateDepart || undefined,
+    nbChambres: logementSearch.nbChambres || undefined,
+    nbAdultes: logementSearch.nbAdultes || undefined,
+    nbEnfants: logementSearch.nbEnfants || undefined,
+  };
   const { data: logementsResponse, isLoading: logementsLoading } = useQuery({
-    queryKey: ['logements-public'],
-    queryFn: () => api.logements.listPublic(1, 50),
+    queryKey: logementSearchTriggered
+      ? ['logements-search', logementSearchParams]
+      : ['logements-public'],
+    queryFn: () => logementSearchTriggered
+      ? api.logements.searchPublic(logementSearchParams)
+      : api.logements.listPublic(1, 50),
     enabled: formData.serviceType === 'LOGEMENT',
   });
   const logementsRaw = logementsResponse?.data;
@@ -594,20 +609,21 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                 <p className="text-slate-500">Selectionnez parmi les options disponibles</p>
               </div>
 
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder={
-                    formData.serviceType === 'ACTIVITE' ? 'Rechercher par nom, ville ou montant...' :
-                    formData.serviceType === 'LOGEMENT' ? 'Rechercher par hotel, appartement, chambre, ville...' :
-                    'Rechercher un vehicule...'
-                  }
-                  value={itemSearch}
-                  onChange={(e) => setItemSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              {/* Search — masqué pour LOGEMENT (barre de recherche dédiée) */}
+              {formData.serviceType !== 'LOGEMENT' && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder={
+                      formData.serviceType === 'ACTIVITE' ? 'Rechercher par nom, ville ou montant...' :
+                      'Rechercher un vehicule...'
+                    }
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              )}
 
               {/* Activités & Circuits */}
               {formData.serviceType === 'ACTIVITE' && (
@@ -704,6 +720,108 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
               {/* Logements */}
               {formData.serviceType === 'LOGEMENT' && (
                 <>
+                  {/* Barre de recherche logement */}
+                  <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-white" />
+                      <span className="text-sm font-semibold text-white">Rechercher un logement disponible</span>
+                    </div>
+                    <div className="p-5">
+                      {/* Ligne 1 : Ville + Dates */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Destination</Label>
+                          <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Input
+                              value={logementSearch.location}
+                              onChange={e => setLogementSearch(p => ({ ...p, location: e.target.value }))}
+                              placeholder="Dakar, Saly, Saint-Louis..."
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Date d&apos;arrivee</Label>
+                          <div className="relative">
+                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Input
+                              type="date"
+                              value={logementSearch.dateArrivee}
+                              onChange={e => setLogementSearch(p => ({ ...p, dateArrivee: e.target.value }))}
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Date de depart</Label>
+                          <div className="relative">
+                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Input
+                              type="date"
+                              value={logementSearch.dateDepart}
+                              min={logementSearch.dateArrivee || undefined}
+                              onChange={e => setLogementSearch(p => ({ ...p, dateDepart: e.target.value }))}
+                              className="pl-9"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {/* Ligne 2 : Capacité + Boutons */}
+                      <div className="flex flex-wrap items-end gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Chambres</Label>
+                          <Input
+                            type="number" min={0}
+                            value={logementSearch.nbChambres || ''}
+                            onChange={e => setLogementSearch(p => ({ ...p, nbChambres: Number(e.target.value) }))}
+                            placeholder="1"
+                            className="w-20"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Adultes</Label>
+                          <Input
+                            type="number" min={0}
+                            value={logementSearch.nbAdultes || ''}
+                            onChange={e => setLogementSearch(p => ({ ...p, nbAdultes: Number(e.target.value) }))}
+                            placeholder="2"
+                            className="w-20"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-slate-500">Enfants</Label>
+                          <Input
+                            type="number" min={0}
+                            value={logementSearch.nbEnfants || ''}
+                            onChange={e => setLogementSearch(p => ({ ...p, nbEnfants: Number(e.target.value) }))}
+                            placeholder="0"
+                            className="w-20"
+                          />
+                        </div>
+                        <div className="flex gap-2 ml-auto">
+                          {logementSearchTriggered && (
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setLogementSearch({ location: '', dateArrivee: '', dateDepart: '', nbChambres: 0, nbAdultes: 0, nbEnfants: 0 });
+                                setLogementSearchTriggered(false);
+                              }}
+                            >
+                              <X className="w-4 h-4 mr-1" /> Reinitialiser
+                            </Button>
+                          )}
+                          <Button
+                            className="gradient-subito text-white border-0 px-6"
+                            onClick={() => setLogementSearchTriggered(true)}
+                          >
+                            <Search className="w-4 h-4 mr-2" /> Rechercher
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Filtre par type de logement */}
                   <div className="flex gap-2">
                     {([
