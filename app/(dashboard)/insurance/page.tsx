@@ -1082,7 +1082,6 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
 // ==================== SIMULATIONS LIST ====================
 function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId: number) => void }) {
   const [page, setPage] = useState(1);
-  const coveragesRef = useRefData('coverages');
 
   const { data: response, isLoading } = useQuery({
     queryKey: ['insurance-simulations', page],
@@ -1139,8 +1138,7 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
               <tr>
                 <th className="px-4 py-3 text-left">ID</th>
                 <th className="px-4 py-3 text-left">Produit</th>
-                <th className="px-4 py-3 text-left">Vehicule</th>
-                <th className="px-4 py-3 text-left">Couverture</th>
+                <th className="px-4 py-3 text-left">Couverture / Code</th>
                 <th className="px-4 py-3 text-left">Prime totale</th>
                 <th className="px-4 py-3 text-left">Statut</th>
                 <th className="px-4 py-3 text-left">Date</th>
@@ -1151,25 +1149,11 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
               {simulations.map(sim => {
                 const status = (sim.status || 'PENDING').toUpperCase();
                 const isPending = status === 'PENDING';
-                const vd = (sim.vehicleData || (sim as any).vehicle) as Record<string, string> | undefined;
-                const vehicleName = vd
-                  ? (vd.carTypeCode || '—')
-                  : '—';
-                const vehicleLabel = vd
-                  ? `${vehicleName} — ${vd.registrationNumber || '—'}`
-                  : '—';
-                const coverageLabel = sim.coverages && sim.coverages.length > 0
-                  ? sim.coverages.map(c => {
-                      const ref = coveragesRef.find(r => String(r.code) === String(c.code));
-                      return (ref as any)?.description || ref?.name || ref?.label || c.code;
-                    }).join(', ')
-                  : sim.packCode || '—';
                 return (
                 <tr key={sim.simulationId || (sim as any).id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-slate-600">#{sim.simulationId}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{sim.productCode}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{vehicleLabel}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{coverageLabel}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{sim.packCode || '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-orange-600">
                     {(sim.totalPrime || 0).toLocaleString()} FCFA
                   </td>
