@@ -233,7 +233,8 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
   const selectedEmployee = employees.find(e => e.id === formData.employeeId);
 
   const filteredDestEmployees = employees.filter(e =>
-    `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
+    `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase()) &&
+    e.id !== formData.employeeId
   );
   const selectedDestEmployee = formData.destinataireEmployeeId
     ? employees.find(e => e.id === formData.destinataireEmployeeId)
@@ -570,6 +571,13 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                                 expediteurNom: `${emp.prenom || ''} ${emp.nom || ''}`.trim(),
                                 expediteurTelephone: emp.telephone || prev.expediteurTelephone,
                                 expediteurEmail: emp.email || prev.expediteurEmail,
+                                // Si le meme employe etait deja selectionne comme destinataire, on le retire
+                                ...(prev.destinataireEmployeeId === emp.id ? {
+                                  destinataireEmployeeId: null,
+                                  destinataireNom: '',
+                                  destinataireTelephone: '',
+                                  destinataireEmail: '',
+                                } : {}),
                               }));
                               setEmployeePopoverOpen(false);
                             }}
@@ -643,10 +651,23 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                     <CommandList>
                       <CommandEmpty>
                         <div className="p-2 text-center">
-                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
-                          <Button size="sm" variant="outline" onClick={() => { setDestEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
-                            <UserPlus className="w-4 h-4 mr-1" /> Ajouter
-                          </Button>
+                          {(() => {
+                            const isSearchingForSender = formData.employeeId && destEmployeeSearch.trim() && employees.some(e =>
+                              e.id === formData.employeeId &&
+                              `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
+                            );
+                            if (isSearchingForSender) {
+                              return <p className="text-sm text-orange-600">Cet employe est deja selectionne comme expediteur</p>;
+                            }
+                            return (
+                              <>
+                                <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                                <Button size="sm" variant="outline" onClick={() => { setDestEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
+                                  <UserPlus className="w-4 h-4 mr-1" /> Ajouter
+                                </Button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </CommandEmpty>
                       <CommandGroup>
