@@ -1374,7 +1374,9 @@ class ApiClient {
         }
         throw new Error('Session expirée');
       }
-      throw new Error(`Erreur ${response.status} lors du téléchargement`);
+      let detail = '';
+      try { const body = await response.json(); detail = body?.message || body?.error || JSON.stringify(body); } catch { /* ignore */ }
+      throw new Error(detail || `Erreur ${response.status} lors du téléchargement`);
     }
     return response.blob();
   }

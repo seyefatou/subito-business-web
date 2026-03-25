@@ -237,8 +237,6 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
   // Packs — fixed values (no API endpoint)
   const packs = [
     { code: 'PACK_BASE', label: 'Pack Base' },
-    { code: 'PACK_CONFORT', label: 'Pack Confort' },
-    { code: 'PACK_PREMIUM', label: 'Pack Premium' },
   ];
 
   // Reference data — category filters products
@@ -1113,6 +1111,7 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
       URL.revokeObjectURL(url);
       toast.success("Devis telecharge !");
     } catch (err: any) {
+      console.error('[PDF Download Error] simulationId:', simulationId, 'message:', err?.message, err);
       toast.error(err?.message || "Erreur lors du telechargement");
     }
   };
