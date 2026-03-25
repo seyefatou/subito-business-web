@@ -1082,6 +1082,12 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
 // ==================== SIMULATIONS LIST ====================
 function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId: number) => void }) {
   const [page, setPage] = useState(1);
+  const [selectedSim, setSelectedSim] = useState<InsuranceSimulationResponse | null>(null);
+  const coveragesRef = useRefData('coverages');
+  const brands = useRefData('brands');
+  const energies = useRefData('energies');
+  const durations = useRefData('durations');
+  const countries = useRefData('countries');
 
   const { data: response, isLoading } = useQuery({
     queryKey: ['insurance-simulations', page],
@@ -1138,7 +1144,6 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
               <tr>
                 <th className="px-4 py-3 text-left">ID</th>
                 <th className="px-4 py-3 text-left">Produit</th>
-                <th className="px-4 py-3 text-left">Couverture / Code</th>
                 <th className="px-4 py-3 text-left">Prime totale</th>
                 <th className="px-4 py-3 text-left">Statut</th>
                 <th className="px-4 py-3 text-left">Date</th>
@@ -1153,7 +1158,6 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
                 <tr key={sim.simulationId || (sim as any).id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-mono text-slate-600">#{sim.simulationId}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{sim.productCode}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{sim.packCode || '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-orange-600">
                     {(sim.totalPrime || 0).toLocaleString()} FCFA
                   </td>
@@ -1167,6 +1171,10 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-center">
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => setSelectedSim(sim)}>
+                        <Eye className="w-3 h-3 mr-1" />
+                        Voir
+                      </Button>
                       <Button size="sm" variant="outline" className="text-xs" onClick={() => handleDownloadPdf(sim.simulationId)}>
                         <Download className="w-3 h-3 mr-1" />
                         Devis PDF
@@ -1200,6 +1208,175 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
           </div>
         </div>
       )}
+
+      {/* Dialog details simulation */}
+      <Dialog open={!!selectedSim} onOpenChange={(open) => { if (!open) setSelectedSim(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-orange-500" />
+              Simulation #{selectedSim?.simulationId}
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedSim && (() => {
+            const sim = selectedSim;
+            const vd = (sim.vehicleData || (sim as any).vehicle) as Record<string, string> | undefined;
+            const status = (sim.status || 'PENDING').toUpperCase();
+            const isPending = status === 'PENDING';
+            const brandRef = vd?.brandCode ? brands.find(b => String(b.code) === String(vd.brandCode)) : null;
+            const energyRef = vd?.energyCode ? energies.find(e => String(e.code) === String(vd.energyCode)) : null;
+            const durationRef = durations.find(d => String(d.code) === String(sim.durationCode));
+            const countryRef = countries.find(c => String(c.code) === String(sim.countryCode));
+
+            return (
+              <div className="space-y-6">
+                {/* Statut et date */}
+                <div className="flex items-center justify-between">
+                  <Badge className={isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}>
+                    {isPending ? 'En attente' : status}
+                  </Badge>
+                  <span className="text-sm text-slate-500">
+                    {sim.createdAt ? format(new Date(sim.createdAt), 'dd/MM/yyyy HH:mm', { locale: fr }) : '—'}
+                  </span>
+                </div>
+
+                {/* Infos produit */}
+                <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                  <h4 className="text-sm font-semibold text-slate-700">Produit</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-slate-500">Code produit</span>
+                      <p className="font-medium text-slate-800">{sim.productCode}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Pack</span>
+                      <p className="font-medium text-slate-800">{sim.packCode}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Duree</span>
+                      <p className="font-medium text-slate-800">{(durationRef as any)?.description || durationRef?.name || durationRef?.label || sim.durationCode}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Pays</span>
+                      <p className="font-medium text-slate-800">{(countryRef as any)?.description || countryRef?.name || countryRef?.label || sim.countryCode}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicule */}
+                {vd && (
+                  <div className="bg-blue-50 rounded-xl p-4 space-y-2">
+                    <h4 className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                      <Car className="w-4 h-4" /> Vehicule
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-slate-500">Marque</span>
+                        <p className="font-medium text-slate-800">{(brandRef as any)?.description || brandRef?.name || brandRef?.label || vd.brandCode || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Type</span>
+                        <p className="font-medium text-slate-800">{vd.carTypeCode || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Immatriculation</span>
+                        <p className="font-medium text-slate-800">{vd.registrationNumber || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Energie</span>
+                        <p className="font-medium text-slate-800">{(energyRef as any)?.description || energyRef?.name || energyRef?.label || vd.energyCode || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Puissance fiscale</span>
+                        <p className="font-medium text-slate-800">{vd.fiscalPower || '—'} CV</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Places</span>
+                        <p className="font-medium text-slate-800">{vd.numberOfPlaces || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Valeur marche</span>
+                        <p className="font-medium text-slate-800">{vd.marketValue ? Number(vd.marketValue).toLocaleString() + ' FCFA' : '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Cout remplacement</span>
+                        <p className="font-medium text-slate-800">{vd.replacementCost ? Number(vd.replacementCost).toLocaleString() + ' FCFA' : '—'}</p>
+                      </div>
+                      {vd.dateOfFirstRegistration && (
+                        <div>
+                          <span className="text-slate-500">1ere mise en circulation</span>
+                          <p className="font-medium text-slate-800">{vd.dateOfFirstRegistration}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Couvertures */}
+                {sim.coverages && sim.coverages.length > 0 && (
+                  <div className="bg-green-50 rounded-xl p-4 space-y-2">
+                    <h4 className="text-sm font-semibold text-green-700">Couvertures</h4>
+                    <div className="space-y-1">
+                      {sim.coverages.map((c, i) => {
+                        const ref = coveragesRef.find(r => String(r.code) === String(c.code));
+                        const label = (ref as any)?.description || ref?.name || ref?.label || c.code;
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            <Check className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                            <span className="text-slate-800">{label}</span>
+                            {c.option && <span className="text-xs text-slate-500 bg-white px-2 py-0.5 rounded">Option: {c.option}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Detail primes */}
+                <div className="bg-orange-50 rounded-xl p-4 space-y-3">
+                  <h4 className="text-sm font-semibold text-orange-700">Detail des primes</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Prime nette</span>
+                      <span className="font-medium text-slate-800">{(sim.netPrime || 0).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Prime brute</span>
+                      <span className="font-medium text-slate-800">{(sim.grossPrime || 0).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Taxe</span>
+                      <span className="font-medium text-slate-800">{(sim.taxe || 0).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Cout police</span>
+                      <span className="font-medium text-slate-800">{(sim.policyCost || 0).toLocaleString()} FCFA</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-orange-200">
+                      <span className="font-semibold text-slate-800">Prime totale</span>
+                      <span className="text-lg font-bold text-orange-600">{(sim.totalPrime || 0).toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => handleDownloadPdf(sim.simulationId)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Telecharger devis PDF
+                  </Button>
+                  {isPending && (
+                    <Button className="flex-1 gradient-subito text-white border-0" onClick={() => { setSelectedSim(null); onCreateContract(sim.simulationId); }}>
+                      Creer contrat
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
