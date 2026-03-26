@@ -99,7 +99,7 @@ interface SimulationFormData {
 
 const initialSimulationForm: SimulationFormData = {
   productCode: '',
-  packCode: '',
+  packCode: 'PACK_BASE',
   durationCode: '',
   countryCode: 'SN',
   energyCode: '',
@@ -231,6 +231,8 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
   const [carTypeOpen, setCarTypeOpen] = useState(false);
   const [brandSearch, setBrandSearch] = useState('');
   const [brandOpen, setBrandOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState('');
+  const [modelOpen, setModelOpen] = useState(false);
   const [energySearch, setEnergySearch] = useState('');
   const [energyOpen, setEnergyOpen] = useState(false);
 
@@ -335,7 +337,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
         marketValue: formData.marketValue,
         dateOfFirstRegistration: formData.dateOfFirstRegistration,
         brandCode: formData.brandCode,
-        modelCode: formData.modelCode,
+        modelCode: formData.brandCode === 'ZZ' ? 'ZZ' : formData.modelCode,
         carTypeCode: formData.carTypeCode,
         ...(formData.brandCode === 'ZZ' ? { otherBrand: formData.otherBrand, otherModel: formData.otherModel } : {}),
       },
@@ -361,7 +363,8 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
         const regValid = !!formData.registrationNumber && /^[a-zA-Z0-9-]+$/.test(formData.registrationNumber);
         const valuesValid = formData.replacementCost <= 1000000000
           && (formData.marketValue === 0 || formData.replacementCost === 0 || formData.marketValue >= formData.replacementCost);
-        return !!formData.carTypeCode && !!formData.brandCode && !!formData.energyCode && regValid && valuesValid && !!formData.dateOfFirstRegistration;
+        const brandValid = formData.brandCode === 'ZZ' ? (!!formData.otherBrand && !!formData.otherModel) : (!!formData.brandCode && !!formData.modelCode);
+        return !!formData.carTypeCode && !!formData.energyCode && regValid && valuesValid && !!formData.dateOfFirstRegistration && brandValid;
       }
       case 3: return formData.coverages.length > 0;
       default: return true;
@@ -386,23 +389,23 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
         <div className="bg-slate-50 rounded-xl p-4 text-left space-y-2 mb-6">
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Prime brute</span>
-            <span className="font-medium">{((result as any).grossPrime || 0).toLocaleString()} FCFA</span>
+            <span className="font-medium">{Math.round((result as any).grossPrime || 0).toLocaleString()} FCFA</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Taxes</span>
-            <span className="font-medium">{((result as any).taxe || 0).toLocaleString()} FCFA</span>
+            <span className="font-medium">{Math.round((result as any).taxe || 0).toLocaleString()} FCFA</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Frais de police</span>
-            <span className="font-medium">{((result as any).policyCost || 0).toLocaleString()} FCFA</span>
+            <span className="font-medium">{Math.round((result as any).policyCost || 0).toLocaleString()} FCFA</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Prime nette</span>
-            <span className="font-medium">{((result as any).netPrime || 0).toLocaleString()} FCFA</span>
+            <span className="font-medium">{Math.round((result as any).netPrime || 0).toLocaleString()} FCFA</span>
           </div>
           <div className="border-t pt-2 mt-2 flex justify-between">
             <span className="font-semibold text-slate-800">Total</span>
-            <span className="text-xl font-bold text-orange-600">{((result as any).totalPrime || 0).toLocaleString()} FCFA</span>
+            <span className="text-xl font-bold text-orange-600">{Math.round((result as any).totalPrime || 0).toLocaleString()} FCFA</span>
           </div>
         </div>
 
@@ -695,50 +698,121 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                   </Popover>
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Marque & Modele *</Label>
+                <div className="space-y-2">
+                  <Label>Marque *</Label>
                   <Popover open={brandOpen} onOpenChange={setBrandOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full justify-start text-left font-normal">
                         {formData.brandCode
-                          ? (() => {
-                              const found = brands.find(b => b.brandCode === formData.brandCode && b.typeCode === formData.modelCode);
-                              return found ? `${found.brandLabel} — ${found.typeLabel}` : `${formData.brandCode} / ${formData.modelCode}`;
-                            })()
-                          : <span className="text-muted-foreground">Selectionner marque et modele</span>}
+                          ? formData.brandCode === 'ZZ'
+                            ? <span className="text-amber-600">Autre</span>
+                            : (() => {
+                                const found = brands.find(b => (b.brandCode || b.code) === formData.brandCode);
+                                return found?.brandLabel || found?.name || formData.brandCode;
+                              })()
+                          : <span className="text-muted-foreground">Selectionner une marque</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
+                    <PopoverContent className="w-[250px] p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Rechercher marque ou modele..." value={brandSearch} onValueChange={setBrandSearch} />
+                        <CommandInput placeholder="Rechercher une marque..." value={brandSearch} onValueChange={setBrandSearch} />
                         <CommandList>
-                          <CommandEmpty>Aucun vehicule trouve</CommandEmpty>
+                          <CommandEmpty>Aucune marque trouvee</CommandEmpty>
                           <CommandGroup>
-                            {brands.filter(b => {
-                              const search = brandSearch.toLowerCase();
-                              return (b.brandLabel || '').toLowerCase().includes(search)
-                                || (b.typeLabel || '').toLowerCase().includes(search)
-                                || (b.code || '').toLowerCase().includes(search);
-                            }).slice(0, 50).map(b => (
-                              <CommandItem
-                                key={b.id || b.code}
-                                onSelect={() => {
-                                  setFormData(prev => ({ ...prev, brandCode: b.brandCode || b.code, modelCode: b.typeCode || '' }));
-                                  setBrandOpen(false);
-                                  setBrandSearch('');
-                                }}
-                              >
-                                <Check className={`mr-2 h-4 w-4 ${formData.brandCode === b.brandCode && formData.modelCode === b.typeCode ? 'opacity-100' : 'opacity-0'}`} />
-                                <span className="font-medium">{b.brandLabel || b.code}</span>
-                                <span className="mx-1 text-slate-400">—</span>
-                                <span className="text-slate-600">{b.typeLabel || b.typeCode}</span>
-                              </CommandItem>
-                            ))}
+                            {(() => {
+                              const seen = new Set<string>();
+                              return brands.filter(b => {
+                                const code = b.brandCode || b.code;
+                                if (!code || seen.has(code)) return false;
+                                seen.add(code);
+                                return (b.brandLabel || b.name || code || '').toLowerCase().includes(brandSearch.toLowerCase());
+                              }).map(b => (
+                                <CommandItem
+                                  key={b.brandCode || b.code}
+                                  onSelect={() => {
+                                    setFormData(prev => ({ ...prev, brandCode: b.brandCode || b.code, modelCode: '', otherBrand: '', otherModel: '' }));
+                                    setBrandOpen(false);
+                                    setBrandSearch('');
+                                  }}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 ${formData.brandCode === (b.brandCode || b.code) && formData.brandCode !== 'ZZ' ? 'opacity-100' : 'opacity-0'}`} />
+                                  <span className="font-medium">{b.brandLabel || b.name || b.code}</span>
+                                </CommandItem>
+                              ));
+                            })()}
+                          </CommandGroup>
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                setFormData(prev => ({ ...prev, brandCode: 'ZZ', modelCode: '', otherBrand: '', otherModel: '' }));
+                                setBrandOpen(false);
+                                setBrandSearch('');
+                              }}
+                            >
+                              <Check className={`mr-2 h-4 w-4 ${formData.brandCode === 'ZZ' ? 'opacity-100' : 'opacity-0'}`} />
+                              <span className="font-medium text-amber-600">Autre (marque introuvable)</span>
+                            </CommandItem>
                           </CommandGroup>
                         </CommandList>
                       </Command>
                     </PopoverContent>
                   </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Modele *</Label>
+                  {formData.brandCode === 'ZZ' ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={formData.otherBrand}
+                        onChange={e => updateField('otherBrand', e.target.value)}
+                        placeholder="Saisir la marque (ex: Kawasaki)"
+                      />
+                      <Input
+                        value={formData.otherModel}
+                        onChange={e => updateField('otherModel', e.target.value)}
+                        placeholder="Saisir le modele (ex: Z660)"
+                      />
+                    </div>
+                  ) : (
+                    <Popover open={modelOpen} onOpenChange={setModelOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal" disabled={!formData.brandCode || formData.brandCode === 'ZZ'}>
+                          {formData.modelCode
+                            ? (() => {
+                                const found = brands.find(b => (b.brandCode || b.code) === formData.brandCode && b.typeCode === formData.modelCode);
+                                return found?.typeLabel || found?.name || formData.modelCode;
+                              })()
+                            : <span className="text-muted-foreground">{formData.brandCode ? 'Selectionner un modele' : 'Choisir une marque d\'abord'}</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[250px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Rechercher un modele..." value={modelSearch} onValueChange={setModelSearch} />
+                          <CommandList>
+                            <CommandEmpty>Aucun modele trouve</CommandEmpty>
+                            <CommandGroup>
+                              {brands
+                                .filter(b => (b.brandCode || b.code) === formData.brandCode && (b.typeLabel || b.typeCode || '').toLowerCase().includes(modelSearch.toLowerCase()))
+                                .map(b => (
+                                  <CommandItem
+                                    key={b.typeCode || b.id}
+                                    onSelect={() => {
+                                      setFormData(prev => ({ ...prev, modelCode: b.typeCode || '' }));
+                                      setModelOpen(false);
+                                      setModelSearch('');
+                                    }}
+                                  >
+                                    <Check className={`mr-2 h-4 w-4 ${formData.modelCode === b.typeCode ? 'opacity-100' : 'opacity-0'}`} />
+                                    <span className="font-medium">{b.typeLabel || b.typeCode}</span>
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -854,27 +928,6 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                 </div>
               </div>
 
-              {/* Other brand/model — only when brand "ZZ" (not found in ref) */}
-              {formData.brandCode === 'ZZ' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Autre marque *</Label>
-                    <Input
-                      value={formData.otherBrand}
-                      onChange={e => updateField('otherBrand', e.target.value)}
-                      placeholder="Ex: Kawasaki"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Autre modele *</Label>
-                    <Input
-                      value={formData.otherModel}
-                      onChange={e => updateField('otherModel', e.target.value)}
-                      placeholder="Ex: Z660"
-                    />
-                  </div>
-                </div>
-              )}
             </>
           )}
 
@@ -966,18 +1019,45 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                             {selected && hasOptions && (
                               <div className="mt-3" onClick={e => e.stopPropagation()}>
                                 <Label className="text-xs">Option de garantie</Label>
-                                <select
-                                  className="w-full mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                                  value={selected.option || ''}
-                                  onChange={e => updateCoverageOption(covCode, e.target.value || null)}
-                                >
-                                  <option value="">Aucune option</option>
-                                  {covOptions!.map((opt, idx) => (
-                                    <option key={`${opt.value}-${idx}`} value={opt.value}>
-                                      {opt.label}{opt.value !== '0000' ? ` — ${Number(opt.value).toLocaleString()} FCFA` : ''}
-                                    </option>
-                                  ))}
-                                </select>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full mt-1 justify-between text-left font-normal text-sm border-orange-200 hover:border-orange-400 hover:bg-orange-50">
+                                      <span className={selected.option ? 'text-slate-800' : 'text-muted-foreground'}>
+                                        {selected.option
+                                          ? (() => {
+                                              const found = covOptions!.find(o => o.value === selected.option);
+                                              return found ? `${found.label}${found.value !== '0000' ? ` — ${Number(found.value).toLocaleString()} FCFA` : ''}` : selected.option;
+                                            })()
+                                          : 'Aucune option'}
+                                      </span>
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[300px] p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Rechercher une option..." className="text-xs h-8" />
+                                      <CommandList className="max-h-[200px]">
+                                        <CommandEmpty className="text-xs py-2">Aucune option trouvee</CommandEmpty>
+                                        <CommandGroup>
+                                          <CommandItem className="text-xs py-1.5" onSelect={() => updateCoverageOption(covCode, null)}>
+                                            <Check className={`mr-1.5 h-3 w-3 ${!selected.option ? 'opacity-100' : 'opacity-0'}`} />
+                                            <span className="text-slate-500">Aucune option</span>
+                                          </CommandItem>
+                                          {covOptions!.map((opt, idx) => (
+                                            <CommandItem
+                                              className="text-xs py-1.5"
+                                              key={`${opt.value}-${idx}`}
+                                              onSelect={() => updateCoverageOption(covCode, opt.value)}
+                                            >
+                                              <Check className={`mr-1.5 h-3 w-3 ${selected.option === opt.value ? 'opacity-100' : 'opacity-0'}`} />
+                                              <span className="font-medium">{opt.label}</span>
+                                              {opt.value !== '0000' && <span className="ml-auto text-orange-600 font-semibold">{Number(opt.value).toLocaleString()} FCFA</span>}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                               </div>
                             )}
                           </div>
@@ -1024,7 +1104,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                   <p className="text-xs text-slate-500 font-medium uppercase">Vehicule</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-slate-500">Type:</span> <span className="font-medium">{formData.carTypeCode}</span></div>
-                    <div><span className="text-slate-500">Marque:</span> <span className="font-medium">{(() => { const b = brands.find(x => x.brandCode === formData.brandCode && x.typeCode === formData.modelCode); return b ? `${b.brandLabel} — ${b.typeLabel}` : `${formData.brandCode} / ${formData.modelCode}`; })()}</span></div>
+                    <div><span className="text-slate-500">Marque:</span> <span className="font-medium">{formData.brandCode === 'ZZ' ? `${formData.otherBrand} — ${formData.otherModel}` : (() => { const b = brands.find(x => x.brandCode === formData.brandCode && x.typeCode === formData.modelCode); return b ? `${b.brandLabel} — ${b.typeLabel}` : `${formData.brandCode} / ${formData.modelCode}`; })()}</span></div>
                     <div><span className="text-slate-500">Immat:</span> <span className="font-medium">{formData.registrationNumber}</span></div>
                     <div><span className="text-slate-500">Energie:</span> <span className="font-medium">{formData.energyCode}</span></div>
                     <div><span className="text-slate-500">Valeur neuf:</span> <span className="font-medium">{formData.replacementCost?.toLocaleString()} FCFA</span></div>
@@ -1158,7 +1238,7 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
                   <td className="px-4 py-3 text-sm font-mono text-slate-600">#{sim.simulationId}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{sim.productCode}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-orange-600">
-                    {(sim.totalPrime || 0).toLocaleString()} FCFA
+                    {Math.round(sim.totalPrime || 0).toLocaleString()} FCFA
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <Badge className={isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}>
@@ -1272,7 +1352,7 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <span className="text-slate-500">Marque</span>
-                        <p className="font-medium text-slate-800">{(brandRef as any)?.description || brandRef?.name || brandRef?.label || vd.brandCode || '—'}</p>
+                        <p className="font-medium text-slate-800">{vd.brandCode === 'ZZ' ? `${vd.otherBrand || ''} — ${vd.otherModel || ''}` : ((brandRef as any)?.description || brandRef?.name || brandRef?.label || vd.brandCode || '—')}</p>
                       </div>
                       <div>
                         <span className="text-slate-500">Type</span>
@@ -1338,23 +1418,23 @@ function SimulationsList({ onCreateContract }: { onCreateContract: (simulationId
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-600">Prime nette</span>
-                      <span className="font-medium text-slate-800">{(sim.netPrime || 0).toLocaleString()} FCFA</span>
+                      <span className="font-medium text-slate-800">{Math.round(sim.netPrime || 0).toLocaleString()} FCFA</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Prime brute</span>
-                      <span className="font-medium text-slate-800">{(sim.grossPrime || 0).toLocaleString()} FCFA</span>
+                      <span className="font-medium text-slate-800">{Math.round(sim.grossPrime || 0).toLocaleString()} FCFA</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Taxe</span>
-                      <span className="font-medium text-slate-800">{(sim.taxe || 0).toLocaleString()} FCFA</span>
+                      <span className="font-medium text-slate-800">{Math.round(sim.taxe || 0).toLocaleString()} FCFA</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Cout police</span>
-                      <span className="font-medium text-slate-800">{(sim.policyCost || 0).toLocaleString()} FCFA</span>
+                      <span className="font-medium text-slate-800">{Math.round(sim.policyCost || 0).toLocaleString()} FCFA</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t border-orange-200">
                       <span className="font-semibold text-slate-800">Prime totale</span>
-                      <span className="text-lg font-bold text-orange-600">{(sim.totalPrime || 0).toLocaleString()} FCFA</span>
+                      <span className="text-lg font-bold text-orange-600">{Math.round(sim.totalPrime || 0).toLocaleString()} FCFA</span>
                     </div>
                   </div>
                 </div>
@@ -1635,7 +1715,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                         {simulationId
                           ? (() => {
                               const s = allSimulations.find(s => s.simulationId === simulationId);
-                              return s ? `#${s.simulationId} — ${(s.totalPrime || 0).toLocaleString()} FCFA` : `#${simulationId}`;
+                              return s ? `#${s.simulationId} — ${Math.round(s.totalPrime || 0).toLocaleString()} FCFA` : `#${simulationId}`;
                             })()
                           : <span className="text-muted-foreground">Selectionner une simulation</span>}
                       </Button>
@@ -1660,7 +1740,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                                   <span className="font-mono font-medium">#{s.simulationId}</span>
                                   <span className="mx-2 text-slate-400">—</span>
                                   <span className="text-sm text-slate-600">{s.productCode}</span>
-                                  <span className="ml-auto font-semibold text-orange-600">{(s.totalPrime || 0).toLocaleString()} FCFA</span>
+                                  <span className="ml-auto font-semibold text-orange-600">{Math.round(s.totalPrime || 0).toLocaleString()} FCFA</span>
                                 </CommandItem>
                               ))}
                           </CommandGroup>
