@@ -31,7 +31,8 @@ import {
   Share2,
   Compass,
   Hotel,
-  Shield
+  Shield,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +47,7 @@ import CriticalAlert from "@/components/notifications/CriticalAlert";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { onForegroundMessage } from "@/lib/firebase";
 
 interface NavigationItem {
   name: string;
@@ -65,6 +67,7 @@ const navigation: NavigationItem[] = [
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
   { name: "Location de vehicule", href: "/service-reservations?type=FLOTTE", icon: Car },
   { name: "Assurance", href: "/insurance", icon: Shield },
+  { name: "Tickets", href: "/tickets", icon: MessageSquare },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   // { name: "Flotte", href: "/fleet", icon: Car },
   // { name: "Carburant", href: "/fuel-management", icon: Fuel },
@@ -97,6 +100,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadTickets, setUnreadTickets] = useState(0);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -120,6 +124,43 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     fetchCount();
     const interval = setInterval(fetchCount, 30000);
     return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Poll ticket unread count
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchTickets = async () => {
+      try {
+        const response = await api.tickets.list({ page: 1, limit: 50 });
+        const raw = response as any;
+        const tickets = raw?.data?.data || raw?.data || [];
+        if (!Array.isArray(tickets)) { setUnreadTickets(0); return; }
+        const count = tickets.filter((t: any) =>
+          t.messages?.some((m: any) => m.senderType === 'manager' && !m.lu)
+        ).length;
+        setUnreadTickets(count);
+      } catch { /* silent */ }
+    };
+    fetchTickets();
+    const interval = setInterval(fetchTickets, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Écouter les notifications push foreground
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const unsubscribe = onForegroundMessage((payload) => {
+      console.log('[FCM] Message foreground:', payload);
+      const title = payload?.notification?.title || payload?.data?.title || 'Notification';
+      const body = payload?.notification?.body || payload?.data?.body || '';
+      toast(title, { description: body });
+      // Rafraîchir les compteurs
+      setUnreadCount((c) => c + 1);
+      if (payload?.data?.type === 'ticket' || payload?.data?.type === 'ticket_message') {
+        setUnreadTickets((c) => c + 1);
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
   }, [isAuthenticated]);
 
   const handleLogout = async () => {
@@ -264,6 +305,11 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   {item.href === '/notifications' && unreadCount > 0 && (
                     <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white">
                       {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                  {item.href === '/tickets' && unreadTickets > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-orange-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse">
+                      {unreadTickets > 99 ? '99+' : unreadTickets}
                     </span>
                   )}
                 </Link>

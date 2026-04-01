@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api, CompagnyUserProfile } from './api';
 import { useRouter } from 'next/navigation';
+import { registerPushNotifications } from './firebase';
 
 interface AuthContextType {
   user: CompagnyUserProfile | null;
@@ -64,6 +65,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             localStorage.setItem(USER_KEY, JSON.stringify(profile));
             setTokenCookie(storedToken);
             console.log('[AUTH] Token valid, profile loaded OK');
+            // Re-enregistrer FCM au chargement (non bloquant)
+            registerPushNotifications(async (fcmToken) => { await api.authCompagny.updateFcmToken(fcmToken); }).catch(() => {});
           } else {
             console.warn('[AUTH] Profile response invalid, clearing auth');
             localStorage.removeItem(TOKEN_KEY);
@@ -164,6 +167,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const finalToken = localStorage.getItem(TOKEN_KEY);
     const finalUser = localStorage.getItem(USER_KEY);
     console.log(`[AUTH] login() done | token in storage: ${!!finalToken} | user in storage: ${!!finalUser}`);
+
+    // Enregistrer les notifications push (non bloquant)
+    registerPushNotifications(async (fcmToken) => { await api.authCompagny.updateFcmToken(fcmToken); }).catch((err) =>
+      console.warn('[AUTH] FCM registration failed:', err)
+    );
   }, []);
 
   const logout = useCallback(async () => {

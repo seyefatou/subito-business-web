@@ -1138,6 +1138,37 @@ function translateErrorMessage(msg: string): string {
   return msg;
 }
 
+// ==================== TICKET TYPES ====================
+export interface TicketMessageResponse {
+  id: number;
+  content: string;
+  senderType: 'company' | 'manager';
+  senderId: number;
+  lu: boolean;
+  createdAt: string;
+}
+
+export interface TicketResponse {
+  id: number;
+  subject: string;
+  statut: string;
+  initiatorType: string;
+  messages: TicketMessageResponse[];
+  managerId?: number;
+  compagnyId?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTicketDto {
+  subject: string;
+  message: string;
+}
+
+export interface CreateTicketMessageDto {
+  content: string;
+}
+
 function translateErrors(raw: string | string[]): string {
   if (Array.isArray(raw)) {
     return raw.map(translateErrorMessage).join(', ');
@@ -1431,6 +1462,9 @@ class ApiClient {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }),
+
+    updateFcmToken: (fcmToken: string) =>
+      this.authPut<void>('/auth/compagny/fcm-token', { fcmToken }),
   };
 
   // ==================== COMPANY REGISTRATION REQUESTS (PUBLIC) ====================
@@ -1803,6 +1837,26 @@ class ApiClient {
     // 7. Télécharger les documents du contrat (ZIP)
     downloadContractDocuments: (contractNumber: string) =>
       this.authDownloadBlob(`/insurance/compagny/contracts/${contractNumber}/download`),
+  };
+
+  // ==================== TICKETS COMPANY ====================
+  tickets = {
+    create: (data: CreateTicketDto) =>
+      this.authPost<TicketResponse>('/company/tickets', data),
+
+    list: (params?: { statut?: string; page?: number; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.statut) q.set('statut', params.statut);
+      if (params?.page) q.set('page', params.page.toString());
+      if (params?.limit) q.set('limit', params.limit.toString());
+      return this.authGet<PaginatedData<TicketResponse>>(`/company/tickets?${q.toString()}`);
+    },
+
+    get: (id: number) =>
+      this.authGet<TicketResponse>(`/company/tickets/${id}`),
+
+    sendMessage: (id: number, data: CreateTicketMessageDto) =>
+      this.authPost<TicketMessageResponse>(`/company/tickets/${id}/messages`, data),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================
