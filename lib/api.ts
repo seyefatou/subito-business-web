@@ -666,8 +666,26 @@ export function toBookingPaymentMethod(slug: string): string {
     mobile_money: 'mobile_money',
     wallet: 'wallet',
     bank_transfer: 'bank_transfer',
+    bictorys: 'bictorys',
   };
   return map[slug] || 'mobile_money';
+}
+
+// ==================== BICTORYS PAYMENT TYPES ====================
+export type BictorysServiceType = 'booking' | 'travel_document' | 'invoice' | 'service_reservation' | 'delivery';
+
+export interface InitiateBictorysPaymentDto {
+  serviceType: BictorysServiceType;
+  serviceId: number;
+}
+
+export interface BictorysPaymentResponse {
+  chargeId: string;
+  checkoutUrl: string;
+  status: string;
+  amount: number;
+  serviceType: string;
+  serviceId: number;
 }
 
 // ==================== PAYMENT REQUEST TYPES ====================
@@ -754,14 +772,88 @@ export interface ChambreHotel {
   [key: string]: unknown;
 }
 
+export interface LieuProche {
+  nom: string;
+  distance: string;
+  type?: string;
+}
+
+export interface LieuxProches {
+  plages?: LieuProche[];
+  aeroports?: LieuProche[];
+  restaurants?: LieuProche[];
+  [key: string]: LieuProche[] | undefined;
+}
+
+export interface EquipementsDetail {
+  cuisine?: string[];
+  securite?: string[];
+  services?: string[];
+  multimedia?: string[];
+  salleDeBain?: string[];
+  chambreLinge?: string[];
+  exterieurVue?: string[];
+  accessibilite?: string[];
+  bienEtreLoisirs?: string[];
+  parkingTransport?: string[];
+  [key: string]: string[] | undefined;
+}
+
+export interface PartnerInfo {
+  id: number;
+  nomPartner: string;
+  logo?: string;
+}
+
+export interface AvisLogement {
+  id: number;
+  note: number;
+  commentaire?: string;
+  auteur?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface AvisMoyennes {
+  noteService: number;
+  notePrestataire: number;
+  noteRapportQualitePrix: number;
+  notePonctualite: number;
+  globale: number;
+  total: number;
+}
+
+export interface AvisItem {
+  id: number;
+  noteService?: number;
+  notePrestataire?: number;
+  noteRapportQualitePrix?: number;
+  notePonctualite?: number;
+  note?: number;
+  commentaire?: string;
+  auteur?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface AvisResponse {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  moyennes: AvisMoyennes;
+  data: AvisItem[];
+}
+
 export interface Logement {
   id: number;
   nom: string;
-  type?: string; // HOTEL, VILLA, APPARTEMENT, RIAD, RESIDENCE, etc.
-  categorie?: string; // HOTELIER, LOGEMENT_INDEPENDANT, etc.
+  type?: string;
+  categorie?: string;
   nbreEtoiles?: number;
   pays?: string;
   ville?: string;
+  quartier?: string;
   adresseExacte?: string;
   description?: string;
   heureCheckIn?: string;
@@ -769,13 +861,33 @@ export interface Logement {
   prixParNuit?: number;
   prixWeekend?: number;
   equipements?: string[];
+  equipementsDetail?: EquipementsDetail;
   capacite?: number;
   nbreChambres?: number;
   salleDeBain?: number;
   chambresHotel?: ChambreHotel[];
   images?: string[];
   typeAnnulation?: string;
+  latitude?: number;
+  longitude?: number;
+  instructionsAcces?: string;
+  politiqueFumeur?: string;
+  animauxCompagnie?: string;
+  fetesAutorisees?: boolean;
+  heuresSilencieusesDebut?: string;
+  heuresSilencieusesFin?: string;
+  ageMinimum?: number;
+  autresRegles?: string;
+  lieuxProches?: LieuxProches;
   statut?: string;
+  isTaxe?: boolean;
+  partnerId?: number;
+  partner?: PartnerInfo;
+  totalAvis?: number;
+  averageRating?: number;
+  avis?: AvisLogement[];
+  createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 }
 
@@ -1875,6 +1987,36 @@ class ApiClient {
 
     markAllRead: () =>
       this.authPatch<void>('/notifications/compagny/read-all'),
+  };
+
+  // ==================== BICTORYS PAYMENT ====================
+  bictorys = {
+    /** Initier un paiement via Bictorys — retourne checkoutUrl */
+    initiate: (data: InitiateBictorysPaymentDto) =>
+      this.authPost<BictorysPaymentResponse>('/bictorys/initiate', data),
+  };
+
+  // ==================== AVIS (PUBLIC) ====================
+  avis = {
+    /** Avis d'un partenaire */
+    partner: (partnerId: number, page = 1, limit = 20) =>
+      this.request<AvisResponse>(`/partners/${partnerId}/avis?page=${page}&limit=${limit}`),
+
+    /** Avis d'un logement */
+    logement: (logementId: number, page = 1, limit = 20) =>
+      this.request<AvisResponse>(`/logements/${logementId}/avis?page=${page}&limit=${limit}`),
+
+    /** Avis d'une activité */
+    activite: (activiteId: number, page = 1, limit = 20) =>
+      this.request<AvisResponse>(`/activites/${activiteId}/avis?page=${page}&limit=${limit}`),
+
+    /** Avis d'un circuit */
+    circuit: (circuitId: number, page = 1, limit = 20) =>
+      this.request<AvisResponse>(`/circuits/${circuitId}/avis?page=${page}&limit=${limit}`),
+
+    /** Avis d'un véhicule de location */
+    vehiculeLocation: (vehiculeId: number, page = 1, limit = 20) =>
+      this.request<AvisResponse>(`/vehicules-location/${vehiculeId}/avis?page=${page}&limit=${limit}`),
   };
 }
 

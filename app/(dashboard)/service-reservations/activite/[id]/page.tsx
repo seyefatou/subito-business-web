@@ -19,10 +19,11 @@ import {
   XCircle,
   Compass,
   Route,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { api, Circuit, Activite } from "@/lib/api";
+import { api, Circuit, Activite, AvisResponse } from "@/lib/api";
 
 export default function ActiviteDetailPage() {
   const params = useParams();
@@ -33,6 +34,7 @@ export default function ActiviteDetailPage() {
   const returnTo = searchParams.get('returnTo') || '/service-reservations?type=ACTIVITE';
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [avisPage, setAvisPage] = useState(1);
 
   const { data: circuitResponse, isLoading: circuitLoading } = useQuery({
     queryKey: ['circuit-public', itemId],
@@ -49,6 +51,14 @@ export default function ActiviteDetailPage() {
   const isLoading = circuitLoading || activiteLoading;
   const item: Circuit | Activite | undefined = itemType === 'circuit' ? circuitResponse?.data : activiteResponse?.data;
   const isCircuit = itemType === 'circuit';
+
+  const { data: avisResponse } = useQuery({
+    queryKey: ['avis', itemType, itemId, avisPage],
+    queryFn: () => isCircuit ? api.avis.circuit(itemId, avisPage, 10) : api.avis.activite(itemId, avisPage, 10),
+    enabled: !!itemId,
+  });
+
+  const avisData: AvisResponse | undefined = avisResponse?.data;
 
   if (isLoading) {
     return (
@@ -270,6 +280,74 @@ export default function ActiviteDetailPage() {
                 <p className="text-sm font-semibold text-slate-700">Politique d&apos;annulation</p>
                 <p className="text-sm text-slate-600">{item.typeAnnulation}</p>
               </div>
+            </div>
+          )}
+
+          {/* Avis */}
+          {avisData && avisData.total > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                Avis ({avisData.total})
+                <span className="ml-2 text-yellow-600">
+                  <Star className="w-3.5 h-3.5 inline fill-yellow-500 text-yellow-500" /> {avisData.moyennes.globale.toFixed(1)}
+                </span>
+              </h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: 'Service', value: avisData.moyennes.noteService },
+                  { label: 'Prestataire', value: avisData.moyennes.notePrestataire },
+                  { label: 'Qualite/Prix', value: avisData.moyennes.noteRapportQualitePrix },
+                  { label: 'Ponctualite', value: avisData.moyennes.notePonctualite },
+                ].map((m) => (
+                  <div key={m.label} className="bg-slate-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-slate-500 mb-1">{m.label}</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                      <span className="text-sm font-semibold text-slate-700">{m.value.toFixed(1)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                {avisData.data.map((avis) => (
+                  <div key={avis.id} className="bg-slate-50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex">
+                        {Array.from({ length: Math.round(avis.note || avis.noteService || 0) }).map((_, i) => (
+                          <Star key={i} className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                        ))}
+                      </div>
+                      {avis.auteur && <span className="text-sm font-medium text-slate-700">{avis.auteur}</span>}
+                      {avis.createdAt && (
+                        <span className="text-xs text-slate-400 ml-auto">
+                          {new Date(avis.createdAt).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                    </div>
+                    {avis.commentaire && <p className="text-sm text-slate-600">{avis.commentaire}</p>}
+                  </div>
+                ))}
+              </div>
+
+              {avisData.pages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button variant="outline" size="sm" disabled={avisPage <= 1} onClick={() => setAvisPage((p) => p - 1)}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-slate-600">{avisPage} / {avisData.pages}</span>
+                  <Button variant="outline" size="sm" disabled={avisPage >= avisData.pages} onClick={() => setAvisPage((p) => p + 1)}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {avisData && avisData.total === 0 && (
+            <div className="text-center py-4 text-slate-400 text-sm">
+              Aucun avis pour le moment
             </div>
           )}
         </div>
