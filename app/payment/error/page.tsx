@@ -12,6 +12,7 @@ const serviceLabels: Record<string, string> = {
   travel_document: 'Document de voyage',
   service_reservation: 'Réservation de service',
   insurance: 'Assurance',
+  delivery: 'Livraison',
 };
 
 function getReturnUrl(type?: string | null): string {
@@ -26,6 +27,8 @@ function getReturnUrl(type?: string | null): string {
       return '/service-reservations';
     case 'insurance':
       return '/insurance';
+    case 'delivery':
+      return '/deliveries';
     default:
       return '/dashboard';
   }

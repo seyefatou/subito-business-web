@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceServiceReservation, InvoiceCompagny, PaymentOption } from "@/lib/api";
+import { api, InvoiceResponse, InvoiceBooking, InvoiceTravelDocument, InvoiceServiceReservation, InvoiceCompagny, PaymentOption, BictorysServiceType } from "@/lib/api";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format, endOfMonth } from "date-fns";
@@ -30,6 +30,9 @@ import {
   Plane,
   MapPin,
   User,
+  Building2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +116,9 @@ export default function Billing() {
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payInvoiceId, setPayInvoiceId] = useState<number | null>(null);
   const [selectedPayMethod, setSelectedPayMethod] = useState<string>('');
+  const [payerType, setPayerType] = useState<'company' | 'client' | ''>('');
+  const [clientPayLink, setClientPayLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -215,13 +221,20 @@ export default function Billing() {
   const apiPaymentOptions = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
     .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille');
 
-  // Mutation: pay invoice
+  // Mutation: pay invoice via Bictorys
   const payInvoiceMutation = useMutation({
-    mutationFn: ({ id, method }: { id: number; method?: string }) =>
-      api.invoices.pay(id, method ? { paymentMethod: method } : undefined),
+    mutationFn: async ({ id }: { id: number }) => {
+      const res = await api.bictorys.initiate({ serviceType: 'invoice', serviceId: id });
+      const checkoutUrl = res?.data?.checkoutUrl || (res as any)?.checkoutUrl;
+      if (!checkoutUrl) throw new Error('URL de paiement Bictorys non disponible');
+      window.open(checkoutUrl, '_blank');
+      return res;
+    },
     onSuccess: () => {
-      toast.success('Facture payee avec succes');
+      toast.success('Redirection vers la page de paiement');
       setPaymentMethod(null);
+      setShowPayDialog(false);
+      setSelectedInvoiceId(null);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
       queryClient.invalidateQueries({ queryKey: ['billing-stats'] });
@@ -232,12 +245,19 @@ export default function Billing() {
     },
   });
 
-  // Mutation: pay individual booking
+  // Mutation: pay individual booking via Bictorys
   const payIndividualMutation = useMutation({
-    mutationFn: ({ id, method }: { id: number; method?: string }) =>
-      api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined),
+    mutationFn: async ({ id }: { id: number }) => {
+      const res = await api.bictorys.initiate({ serviceType: 'booking', serviceId: id });
+      const checkoutUrl = res?.data?.checkoutUrl || (res as any)?.checkoutUrl;
+      if (!checkoutUrl) throw new Error('URL de paiement Bictorys non disponible');
+      window.open(checkoutUrl, '_blank');
+      return res;
+    },
     onSuccess: () => {
-      toast.success('Reservation payee avec succes');
+      toast.success('Redirection vers la page de paiement');
+      setShowPayDialog(false);
+      setSelectedInvoiceId(null);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoices-summary'] });
       queryClient.invalidateQueries({ queryKey: ['billing-stats'] });
@@ -760,18 +780,9 @@ export default function Billing() {
     );
   });
 
-  const paymentMethods: PaymentMethod[] = apiPaymentOptions.length > 0
-    ? apiPaymentOptions.map((o: PaymentOption) => ({
-        id: (o.type || o.name || '').toLowerCase(),
-        label: o.name,
-        icon: CreditCard,
-        desc: o.description || '',
-      }))
-    : [
-        { id: 'virement', label: 'Virement bancaire', icon: Building, desc: 'Sous 2-3 jours ouvres' },
-        { id: 'mobile_money', label: 'Mobile Money', icon: Smartphone, desc: 'Orange Money, MTN, Wave' },
-        { id: 'credit', label: 'Credit entreprise', icon: CreditCard, desc: 'Deduire de votre credit' },
-      ];
+  const paymentMethods: PaymentMethod[] = [
+    { id: 'bictorys', label: 'Payer en ligne', icon: CreditCard, desc: 'Wave, Orange Money, carte bancaire…' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -1551,32 +1562,8 @@ export default function Billing() {
 
           <div className="space-y-4 mt-4">
             <p className="text-sm text-slate-500">
-              Choisissez un mode de paiement pour cette facture.
+              Vous allez etre redirige vers la page de paiement Bictorys pour choisir votre moyen de paiement (Wave, Orange Money, carte bancaire…).
             </p>
-
-            <div className="space-y-2">
-              {paymentMethods.map((method) => (
-                <div
-                  key={method.id}
-                  onClick={() => setSelectedPayMethod(method.id)}
-                  className={`
-                    flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
-                    ${selectedPayMethod === method.id
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <div className={`p-2 rounded-lg ${selectedPayMethod === method.id ? 'gradient-subito' : 'bg-slate-100'}`}>
-                    <method.icon className={`w-5 h-5 ${selectedPayMethod === method.id ? 'text-white' : 'text-slate-500'}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{method.label}</p>
-                    <p className="text-xs text-slate-500">{method.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
           <DialogFooter>
@@ -1585,12 +1572,10 @@ export default function Billing() {
             </Button>
             <Button
               className="gradient-subito text-white border-0 gap-2"
-              disabled={!selectedPayMethod || payInvoiceMutation.isPending}
+              disabled={payInvoiceMutation.isPending}
               onClick={() => {
-                if (payInvoiceId && selectedPayMethod) {
-                  payInvoiceMutation.mutate({ id: payInvoiceId, method: selectedPayMethod });
-                  setShowPayDialog(false);
-                  setSelectedInvoiceId(null);
+                if (payInvoiceId) {
+                  payInvoiceMutation.mutate({ id: payInvoiceId });
                 }
               }}
             >
@@ -1599,7 +1584,7 @@ export default function Billing() {
               ) : (
                 <CreditCard className="w-4 h-4" />
               )}
-              Confirmer le paiement
+              Payer maintenant
             </Button>
           </DialogFooter>
         </DialogContent>

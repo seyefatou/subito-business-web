@@ -179,12 +179,9 @@ export default function InterCity() {
     queryKey: ['payment-options'],
     queryFn: () => api.reference.getPaymentOptions(),
   });
-  const apiMethods = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ value: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods = [
-    ...apiMethods,
-    { value: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+    { value: "company_account", label: "Compte entreprise", desc: "L'entreprise paie via Bictorys", icon: "🏢" },
+    { value: "client", label: "Client / Employe", desc: "Le client ou l'employe paie lui-meme", icon: "👤" },
   ];
 
   // Fetch countries
@@ -446,7 +443,6 @@ export default function InterCity() {
       pickupDateAller: formData.pickupDateAller,
       pickupTimeAller: formData.pickupTimeAller,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.paymentMethod ? undefined : toBookingPaymentMethod(formData.paymentMethod),
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
       customerId: formData.employeeId || undefined,

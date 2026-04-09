@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, ApiResponse, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption } from "@/lib/api";
+import { api, ApiResponse, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption, BictorysServiceType } from "@/lib/api";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -28,6 +28,10 @@ import {
   Compass,
   Hotel,
   ArrowRight,
+  Building2,
+  User,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +97,9 @@ export default function Tracking() {
   const [payBookingId, setPayBookingId] = useState<number | null>(null);
   const [payBookingServiceType, setPayBookingServiceType] = useState<string>('');
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
+  const [payerType, setPayerType] = useState<'company' | 'client' | ''>('');
+  const [clientPayLink, setClientPayLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const limit = 10;
 
   // Fetch payment options
@@ -100,20 +107,23 @@ export default function Tracking() {
     queryKey: ['payment-options'],
     queryFn: () => api.reference.getPaymentOptions(),
   });
-  const paymentOptions = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '' }));
+  const paymentOptions = [
+    { id: 'bictorys', label: 'Payer en ligne', desc: 'Wave, Orange Money, carte bancaire…' },
+  ];
 
-  // Pay individual booking
+  // Pay individual booking via Bictorys
   const payIndividualMutation = useMutation({
-    mutationFn: ({ id, method, serviceType }: { id: number; method?: string; serviceType?: string }) => {
-      if (['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(serviceType || '')) {
-        return api.serviceReservations.pay(id, { paymentMethod: method as 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer' }) as any;
-      }
-      return api.bookings.payIndividual(id, method ? { paymentMethod: method } : undefined);
+    mutationFn: async ({ id, serviceType }: { id: number; serviceType?: string }) => {
+      const bictorysType: BictorysServiceType = ['ACTIVITE', 'LOGEMENT', 'FLOTTE'].includes(serviceType || '')
+        ? 'service_reservation' : 'booking';
+      const res = await api.bictorys.initiate({ serviceType: bictorysType, serviceId: id });
+      const checkoutUrl = res?.data?.checkoutUrl || (res as any)?.checkoutUrl;
+      if (!checkoutUrl) throw new Error('URL de paiement Bictorys non disponible');
+      window.open(checkoutUrl, '_blank');
+      return res;
     },
     onSuccess: () => {
-      toast.success('Reservation payee avec succes');
+      toast.success('Redirection vers la page de paiement');
       setShowPayDialog(false);
       setDetailOpen(false);
       setSelectedBooking(null);
@@ -382,6 +392,7 @@ export default function Tracking() {
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Canal</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Montant</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Statut</th>
+                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Paiement</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Date</th>
                     <th className="px-6 py-4"></th>
                   </tr>
@@ -434,6 +445,12 @@ export default function Tracking() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge className={`${status.color} border-0`}>{status.label}</Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            {String((booking as any).paymentStatus || '').toLowerCase() === 'paid'
+                              ? <Badge className="bg-green-100 text-green-700 border-0">Payé</Badge>
+                              : <Badge className="bg-yellow-100 text-yellow-700 border-0">Non payé</Badge>
+                            }
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500">
                             {booking.createdAt ? format(new Date(booking.createdAt), 'dd MMM yyyy', { locale: fr }) : '-'}
@@ -515,7 +532,7 @@ export default function Tracking() {
             </div>
           ) : bookingDetail ? (
             <div className="space-y-4">
-              {/* Service & Status */}
+              {/* Service, Status & Payment */}
               <div className="flex items-center gap-2 flex-wrap">
                 {(() => {
                   const s = getServiceInfo(bookingDetail.serviceType);
@@ -525,6 +542,10 @@ export default function Tracking() {
                   const st = getStatusInfo(bookingDetail.status);
                   return <Badge className={`${st.color} border-0`}>{st.label}</Badge>;
                 })()}
+                {String((bookingDetail as any).paymentStatus || '').toLowerCase() === 'paid'
+                  ? <Badge className="bg-green-100 text-green-700 border-0">Payé</Badge>
+                  : <Badge className="bg-yellow-100 text-yellow-700 border-0">Non payé</Badge>
+                }
               </div>
 
               {/* Client */}
@@ -831,8 +852,8 @@ export default function Tracking() {
                 </div>
               )}
 
-              {/* Pay button — only when reservation is completed and not yet paid */}
-              {String(bookingDetail.status || '').toLowerCase() === 'completed' && String(bookingDetail.status || '').toLowerCase() !== 'paid' && String((bookingDetail as any).paymentStatus || '').toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
+              {/* Pay button — when reservation is confirmed or completed and not yet paid */}
+              {['confirmed', 'completed'].includes(String(bookingDetail.status || '').toLowerCase()) && String((bookingDetail as any).paymentStatus || '').toUpperCase() !== 'PAID' && bookingDetail.paidBy !== 'client' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
                   onClick={() => {
@@ -870,31 +891,8 @@ export default function Tracking() {
 
           <div className="space-y-4 mt-4">
             <p className="text-sm text-slate-500">
-              Choisissez un mode de paiement.
+              Vous allez etre redirige vers la page de paiement Bictorys pour choisir votre moyen de paiement (Wave, Orange Money, carte bancaire…).
             </p>
-            <div className="space-y-2">
-              {paymentOptions.map((option) => (
-                <div
-                  key={option.id}
-                  onClick={() => setSelectedPayMethod(option.id)}
-                  className={`
-                    flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
-                    ${selectedPayMethod === option.id
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                    }
-                  `}
-                >
-                  <div className={`p-2 rounded-lg ${selectedPayMethod === option.id ? 'gradient-subito' : 'bg-slate-100'}`}>
-                    <CreditCard className={`w-5 h-5 ${selectedPayMethod === option.id ? 'text-white' : 'text-slate-500'}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{option.label}</p>
-                    {option.desc && <p className="text-xs text-slate-500">{option.desc}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
           <DialogFooter>
@@ -903,10 +901,10 @@ export default function Tracking() {
             </Button>
             <Button
               className="gradient-subito text-white border-0 gap-2"
-              disabled={!selectedPayMethod || payIndividualMutation.isPending}
+              disabled={payIndividualMutation.isPending}
               onClick={() => {
-                if (payBookingId && selectedPayMethod) {
-                  payIndividualMutation.mutate({ id: payBookingId, method: selectedPayMethod, serviceType: payBookingServiceType });
+                if (payBookingId) {
+                  payIndividualMutation.mutate({ id: payBookingId, serviceType: payBookingServiceType });
                 }
               }}
             >
@@ -915,7 +913,7 @@ export default function Tracking() {
               ) : (
                 <CreditCard className="w-4 h-4" />
               )}
-              Confirmer le paiement
+              Payer maintenant
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,6 +34,8 @@ import {
   Star,
   Fuel,
   Settings2,
+  Building2,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +79,7 @@ import {
   DepartmentResponse,
   PaymentOption,
   toBookingPaymentMethod,
+  BictorysServiceType,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import EmployeeForm from "@/components/employees/EmployeeForm";
@@ -193,7 +196,6 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(defaultServiceType ? 2 : 1);
   const [formData, setFormData] = useState<FormData>(() => {
     const logementIdParam = searchParams.get('logementId');
     const chambreIdParam = searchParams.get('chambreId');
@@ -212,6 +214,9 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       selectedItemType: selectedItemTypeParam || null,
     };
   });
+  // Si on revient d'une page détail avec un item déjà sélectionné, aller directement à l'étape client
+  const hasPreselectedItem = !!(searchParams.get('circuitId') || searchParams.get('activiteId') || searchParams.get('logementId') || searchParams.get('vehiculeLocationId'));
+  const [currentStep, setCurrentStep] = useState(hasPreselectedItem ? 3 : defaultServiceType ? 2 : 1);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -319,12 +324,9 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
     queryKey: ['payment-options'],
     queryFn: () => api.reference.getPaymentOptions(),
   });
-  const apiMethods = (Array.isArray(payOptRes?.data) ? payOptRes.data : [])
-    .filter((o: PaymentOption) => (o.slug || o.type) !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ id: o.slug || o.type || o.name?.toLowerCase() || '', label: o.name, desc: o.description || '', icon: o.icon || '' }));
   const paymentMethods = [
-    ...apiMethods,
-    { id: "company_account", label: "Compte entreprise", desc: "Facturation sur le compte", icon: "🏢" },
+    { id: "company_account", label: "Compte entreprise", desc: "L'entreprise paie via Bictorys", icon: "🏢" },
+    { id: "client", label: "Client / Employe", desc: "Le client ou l'employe paie lui-meme", icon: "👤" },
   ];
 
   // Create mutation
@@ -453,7 +455,6 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       nombrePersonnes: formData.serviceType === 'ACTIVITE' ? formData.nombrePersonnes : undefined,
       adresseLivraison: formData.serviceType === 'FLOTTE' ? formData.adresseLivraison : undefined,
       paidBy: isCompanyPayment ? 'company' : 'client',
-      paymentMethod: isCompanyPayment || !formData.payment_method ? undefined : toBookingPaymentMethod(formData.payment_method),
     };
     if (formData.serviceType === 'ACTIVITE') {
       if (formData.selectedItemType === 'activite') dto.activiteId = formData.activiteId!;
@@ -1541,6 +1542,9 @@ function ReservationsList() {
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payReservationId, setPayReservationId] = useState<number | null>(null);
   const [selectedPayMethod, setSelectedPayMethod] = useState('');
+  const [payerType, setPayerType] = useState<'company' | 'client' | ''>('');
+  const [clientPayLink, setClientPayLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const limit = 10;
 
   // Fetch reservations
@@ -1573,16 +1577,21 @@ function ReservationsList() {
     queryKey: ['payment-options'],
     queryFn: () => api.reference.getPaymentOptions(),
   });
-  const paymentOptions = (Array.isArray(paymentOptionsResponse?.data) ? paymentOptionsResponse.data : [])
-    .filter((o: PaymentOption) => o.type !== 'wallet' && o.name?.toLowerCase() !== 'portefeuille')
-    .map((o: PaymentOption) => ({ id: (o.type || o.name || '').toLowerCase(), label: o.name, desc: o.description || '' }));
+  const paymentOptions = [
+    { id: 'bictorys', label: 'Payer en ligne', desc: 'Wave, Orange Money, carte bancaire…' },
+  ];
 
-  // Pay mutation
+  // Pay mutation via Bictorys
   const payMutation = useMutation({
-    mutationFn: ({ id, method }: { id: number; method: string }) =>
-      api.serviceReservations.pay(id, { paymentMethod: toBookingPaymentMethod(method) as any }),
+    mutationFn: async ({ id }: { id: number }) => {
+      const res = await api.bictorys.initiate({ serviceType: 'service_reservation', serviceId: id });
+      const checkoutUrl = res?.data?.checkoutUrl || (res as any)?.checkoutUrl;
+      if (!checkoutUrl) throw new Error('URL de paiement Bictorys non disponible');
+      window.open(checkoutUrl, '_blank');
+      return res;
+    },
     onSuccess: () => {
-      toast.success('Reservation payee avec succes');
+      toast.success('Redirection vers la page de paiement');
       setShowPayDialog(false);
       setDetailOpen(false);
       setSelectedReservation(null);
@@ -1676,6 +1685,7 @@ function ReservationsList() {
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Client</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Montant</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Statut</th>
+                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Paiement</th>
                     <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Date</th>
                     <th className="px-6 py-4"></th>
                   </tr>
@@ -1720,9 +1730,12 @@ function ReservationsList() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
+                            <Badge className={`${status.color} border-0`}>{status.label}</Badge>
+                          </td>
+                          <td className="px-6 py-4">
                             {isPaid
-                              ? <Badge className="bg-green-100 text-green-700 border-0">Paye</Badge>
-                              : <Badge className={`${status.color} border-0`}>{status.label}</Badge>
+                              ? <Badge className="bg-green-100 text-green-700 border-0">Payé</Badge>
+                              : <Badge className="bg-yellow-100 text-yellow-700 border-0">Non payé</Badge>
                             }
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500">
@@ -1795,18 +1808,19 @@ function ReservationsList() {
             </div>
           ) : reservationDetail ? (
             <div className="space-y-4">
-              {/* Service & Status */}
+              {/* Service, Status & Payment */}
               <div className="flex items-center gap-2 flex-wrap">
                 {(() => {
                   const s = getServiceInfo(reservationDetail.serviceType);
                   return <Badge className={`${s.color} border-0 gap-1`}><s.icon className="w-3 h-3" />{s.label}</Badge>;
                 })()}
+                {(() => {
+                  const st = getStatusInfo(reservationDetail.status);
+                  return <Badge className={`${st.color} border-0`}>{st.label}</Badge>;
+                })()}
                 {(reservationDetail as any).paymentStatus?.toLowerCase() === 'paid'
-                  ? <Badge className="bg-green-100 text-green-700 border-0">Paye</Badge>
-                  : (() => {
-                      const st = getStatusInfo(reservationDetail.status);
-                      return <Badge className={`${st.color} border-0`}>{st.label}</Badge>;
-                    })()
+                  ? <Badge className="bg-green-100 text-green-700 border-0">Payé</Badge>
+                  : <Badge className="bg-yellow-100 text-yellow-700 border-0">Non payé</Badge>
                 }
               </div>
 
@@ -1892,8 +1906,8 @@ function ReservationsList() {
                 </div>
               )}
 
-              {/* Pay button — only if confirmed/completed AND not already paid */}
-              {reservationDetail.status?.toLowerCase() === 'completed' &&
+              {/* Pay button — if confirmed or completed AND not already paid */}
+              {['confirmed', 'completed'].includes(reservationDetail.status?.toLowerCase() || '') &&
                (reservationDetail as any).paymentStatus?.toLowerCase() !== 'paid' && (
                 <Button
                   className="w-full gradient-subito text-white border-0 gap-2"
@@ -1929,29 +1943,9 @@ function ReservationsList() {
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            <p className="text-sm text-slate-500">Choisissez un mode de paiement.</p>
-            <div className="space-y-2">
-              {paymentOptions.map((option) => (
-                <div
-                  key={option.id}
-                  onClick={() => setSelectedPayMethod(option.id)}
-                  className={`
-                    flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
-                    ${selectedPayMethod === option.id
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-slate-200 hover:border-slate-300'}
-                  `}
-                >
-                  <div className={`p-2 rounded-lg ${selectedPayMethod === option.id ? 'gradient-subito' : 'bg-slate-100'}`}>
-                    <CreditCard className={`w-5 h-5 ${selectedPayMethod === option.id ? 'text-white' : 'text-slate-500'}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{option.label}</p>
-                    {option.desc && <p className="text-xs text-slate-500">{option.desc}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-slate-500">
+              Vous allez etre redirige vers la page de paiement Bictorys pour choisir votre moyen de paiement (Wave, Orange Money, carte bancaire…).
+            </p>
           </div>
 
           <DialogFooter>
@@ -1960,10 +1954,10 @@ function ReservationsList() {
             </Button>
             <Button
               className="gradient-subito text-white border-0 gap-2"
-              disabled={!selectedPayMethod || payMutation.isPending}
+              disabled={payMutation.isPending}
               onClick={() => {
-                if (payReservationId && selectedPayMethod) {
-                  payMutation.mutate({ id: payReservationId, method: selectedPayMethod });
+                if (payReservationId) {
+                  payMutation.mutate({ id: payReservationId });
                 }
               }}
             >
@@ -1972,7 +1966,7 @@ function ReservationsList() {
               ) : (
                 <CreditCard className="w-4 h-4" />
               )}
-              Confirmer le paiement
+              Payer maintenant
             </Button>
           </DialogFooter>
         </DialogContent>
