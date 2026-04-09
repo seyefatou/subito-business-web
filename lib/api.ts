@@ -832,6 +832,9 @@ export interface AvisItem {
   note?: number;
   commentaire?: string;
   auteur?: string;
+  customer?: { prenom?: string; nom?: string };
+  reponsePartenaire?: string;
+  repondeLe?: string;
   createdAt?: string;
   [key: string]: unknown;
 }

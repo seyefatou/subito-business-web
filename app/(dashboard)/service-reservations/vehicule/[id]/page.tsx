@@ -51,7 +51,12 @@ export default function VehiculeDetailPage() {
     enabled: !!vehiculeId,
   });
 
-  const avisData: AvisResponse | undefined = avisResponse?.data;
+  // L'API peut retourner soit { data: AvisResponse } (wrappé) soit AvisResponse directement
+  const avisData: AvisResponse | undefined = (avisResponse?.data as AvisResponse)?.moyennes
+    ? avisResponse?.data
+    : (avisResponse as unknown as AvisResponse)?.moyennes
+      ? (avisResponse as unknown as AvisResponse)
+      : undefined;
 
   if (isLoading) {
     return (
@@ -309,11 +314,17 @@ export default function VehiculeDetailPage() {
                   <div key={avis.id} className="bg-slate-50 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex">
-                        {Array.from({ length: Math.round(avis.note || avis.noteService || 0) }).map((_, i) => (
+                        {Array.from({ length: Math.round(
+                          avis.note || ((avis.noteService || 0) + (avis.notePrestataire || 0) + (avis.noteRapportQualitePrix || 0) + (avis.notePonctualite || 0)) / 4
+                        ) }).map((_, i) => (
                           <Star key={i} className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
                         ))}
                       </div>
-                      {avis.auteur && <span className="text-sm font-medium text-slate-700">{avis.auteur}</span>}
+                      {(avis.customer || avis.auteur) && (
+                        <span className="text-sm font-medium text-slate-700">
+                          {avis.customer ? `${avis.customer.prenom || ''} ${avis.customer.nom || ''}`.trim() : avis.auteur}
+                        </span>
+                      )}
                       {avis.createdAt && (
                         <span className="text-xs text-slate-400 ml-auto">
                           {new Date(avis.createdAt).toLocaleDateString('fr-FR')}
@@ -321,6 +332,12 @@ export default function VehiculeDetailPage() {
                       )}
                     </div>
                     {avis.commentaire && <p className="text-sm text-slate-600">{avis.commentaire}</p>}
+                    {avis.reponsePartenaire && (
+                      <div className="mt-2 pl-3 border-l-2 border-orange-300">
+                        <p className="text-xs font-medium text-orange-600 mb-0.5">Reponse du partenaire</p>
+                        <p className="text-sm text-slate-600">{avis.reponsePartenaire}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
