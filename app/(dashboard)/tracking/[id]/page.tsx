@@ -1,0 +1,734 @@
+'use client';
+
+import React, { useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Printer,
+  ChevronRight,
+  CheckCircle2,
+  Car,
+  Clock,
+  Flag,
+  Plane,
+  PlaneTakeoff,
+  PlaneLanding,
+  MapPin,
+  Phone,
+  MessageSquare,
+  Star,
+  User,
+  Loader2,
+  CreditCard,
+  ShieldCheck,
+  Home,
+  Building2,
+  Mail,
+  Calendar,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { api, ApiResponse, BookingResponse, BictorysServiceType } from "@/lib/api";
+
+const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
+  airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
+  vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
+};
+
+const statusLabels: Record<string, { label: string; color: string }> = {
+  pending: { label: "En attente", color: "bg-yellow-100 text-yellow-700" },
+  confirmed: { label: "Confirme", color: "bg-blue-100 text-blue-700" },
+  in_progress: { label: "En cours", color: "bg-indigo-100 text-indigo-700" },
+  completed: { label: "Termine", color: "bg-green-100 text-green-700" },
+  cancelled: { label: "Annule", color: "bg-red-100 text-red-700" },
+  rejected: { label: "Rejete", color: "bg-red-100 text-red-700" },
+};
+
+const FORMAT_FCFA = (n?: number | null) => (n ? Number(n).toLocaleString("fr-FR") + " FCFA" : "—");
+
+export default function TrackingDetailPage() {
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const id = parseInt(params?.id || "", 10);
+  const serviceType = searchParams.get("type") || "";
+
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [selectedPayMethod, setSelectedPayMethod] = useState("");
+
+  const { data, isLoading, error } = useQuery<ApiResponse<BookingResponse>>({
+    queryKey: ["booking-detail-page", id, serviceType],
+    queryFn: () => api.bookings.get(id),
+    enabled: !isNaN(id),
+  });
+
+  const booking = data?.data as (BookingResponse & Record<string, unknown>) | undefined;
+
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const bictorysType: BictorysServiceType = "booking";
+      const res = await api.bictorys.initiate({ serviceType: bictorysType, serviceId: id });
+      const checkoutUrl = res?.data?.checkoutUrl || (res as { checkoutUrl?: string })?.checkoutUrl;
+      if (!checkoutUrl) throw new Error("URL de paiement Bictorys non disponible");
+      window.open(checkoutUrl, "_blank");
+      return res;
+    },
+    onSuccess: () => {
+      toast.success("Redirection vers la page de paiement");
+      setShowPayDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["booking-detail-page"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-compagny"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors du paiement");
+    },
+  });
+
+  if (isNaN(id)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <AlertCircle className="w-12 h-12 text-red-400" />
+        <p className="text-lg font-semibold text-slate-700">Identifiant invalide</p>
+        <Button variant="outline" onClick={() => router.push("/tracking")}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Retour à la liste
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#FF7842]" />
+      </div>
+    );
+  }
+
+  if (error || !booking) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <AlertCircle className="w-12 h-12 text-red-400" />
+        <p className="text-lg font-semibold text-slate-700">Réservation introuvable</p>
+        <Button variant="outline" onClick={() => router.push("/tracking")}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Retour à la liste
+        </Button>
+      </div>
+    );
+  }
+
+  const d = booking;
+  const bookingCode = d.bookingCode || d.reference || `#${d.id}`;
+  const svc = serviceLabels[d.serviceType || ""] || serviceLabels[serviceType] || { label: d.serviceType || "Réservation", icon: Car, color: "bg-slate-100 text-slate-700" };
+  const st = statusLabels[d.status || ""] || { label: d.status || "Inconnu", color: "bg-slate-100 text-slate-700" };
+  const statusKey = (d.status || "").toLowerCase();
+  const isOneWay = (d.isOneWay as boolean | undefined) !== false && !d.pickupDateRetour;
+  const isPaid = String((d.paymentStatus as string) || "").toLowerCase() === "paid";
+  const canPay = !isPaid && d.paidBy !== "client" && ["confirmed", "completed"].includes(statusKey);
+
+  // Timeline mapping: 1=confirmed, 2=driver assigned, 3=pickup arrival, 4=trip completed
+  const stepIndex = statusKey === "completed" ? 4
+    : statusKey === "in_progress" ? 3
+    : statusKey === "confirmed" ? 2
+    : statusKey === "pending" ? 1
+    : 1;
+
+  const departVille = (d.villeDepart as { nom?: string; name?: string } | undefined)?.nom
+    || (d.villeDepart as { nom?: string; name?: string } | undefined)?.name
+    || (d.departureCity as string) || "";
+  const arriveeVille = (d.villeArrivee as { nom?: string; name?: string } | undefined)?.nom
+    || (d.villeArrivee as { nom?: string; name?: string } | undefined)?.name
+    || (d.arrivalCity as string) || "";
+
+  const totalPrice = Number(d.totalPrice || 0);
+  const discountAmount = Number(d.discountAmount || 0);
+  const baseFare = totalPrice + discountAmount;
+
+  return (
+    <div className="space-y-8 -m-2 md:-m-4 lg:-m-6 px-6 md:px-8 lg:px-10 py-6 md:py-8">
+      {/* Breadcrumbs + Title + Actions */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <nav className="flex items-center gap-2 text-sm text-slate-500 mb-2">
+            <Link href="/tracking" className="hover:text-[#FF7842] cursor-pointer transition-colors font-medium">
+              Suivi commandes
+            </Link>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-[#FF7842] font-semibold">{bookingCode}</span>
+          </nav>
+          <h1
+            className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+          >
+            Détail de la réservation
+          </h1>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => window.print()}
+            className="gap-2 rounded-xl"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimer
+          </Button>
+          {canPay && (
+            <Button
+              variant="gradient"
+              onClick={() => { setSelectedPayMethod(""); setShowPayDialog(true); }}
+              className="gap-2 rounded-xl px-6"
+            >
+              <CreditCard className="w-4 h-4" />
+              Payer cette réservation
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <section className="bg-[#f0f4f8] p-6 md:p-8 rounded-3xl">
+        <div className="flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-6 relative">
+          <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-[#ffdbd0] hidden md:block -translate-y-1/2 z-0" />
+          <TimelineStep n={1} label="Confirmé" current={stepIndex >= 1} active={stepIndex === 1} icon={CheckCircle2} />
+          <TimelineStep n={2} label="Chauffeur assigné" current={stepIndex >= 2} active={stepIndex === 2} icon={Car} />
+          <TimelineStep n={3} label="Prise en charge" current={stepIndex >= 3} active={stepIndex === 3} icon={Clock} />
+          <TimelineStep n={4} label="Course terminée" current={stepIndex >= 4} active={stepIndex === 4} icon={Flag} />
+        </div>
+      </section>
+
+      {/* Status / Service / Payment badges */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className={`${svc.color} border-0 gap-1.5 px-3 py-1`}>
+          <svc.icon className="w-3.5 h-3.5" />
+          {svc.label}
+        </Badge>
+        <Badge className={`${st.color} border-0 px-3 py-1`}>{st.label}</Badge>
+        <Badge className={`border-0 px-3 py-1 ${isPaid ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+          {isPaid ? "Payé" : "Non payé"}
+        </Badge>
+        {d.paidBy && (
+          <Badge className={`border-0 px-3 py-1 ${d.paidBy === "company" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}>
+            Payé par : {d.paidBy === "company" ? "Entreprise" : "Client"}
+          </Badge>
+        )}
+      </div>
+
+      {/* Bento Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Service + Passenger + Route */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Service Information Card */}
+          <ServiceInfoCard booking={d} serviceType={d.serviceType || serviceType} />
+
+          {/* Passenger / Client Details */}
+          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Informations client</p>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 rounded-2xl gradient-subito flex items-center justify-center text-white font-bold text-lg shrink-0">
+                {(d.clientName || "C").substring(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-xl text-[#171c1f] truncate">{d.clientName || "—"}</p>
+                {d.canal && <p className="text-slate-500 text-sm">Canal : {d.canal}</p>}
+              </div>
+            </div>
+            <dl className="space-y-3">
+              {d.clientPhone ? (
+                <KeyValueRow label="Téléphone">
+                  <a href={`tel:${d.clientPhone}`} className="font-bold text-[#171c1f] hover:text-[#FF7842] transition-colors flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" />
+                    {d.clientPhone}
+                  </a>
+                </KeyValueRow>
+              ) : null}
+              {d.clientEmail ? (
+                <KeyValueRow label="Email">
+                  <a href={`mailto:${d.clientEmail}`} className="font-bold text-[#171c1f] hover:text-[#FF7842] transition-colors truncate flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{d.clientEmail}</span>
+                  </a>
+                </KeyValueRow>
+              ) : null}
+              {d.clientAddress ? (
+                <KeyValueRow label="Adresse">
+                  <span className="font-bold text-[#171c1f]">{d.clientAddress}</span>
+                </KeyValueRow>
+              ) : null}
+              {(d.passengers as number | undefined) ? (
+                <KeyValueRow label="Passagers">
+                  <span className="font-bold text-[#171c1f]">{d.passengers as number}</span>
+                </KeyValueRow>
+              ) : null}
+            </dl>
+          </article>
+
+          {/* Route / Map placeholder */}
+          <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-slate-100">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-1">Trajet</p>
+              <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                {departVille && arriveeVille ? `${departVille} → ${arriveeVille}` : "Itinéraire"}
+              </h3>
+              {!isOneWay && <p className="text-slate-500 text-sm mt-1">Aller-retour</p>}
+            </div>
+            <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <RouteAddressCard
+                kind="pickup"
+                label="Prise en charge"
+                title={(d.adressePriseEnChargeAller as string)
+                  || (d.adressePriseEnChargeDepartAller as string)
+                  || (d.pickupAddress as string)
+                  || (d.adressePriseEnCharge as string)
+                  || departVille
+                  || "—"}
+              />
+              <RouteAddressCard
+                kind="destination"
+                label="Destination"
+                title={(d.adressePriseEnChargeArriveeAller as string)
+                  || arriveeVille
+                  || (d.adresseDestination as string)
+                  || "—"}
+              />
+            </div>
+            {!isOneWay && (
+              <div className="px-6 md:px-8 pb-6 md:pb-8">
+                <div className="border-t border-slate-100 pt-4 mt-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3">Retour</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <RouteAddressCard
+                      kind="pickup"
+                      label="Prise en charge retour"
+                      title={(d.adressePriseEnChargeRetour as string)
+                        || (d.adressePriseEnChargeDepartRetour as string)
+                        || arriveeVille
+                        || "—"}
+                    />
+                    <RouteAddressCard
+                      kind="destination"
+                      label="Destination retour"
+                      title={(d.adressePriseEnChargeArriveeRetour as string)
+                        || departVille
+                        || "—"}
+                    />
+                  </div>
+                  {d.pickupDateRetour ? (
+                    <p className="text-sm text-slate-500 mt-3">
+                      {format(new Date(d.pickupDateRetour as string), "dd MMMM yyyy", { locale: fr })}
+                      {d.pickupTimeRetour ? ` à ${d.pickupTimeRetour}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </article>
+        </div>
+
+        {/* Right Sidebar: Driver + Pricing */}
+        <aside className="lg:col-span-4 flex flex-col gap-6">
+          {/* Driver Info (placeholder if not assigned) */}
+          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Votre chauffeur</p>
+            {stepIndex >= 2 ? (
+              <>
+                <div className="flex flex-col items-center text-center mb-6">
+                  <div className="relative mb-4">
+                    <div className="w-24 h-24 rounded-full gradient-subito flex items-center justify-center text-white font-bold text-3xl border-4 border-[#f0f4f8]">
+                      <User className="w-10 h-10" />
+                    </div>
+                    <div className="absolute bottom-1 right-1 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
+                      <CheckCircle2 className="w-3 h-3 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-[#171c1f]">Chauffeur assigné</h3>
+                  <div className="flex items-center gap-1 text-yellow-500 mt-1">
+                    <Star className="w-4 h-4 fill-yellow-500" />
+                    <span className="font-bold text-[#171c1f]">4.9</span>
+                    <span className="text-slate-400 text-sm font-medium ml-1">(données service)</span>
+                  </div>
+                </div>
+                <div className="bg-[#f0f4f8] p-4 rounded-2xl mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white p-2.5 rounded-xl shadow-sm text-[#FF7842]">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-tight text-slate-500">Véhicule</p>
+                      <p className="text-[#171c1f] font-bold">À confirmer</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="outline" className="rounded-xl gap-1.5" disabled>
+                    <MessageSquare className="w-4 h-4" />
+                    Chat
+                  </Button>
+                  <Button variant="outline" className="rounded-xl gap-1.5" disabled>
+                    <Phone className="w-4 h-4" />
+                    Appeler
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center text-center py-6">
+                <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                </div>
+                <p className="font-bold text-[#171c1f] mb-1">Chauffeur à assigner</p>
+                <p className="text-sm text-slate-500">Vous serez notifié dès qu&apos;un chauffeur sera affecté à votre course.</p>
+              </div>
+            )}
+          </article>
+
+          {/* Price Summary */}
+          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Récapitulatif paiement</p>
+            <div className="space-y-3">
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Tarif de base</span>
+                    <span className="font-medium text-[#171c1f]">{FORMAT_FCFA(baseFare)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Remise{d.discountPercent ? ` (${d.discountPercent}%)` : ""}</span>
+                    <span className="font-medium text-green-600">−{FORMAT_FCFA(discountAmount)}</span>
+                  </div>
+                  <div className="h-px bg-slate-100 my-2" />
+                </>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-base font-bold text-[#171c1f]">Total</span>
+                <span className="text-2xl font-black text-[#FF7842]">{FORMAT_FCFA(totalPrice)}</span>
+              </div>
+
+              {d.paymentMethod ? (
+                <div className="flex justify-between items-center text-sm pt-3">
+                  <span className="text-slate-500">Mode de paiement</span>
+                  <span className="font-medium text-[#171c1f]">
+                    {d.paymentMethod === "cash" ? "Espèces"
+                      : d.paymentMethod === "mobile_money" ? "Mobile Money"
+                      : d.paymentMethod === "wallet" ? "Portefeuille"
+                      : d.paymentMethod === "bank_transfer" ? "Virement bancaire"
+                      : (d.paymentMethod as string)}
+                  </span>
+                </div>
+              ) : null}
+
+              {isPaid && (
+                <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-start gap-3 mt-4">
+                  <ShieldCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-green-800 font-medium leading-relaxed">
+                    Paiement confirmé. Cette réservation est intégralement réglée.
+                  </p>
+                </div>
+              )}
+
+              {canPay && (
+                <Button
+                  variant="gradient"
+                  onClick={() => { setSelectedPayMethod(""); setShowPayDialog(true); }}
+                  className="w-full mt-4 gap-2 rounded-xl"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Payer maintenant
+                </Button>
+              )}
+            </div>
+          </article>
+
+          {/* Métadonnées */}
+          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Métadonnées</p>
+            <dl className="space-y-3">
+              {d.createdAt ? (
+                <KeyValueRow label="Créée le">
+                  <span className="font-bold text-[#171c1f]">
+                    {format(new Date(d.createdAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                  </span>
+                </KeyValueRow>
+              ) : null}
+              {d.updatedAt ? (
+                <KeyValueRow label="Modifiée le">
+                  <span className="font-bold text-[#171c1f]">
+                    {format(new Date(d.updatedAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                  </span>
+                </KeyValueRow>
+              ) : null}
+              {d.tag ? (
+                <KeyValueRow label="Tag">
+                  <Badge className="bg-purple-100 text-purple-700 border-0">{d.tag as string}</Badge>
+                </KeyValueRow>
+              ) : null}
+              {d.companyCode ? (
+                <KeyValueRow label="Code entreprise">
+                  <span className="font-mono font-bold text-[#171c1f]">{d.companyCode as string}</span>
+                </KeyValueRow>
+              ) : null}
+            </dl>
+          </article>
+        </aside>
+      </div>
+
+      {/* All raw data (collapsible) */}
+      <details className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_24px_rgba(23,28,31,0.04)] overflow-hidden">
+        <summary className="px-6 md:px-8 py-5 cursor-pointer font-bold text-[#171c1f] flex items-center gap-2 hover:bg-slate-50">
+          <ChevronRight className="w-4 h-4 transition-transform [details[open]>summary>&]:rotate-90" />
+          Toutes les données de la réservation
+        </summary>
+        <div className="px-6 md:px-8 pb-6 md:pb-8 border-t border-slate-100">
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 pt-5">
+            {Object.entries(d)
+              .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "function")
+              .map(([key, value]) => (
+                <div key={key} className="flex justify-between gap-4 py-2 border-b border-slate-50 last:border-0">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">{key}</span>
+                  <span className="text-sm font-mono text-[#171c1f] text-right break-all">
+                    {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                  </span>
+                </div>
+              ))}
+          </dl>
+        </div>
+      </details>
+
+      {/* Pay Booking Dialog */}
+      <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-white" />
+              </div>
+              Payer cette réservation
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Vous allez être redirigé vers Bictorys pour finaliser le paiement de <strong>{FORMAT_FCFA(totalPrice)}</strong>.
+            </p>
+            <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
+              <p className="text-sm text-orange-800">
+                Wave, Orange Money, carte bancaire, etc.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDialog(false)}>Annuler</Button>
+            <Button
+              variant="gradient"
+              onClick={() => payMutation.mutate()}
+              disabled={payMutation.isPending}
+              className="gap-2"
+            >
+              {payMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+              Payer maintenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+interface TimelineStepProps {
+  n: number;
+  label: string;
+  current: boolean;
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+function TimelineStep({ n, label, current, active, icon: Icon }: TimelineStepProps) {
+  if (active) {
+    return (
+      <div className="flex items-center gap-4 bg-white border border-[#FF7842]/30 p-4 rounded-2xl z-10 w-full md:w-auto shadow-sm backdrop-blur-sm">
+        <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#FF7842] shrink-0">
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#FF7842]">En cours</p>
+          <p className="font-bold text-[#171c1f] text-sm">{label}</p>
+        </div>
+      </div>
+    );
+  }
+  if (current) {
+    return (
+      <div className="flex items-center gap-4 bg-white p-4 rounded-2xl z-10 w-full md:w-auto shadow-sm">
+        <div className="w-10 h-10 rounded-full gradient-subito flex items-center justify-center text-white shrink-0">
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Étape {n}</p>
+          <p className="font-bold text-[#171c1f] text-sm">{label}</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl z-10 w-full md:w-auto opacity-60">
+      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Étape {n}</p>
+        <p className="font-bold text-slate-400 text-sm">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+interface KeyValueRowProps {
+  label: string;
+  children: React.ReactNode;
+}
+
+function KeyValueRow({ label, children }: KeyValueRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-slate-50 last:border-0">
+      <span className="text-sm text-slate-500">{label}</span>
+      <div className="text-right">{children}</div>
+    </div>
+  );
+}
+
+interface RouteAddressCardProps {
+  kind: "pickup" | "destination";
+  label: string;
+  title: string;
+}
+
+function RouteAddressCard({ kind, label, title }: RouteAddressCardProps) {
+  const Icon = kind === "pickup" ? MapPin : Home;
+  return (
+    <div className="bg-[#f0f4f8] p-4 rounded-2xl flex items-start gap-3">
+      <div className={`p-2.5 rounded-xl shrink-0 ${kind === "pickup" ? "bg-[#ffdbd0] text-[#FF7842]" : "bg-[#00acbb] text-white"}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-500">{label}</p>
+        <p className="text-sm font-bold text-[#171c1f] break-words">{title}</p>
+      </div>
+    </div>
+  );
+}
+
+interface ServiceInfoCardProps {
+  booking: BookingResponse & Record<string, unknown>;
+  serviceType: string;
+}
+
+function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
+  const isShuttle = serviceType === "airport_shuttle";
+  const isInterCity = serviceType === "inter_city";
+  const isVtc = serviceType === "vtc_hourly";
+
+  const dateAller = d.pickupDateAller as string | undefined
+    || d.scheduledDatetime as string | undefined
+    || d.departureDate as string | undefined;
+  const heureAller = d.pickupTimeAller as string | undefined;
+
+  const TitleIcon = isShuttle ? PlaneTakeoff : isInterCity ? Car : Clock;
+  const titleLabel = isShuttle ? "Vol & navette"
+    : isInterCity ? "Voyage inter-ville"
+    : isVtc ? "Course VTC"
+    : "Détails service";
+
+  const flightNumber = d.flightNumber as string | undefined;
+
+  return (
+    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 pointer-events-none">
+        <TitleIcon className="text-[#FF7842]/10 w-24 h-24" />
+      </div>
+      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">{titleLabel}</p>
+      <div className="relative z-10">
+        {isShuttle && flightNumber ? (
+          <>
+            <h2
+              className="text-5xl font-black text-[#171c1f] tracking-tighter mb-2"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {flightNumber}
+            </h2>
+            <p className="text-slate-500 font-medium mb-6">Numéro de vol</p>
+          </>
+        ) : (
+          <>
+            <h2
+              className="text-3xl font-black text-[#171c1f] tracking-tighter mb-2"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {dateAller ? format(new Date(dateAller), "dd MMM", { locale: fr }) : "—"}
+            </h2>
+            <p className="text-slate-500 font-medium mb-6">
+              {dateAller ? format(new Date(dateAller), "yyyy", { locale: fr }) : ""}
+              {heureAller ? ` • ${heureAller}` : ""}
+            </p>
+          </>
+        )}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+          {dateAller && (
+            <InfoStat label="Date" value={format(new Date(dateAller), "dd MMM yyyy", { locale: fr })} />
+          )}
+          {heureAller && <InfoStat label="Heure" value={heureAller} />}
+          {(d.passengers as number | undefined) ? (
+            <InfoStat label="Passagers" value={String(d.passengers)} />
+          ) : null}
+          {(d.package as string | undefined) ? (
+            <InfoStat label="Forfait" value={d.package as string} />
+          ) : null}
+          {(d.vehicleType as string | undefined) ? (
+            <InfoStat label="Véhicule" value={d.vehicleType as string} />
+          ) : null}
+          {(d.siegeBebes as number | undefined) ? (
+            <InfoStat label="Sièges bébé" value={String(d.siegeBebes)} />
+          ) : null}
+          {(d.animalDeCompagnie as boolean | undefined) ? (
+            <InfoStat label="Animal" value="Oui" />
+          ) : null}
+        </div>
+        {(d.specialRequests as string | undefined) || (d.notes as string | undefined) ? (
+          <div className="mt-6 p-4 bg-[#f0f4f8] rounded-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-500 mb-1">Demandes spéciales</p>
+            <p className="text-sm text-[#171c1f]">{(d.specialRequests as string) || (d.notes as string)}</p>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+interface InfoStatProps {
+  label: string;
+  value: string;
+}
+
+function InfoStat({ label, value }: InfoStatProps) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{label}</p>
+      <p className="text-sm font-bold text-[#171c1f] truncate">{value}</p>
+    </div>
+  );
+}

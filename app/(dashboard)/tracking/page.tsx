@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiResponse, BookingResponse, TravelDocumentResponse, ServiceReservationResponse, PaymentOption, BictorysServiceType } from "@/lib/api";
 import { toast } from "sonner";
@@ -291,66 +292,64 @@ export default function Tracking() {
     setDetailOpen(true);
   };
 
+  // Editorial: service quick-filter pills (keep status filter as Select to preserve every status option)
+  const serviceFilters = [
+    { id: "all", label: "Tout" },
+    { id: "airport_shuttle", label: "Navette" },
+    { id: "inter_city", label: "Inter-ville" },
+    { id: "vtc_hourly", label: "VTC" },
+    { id: "visa_assistance", label: "Documents" },
+    { id: "ACTIVITE", label: "Activite" },
+    { id: "LOGEMENT", label: "Logement" },
+    { id: "FLOTTE", label: "Location" },
+  ];
+
+  // Status pill colors (editorial: pill with dot)
+  const statusPillStyle = (s?: string): { bg: string; text: string; dot: string; pulse?: boolean } => {
+    const k = (s || "").toLowerCase();
+    if (k === "completed" || k === "paid")
+      return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
+    if (k === "in_progress" || k === "processing")
+      return { bg: "bg-[#ffdbd0]", text: "text-[#852300]", dot: "bg-[#FF6B35]", pulse: true };
+    if (k === "confirmed")
+      return { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" };
+    if (k === "pending")
+      return { bg: "bg-yellow-100", text: "text-yellow-700", dot: "bg-yellow-500" };
+    if (k === "cancelled" || k === "rejected")
+      return { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" };
+    return { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" };
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-3 rounded-xl gradient-subito">
-          <MapPin className="w-6 h-6 text-white" />
-        </div>
+    <div className="space-y-8 -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Suivi des commandes</h1>
-          <p className="text-slate-500">Suivez toutes vos reservations</p>
+          <h1
+            className="text-4xl font-extrabold tracking-tight text-[#171c1f] mb-2"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+          >
+            Mes Commandes
+          </h1>
+          <p className="text-[#585e6c] font-medium">
+            Vous avez{" "}
+            <span className="text-[#FF6B35] font-bold">{totalBookingsCount}</span>{" "}
+            commande{totalBookingsCount > 1 ? "s" : ""} au total — {stats.inProgress} en cours,{" "}
+            {stats.completed} termine{stats.completed > 1 ? "s" : ""}.
+          </p>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Total", value: stats.total, icon: Package, color: "bg-slate-100" },
-          { label: "Confirmees", value: stats.confirmed, icon: CheckCircle2, color: "bg-blue-100" },
-          { label: "En cours", value: stats.inProgress, icon: Loader2, color: "bg-indigo-100" },
-          { label: "Terminees", value: stats.completed, icon: CheckCircle2, color: "bg-green-100" },
-        ].map(stat => (
-          <div key={stat.label} className={`${stat.color} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-2">
-              <stat.icon className="w-4 h-4 text-slate-600" />
-              <p className="text-sm text-slate-600">{stat.label}</p>
-            </div>
-            <p className="text-2xl font-bold text-slate-800">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex gap-3 flex-wrap">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Rechercher par nom, reference..."
-              className="pl-10"
+            <input
+              placeholder="Rechercher une commande..."
+              className="pl-10 pr-4 py-2.5 bg-white border-none rounded-xl text-sm w-64 shadow-sm focus:ring-2 focus:ring-[#FF6B35]/20 outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select value={filterService} onValueChange={setFilterService}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Service" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les services</SelectItem>
-              <SelectItem value="airport_shuttle">Navette Aeroport</SelectItem>
-              <SelectItem value="inter_city">Inter-ville</SelectItem>
-              <SelectItem value="vtc_hourly">VTC Horaire</SelectItem>
-              <SelectItem value="visa_assistance">Documents Voyage</SelectItem>
-              <SelectItem value="ACTIVITE">Activite</SelectItem>
-              <SelectItem value="LOGEMENT">Logement</SelectItem>
-              <SelectItem value="FLOTTE">Location de vehicule</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full md:w-[180px]">
+            <SelectTrigger className="w-[180px] bg-white border-none rounded-xl shadow-sm h-11 px-4 font-semibold">
               <SelectValue placeholder="Statut" />
             </SelectTrigger>
             <SelectContent>
@@ -368,44 +367,66 @@ export default function Tracking() {
         </div>
       </div>
 
-      {/* Bookings list */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {isLoadingAll ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">
-            <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="font-medium">Aucune reservation trouvee</p>
-            <p className="text-sm">Les reservations apparaitront ici</p>
-          </div>
-        ) : (
-          <>
+      {/* Service Quick Filters (pills) */}
+      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+        {serviceFilters.map((f) => {
+          const active = filterService === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setFilterService(f.id)}
+              className={`px-6 py-2 rounded-full text-sm whitespace-nowrap font-bold transition-all ${
+                active
+                  ? "bg-[#FF6B35] text-white shadow-sm"
+                  : "bg-[#f0f4f8] text-[#585e6c] hover:bg-[#e4e9ed]"
+              }`}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Orders Table Container (editorial bento) */}
+      <div className="bg-[#f0f4f8] rounded-[2rem] p-4">
+        <div className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden">
+          {isLoadingAll ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-[#FF6B35]" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-20 text-slate-400">
+              <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">Aucune reservation trouvee</p>
+              <p className="text-sm">Les reservations apparaitront ici</p>
+            </div>
+          ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Reference</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Service</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Client</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Canal</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Montant</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Statut</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Paiement</th>
-                    <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-4">Date</th>
-                    <th className="px-6 py-4"></th>
+                  <tr className="text-slate-400 text-[11px] uppercase tracking-[0.15em] font-bold border-b border-[#eaeef2]">
+                    <th className="px-6 py-5">ID Commande</th>
+                    <th className="px-4 py-5">Service</th>
+                    <th className="px-4 py-5">Date</th>
+                    <th className="px-4 py-5">Client / Canal</th>
+                    <th className="px-4 py-5">Statut</th>
+                    <th className="px-4 py-5">Paiement</th>
+                    <th className="px-4 py-5 text-right">Montant</th>
+                    <th className="px-6 py-5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-[#eaeef2]/50">
                   <AnimatePresence>
                     {filtered.map((booking, index) => {
                       const service = getServiceInfo(booking.serviceType);
                       const status = getStatusInfo(booking.status);
                       const ServiceIcon = service.icon;
-                      const name = booking.clientName || '-';
+                      const name = booking.clientName || "-";
                       const code = booking.bookingCode || booking.reference || `#${booking.id}`;
                       const price = booking.totalPrice;
+                      const pill = statusPillStyle(booking.status);
+                      const paymentPaid =
+                        String((booking as any).paymentStatus || "").toLowerCase() === "paid";
 
                       return (
                         <motion.tr
@@ -413,52 +434,97 @@ export default function Tracking() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.02 }}
-                          className="hover:bg-slate-50 transition-colors cursor-pointer"
+                          className="hover:bg-[#f0f4f8]/30 transition-colors cursor-pointer group"
                           onClick={() => openDetail(booking)}
                         >
-                          <td className="px-6 py-4">
-                            <span className="font-mono text-sm font-medium text-slate-800">{code}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge className={`${service.color} border-0 gap-1`}>
-                              <ServiceIcon className="w-3 h-3" />
-                              {service.label}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <p className="font-medium text-slate-800 text-sm">{name}</p>
-                              <p className="text-xs text-slate-500">{booking.clientPhone || ''}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {booking.canal ? (
-                              <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{canalLabels[booking.canal] || booking.canal}</Badge>
-                            ) : (
-                              <span className="text-sm text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800">
-                              {price ? Number(price).toLocaleString() + ' FCFA' : '-'}
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-sm font-bold text-[#FF6B35]">
+                              {code}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <Badge className={`${status.color} border-0`}>{status.label}</Badge>
+                          <td className="px-4 py-5">
+                            <div className="flex items-center gap-3">
+                              <div className={`h-10 w-10 rounded-xl ${service.color} flex items-center justify-center shrink-0`}>
+                                <ServiceIcon className="w-4 h-4" />
+                              </div>
+                              <span className="font-bold text-sm text-[#171c1f] whitespace-nowrap">
+                                {service.label}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-6 py-4">
-                            {String((booking as any).paymentStatus || '').toLowerCase() === 'paid'
-                              ? <Badge className="bg-green-100 text-green-700 border-0">Payé</Badge>
-                              : <Badge className="bg-yellow-100 text-yellow-700 border-0">Non payé</Badge>
-                            }
+                          <td className="px-4 py-5">
+                            <div className="text-sm">
+                              <p className="font-bold text-[#171c1f]">
+                                {booking.createdAt
+                                  ? format(new Date(booking.createdAt), "dd MMM yyyy", { locale: fr })
+                                  : "-"}
+                              </p>
+                              <p className="text-slate-400 text-xs">
+                                {booking.createdAt
+                                  ? format(new Date(booking.createdAt), "HH:mm", { locale: fr })
+                                  : ""}
+                              </p>
+                            </div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-slate-500">
-                            {booking.createdAt ? format(new Date(booking.createdAt), 'dd MMM yyyy', { locale: fr }) : '-'}
+                          <td className="px-4 py-5">
+                            <div className="text-sm max-w-[180px]">
+                              <p className="font-medium text-[#171c1f] truncate">{name}</p>
+                              <p className="text-slate-400 text-xs truncate">
+                                {booking.canal
+                                  ? canalLabels[booking.canal] || booking.canal
+                                  : booking.clientPhone || "—"}
+                              </p>
+                            </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openDetail(booking); }}>
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                          <td className="px-4 py-5">
+                            <span
+                              className={`px-3 py-1.5 ${pill.bg} ${pill.text} rounded-full text-[11px] font-bold flex items-center gap-2 w-fit whitespace-nowrap`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${pill.dot} ${pill.pulse ? "animate-pulse" : ""}`}
+                              />
+                              {status.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-5">
+                            {paymentPaid ? (
+                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[11px] font-bold whitespace-nowrap">
+                                Paye
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-[11px] font-bold whitespace-nowrap">
+                                Non paye
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-5 text-right whitespace-nowrap">
+                            <span
+                              className="font-black text-[#171c1f]"
+                              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                            >
+                              {price ? Number(price).toLocaleString("fr-FR") + " FCFA" : "-"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            {['airport_shuttle', 'inter_city', 'vtc_hourly'].includes(booking.serviceType || '') ? (
+                              <Link
+                                href={`/tracking/${booking.id}?type=${booking.serviceType}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[#FF6B35] font-bold text-sm hover:underline underline-offset-4"
+                              >
+                                Details
+                              </Link>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDetail(booking);
+                                }}
+                                className="text-[#FF6B35] font-bold text-sm hover:underline underline-offset-4"
+                              >
+                                Details
+                              </button>
+                            )}
                           </td>
                         </motion.tr>
                       );
@@ -467,49 +533,120 @@ export default function Tracking() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
-              <p className="text-sm text-slate-500">
-                Page {page} sur {totalPages} — {totalBookingsCount} resultat{totalBookingsCount > 1 ? 's' : ''}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => p - 1)}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-                  const p = start + i;
-                  if (p > totalPages) return null;
-                  return (
-                    <Button
-                      key={p}
-                      variant={p === page ? 'default' : 'outline'}
-                      size="sm"
-                      className={p === page ? 'gradient-subito text-white border-0' : ''}
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </Button>
-                  );
-                })}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(p => p + 1)}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+        {/* Pagination */}
+        {!isLoadingAll && filtered.length > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-2 sm:px-6 py-6 gap-4">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              Page {page} sur {totalPages} — {totalBookingsCount} resultat
+              {totalBookingsCount > 1 ? "s" : ""}
+            </p>
+            <div className="flex gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                const p = start + i;
+                if (p > totalPages) return null;
+                const active = p === page;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`h-10 w-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${
+                      active
+                        ? "bg-[#FF6B35] text-white shadow-lg shadow-[#FF6B35]/20"
+                        : "bg-white text-[#171c1f] shadow-sm hover:bg-[#eaeef2]"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
-          </>
+          </div>
         )}
+      </div>
+
+      {/* Insights Bento */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-[#FF6B35] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px]">
+          <div className="flex justify-between items-start">
+            <Package className="w-8 h-8 opacity-50" />
+            <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
+              Total
+            </span>
+          </div>
+          <div>
+            <p
+              className="text-3xl font-black"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {stats.total}
+            </p>
+            <p className="text-white/80 text-sm font-medium">
+              Commandes visibles{filterStatus !== "all" ? " (filtrees)" : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-[#f0f4f8] p-8 rounded-[2rem] flex flex-col justify-between min-h-[160px]">
+          <div className="flex justify-between items-start">
+            <Loader2 className="w-8 h-8 text-[#FF6B35]" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              En cours
+            </span>
+          </div>
+          <div>
+            <p
+              className="text-3xl font-black text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {stats.inProgress}
+            </p>
+            <p className="text-slate-500 text-sm font-medium">
+              Operations actuellement en transit
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-[#171c1f] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px] relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-sm font-medium text-white/60 mb-2">Statut global</p>
+            <p
+              className="text-xl font-bold"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {stats.completed} commande{stats.completed > 1 ? "s" : ""} terminee
+              {stats.completed > 1 ? "s" : ""} avec succes.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 relative z-10">
+            <CheckCircle2 className="w-5 h-5 text-[#FF6B35]" />
+            <span className="text-xs font-bold text-[#FF6B35]">
+              Taux de reussite{" "}
+              {stats.total > 0
+                ? Math.round((stats.completed / stats.total) * 100)
+                : 0}
+              %
+            </span>
+          </div>
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#FF6B35]/20 rounded-full blur-3xl" />
+        </div>
       </div>
 
       {/* Detail Dialog */}
