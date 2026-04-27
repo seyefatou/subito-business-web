@@ -423,7 +423,7 @@ export default function TrackingDetailPage() {
           </article>
 
           {/* Itinéraire visuel */}
-          <article className="md:col-span-2 md:order-first bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
+          <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-1">Itinéraire</p>
