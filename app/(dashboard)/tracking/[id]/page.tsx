@@ -496,6 +496,9 @@ export default function TrackingDetailPage() {
         </aside>
       </div>
 
+      {/* Additional Details */}
+      <AdditionalDetailsSection booking={d} />
+
       {/* Pay Booking Dialog */}
       <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
         <DialogContent className="max-w-md">
@@ -675,6 +678,10 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
     : "Détails service";
 
   const flightNumber = d.flightNumber as string | undefined;
+  const direction = d.direction as string | undefined;
+  const directionLabel = direction === "to_airport" ? "Vers l'aéroport"
+    : direction === "from_airport" ? "Depuis l'aéroport"
+    : undefined;
 
   return (
     <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
@@ -691,7 +698,9 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
             >
               {flightNumber}
             </h2>
-            <p className="text-slate-500 font-medium mb-6">Numéro de vol</p>
+            <p className="text-slate-500 font-medium mb-6">
+              Numéro de vol{directionLabel ? ` • ${directionLabel}` : ""}
+            </p>
           </>
         ) : (
           <>
@@ -704,6 +713,7 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
             <p className="text-slate-500 font-medium mb-6">
               {dateAller ? format(new Date(dateAller), "yyyy", { locale: fr }) : ""}
               {heureAller ? ` • ${heureAller}` : ""}
+              {directionLabel ? ` • ${directionLabel}` : ""}
             </p>
           </>
         )}
@@ -715,17 +725,21 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
           {(d.passengers as number | undefined) ? (
             <InfoStat label="Passagers" value={String(d.passengers)} />
           ) : null}
+          {directionLabel && <InfoStat label="Sens" value={directionLabel} />}
           {(d.package as string | undefined) ? (
             <InfoStat label="Forfait" value={d.package as string} />
           ) : null}
           {(d.vehicleType as string | undefined) ? (
-            <InfoStat label="Véhicule" value={d.vehicleType as string} />
+            <InfoStat label="Type véhicule" value={d.vehicleType as string} />
           ) : null}
           {(d.siegeBebes as number | undefined) ? (
             <InfoStat label="Sièges bébé" value={String(d.siegeBebes)} />
           ) : null}
           {(d.animalDeCompagnie as boolean | undefined) ? (
             <InfoStat label="Animal" value="Oui" />
+          ) : null}
+          {(d.adresseSupplement as number | undefined) ? (
+            <InfoStat label="Suppl. adresse" value={`${d.adresseSupplement} FCFA`} />
           ) : null}
         </div>
         {(d.specialRequests as string | undefined) || (d.notes as string | undefined) ? (
@@ -750,5 +764,146 @@ function InfoStat({ label, value }: InfoStatProps) {
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{label}</p>
       <p className="text-sm font-bold text-[#171c1f] truncate">{value}</p>
     </div>
+  );
+}
+
+// Fields already displayed elsewhere — exclude from "additional details"
+const HIDDEN_FIELDS = new Set([
+  "id", "reference", "bookingCode", "serviceType", "status", "paymentStatus",
+  "totalPrice", "discountAmount", "discountPercent", "paidBy", "paymentMethod",
+  "clientName", "clientPhone", "clientEmail", "clientAddress",
+  "canal", "tag", "companyCode", "createdAt", "updatedAt",
+  "pickupDateAller", "pickupTimeAller", "pickupDateRetour", "pickupTimeRetour",
+  "scheduledDatetime", "departureDate", "returnDate", "isOneWay",
+  "adressePriseEnChargeAller", "adressePriseEnChargeRetour",
+  "adressePriseEnChargeDepartAller", "adressePriseEnChargeArriveeAller",
+  "adressePriseEnChargeDepartRetour", "adressePriseEnChargeArriveeRetour",
+  "pickupAddress", "adressePriseEnCharge", "adresseDestination",
+  "flightNumber", "passengers", "direction",
+  "package", "vehicleType",
+  "siegeBebes", "animalDeCompagnie", "adresseSupplement",
+  "specialRequests", "notes",
+  "villeDepart", "villeArrivee", "departureCity", "arrivalCity",
+  "addressLat", "addressLng", "returnAddressLat", "returnAddressLng",
+]);
+
+const FIELD_LABELS: Record<string, string> = {
+  trajetAeroportId: "Trajet aéroport (ID)",
+  trajetAeroport: "Trajet aéroport",
+  vehiculeId: "Véhicule (ID)",
+  vehicule: "Véhicule",
+  vehicle: "Véhicule",
+  employeeId: "Employé (ID)",
+  employee: "Employé",
+  driverId: "Chauffeur (ID)",
+  driver: "Chauffeur",
+  chauffeurId: "Chauffeur (ID)",
+  chauffeur: "Chauffeur",
+  paymentReference: "Référence paiement",
+  paymentDate: "Date paiement",
+  paymentProvider: "Fournisseur paiement",
+  startedAt: "Démarrée le",
+  completedAt: "Terminée le",
+  confirmedAt: "Confirmée le",
+  cancelledAt: "Annulée le",
+  rejectedAt: "Rejetée le",
+  cancellationReason: "Raison annulation",
+  rejectionReason: "Raison rejet",
+  bagages: "Bagages",
+  luggage: "Bagages",
+  numeroDeVol: "Numéro de vol",
+  flightCompany: "Compagnie aérienne",
+  airline: "Compagnie aérienne",
+  arrivalTerminal: "Terminal arrivée",
+  departureTerminal: "Terminal départ",
+  arrivalTime: "Heure arrivée",
+  departureTime: "Heure départ",
+  duration: "Durée",
+  distance: "Distance",
+  notesInterne: "Notes internes",
+  internalNotes: "Notes internes",
+  commentaire: "Commentaire",
+  commentaireClient: "Commentaire client",
+};
+
+function formatFieldLabel(key: string): string {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  // Convert camelCase / snake_case to Title Case
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .replace(/^./, (s) => s.toUpperCase())
+    .trim();
+}
+
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Oui" : "Non";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    // ISO date detection
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      try {
+        return format(new Date(value), "dd MMM yyyy 'à' HH:mm", { locale: fr });
+      } catch {
+        return value;
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      try {
+        return format(new Date(value + "T00:00:00"), "dd MMM yyyy", { locale: fr });
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // Try to find a name-like property for relation objects
+    const name = obj.nom || obj.name || obj.label || obj.title;
+    if (typeof name === "string") return name;
+    if (obj.id && (obj.firstName || obj.lastName || obj.prenom)) {
+      return `${(obj.prenom || obj.firstName || "")} ${(obj.nom || obj.lastName || "")}`.trim() || `#${obj.id}`;
+    }
+    if (obj.id) return `#${obj.id}`;
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+interface AdditionalDetailsSectionProps {
+  booking: BookingResponse & Record<string, unknown>;
+}
+
+function AdditionalDetailsSection({ booking: d }: AdditionalDetailsSectionProps) {
+  const extraEntries = Object.entries(d).filter(([key, value]) => {
+    if (HIDDEN_FIELDS.has(key)) return false;
+    if (value === null || value === undefined || value === "") return false;
+    if (typeof value === "function") return false;
+    // Hide internal lat/lng/secret-looking fields
+    if (/^_/.test(key)) return false;
+    if (Array.isArray(value) && value.length === 0) return false;
+    return true;
+  });
+
+  if (extraEntries.length === 0) return null;
+
+  return (
+    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Informations détaillées</p>
+      <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+        {extraEntries.map(([key, value]) => (
+          <div key={key} className="min-w-0">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+              {formatFieldLabel(key)}
+            </dt>
+            <dd className="text-sm font-bold text-[#171c1f] break-words">
+              {formatFieldValue(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </article>
   );
 }
