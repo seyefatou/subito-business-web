@@ -16,6 +16,8 @@ import {
   Bell,
   Search,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   LogOut,
   Settings,
   User,
@@ -94,6 +96,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+
+  // Hydrate collapsed state from localStorage after mount (avoids SSR mismatch)
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('subito_sidebar_collapsed');
+      if (stored === '1') setSidebarCollapsed(true);
+    } catch { /* localStorage may be unavailable */ }
+  }, []);
+
+  // Persist collapsed state on change
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('subito_sidebar_collapsed', sidebarCollapsed ? '1' : '0');
+    } catch { /* ignore */ }
+  }, [sidebarCollapsed]);
+
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -227,21 +246,22 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
       {/* Sidebar */}
       <aside className={`
-        fixed top-0 left-0 z-50 h-full w-72 bg-white border-r border-slate-200
-        transform transition-transform duration-300 ease-in-out
+        fixed top-0 left-0 z-50 h-full bg-white border-r border-slate-200
+        transform transition-all duration-300 ease-in-out
         lg:translate-x-0
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'}
+        ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100">
-            <div className="flex items-center gap-3">
+          <div className={`h-20 flex items-center border-b border-slate-100 relative ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'}`}>
+            <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'lg:gap-0' : ''}`}>
               <img
                 src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo-subito.jpeg`}
                 alt="Subito"
                 className="h-10 w-auto"
               />
-              <div>
+              <div className={sidebarCollapsed ? 'lg:hidden' : ''}>
                 <span className="font-bold text-xl text-slate-800">Subito</span>
                 <span className="block text-xs text-slate-500 font-medium -mt-1">Business</span>
               </div>
@@ -251,6 +271,13 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               onClick={() => setSidebarOpen(false)}
             >
               <X className="w-5 h-5" />
+            </button>
+            <button
+              className={`hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${sidebarCollapsed ? 'lg:absolute lg:-right-3 lg:top-7 lg:bg-white lg:border lg:border-slate-200 lg:shadow-sm lg:z-10' : ''}`}
+              onClick={() => setSidebarCollapsed(c => !c)}
+              aria-label={sidebarCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
           </div>
 
@@ -263,24 +290,26 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   key={item.name}
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
+                  title={sidebarCollapsed ? item.name : undefined}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                    relative flex items-center gap-3 rounded-xl text-sm font-medium
                     transition-all duration-200
+                    ${sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 py-3' : 'px-4 py-3'}
                     ${active
-                      ? 'bg-gradient-to-r from-orange-50 to-red-50 text-subito border border-orange-100'
+                      ? 'gradient-subito text-white shadow-md'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }
                   `}
                 >
-                  <item.icon className={`w-5 h-5 ${active ? 'text-subito' : ''}`} />
-                  {item.name}
+                  <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-white' : ''}`} />
+                  <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
                   {item.href === '/notifications' && unreadCount > 0 && (
-                    <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white">
+                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${active ? 'bg-white/30' : 'bg-red-500'} ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
                   {item.href === '/tickets' && unreadTickets > 0 && (
-                    <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-orange-500 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse">
+                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse ${active ? 'bg-white/30' : 'bg-orange-500'} ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
                       {unreadTickets > 99 ? '99+' : unreadTickets}
                     </span>
                   )}
@@ -290,7 +319,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </nav>
 
           {/* Bottom section */}
-          <div className="p-4 border-t border-slate-100">
+          <div className={`p-4 border-t border-slate-100 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
             <div className="rounded-xl gradient-subito p-4 text-white">
               <p className="text-sm font-medium mb-1">Besoin d&apos;aide ?</p>
               <p className="text-xs opacity-90 mb-3">Support disponible 24/7</p>
@@ -306,7 +335,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-72">
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'}`}>
         {/* Header */}
         <header className="sticky top-0 z-30 h-20 bg-white/80 backdrop-blur-xl border-b border-slate-200">
           <div className="flex items-center justify-between h-full px-6">
