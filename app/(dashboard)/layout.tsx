@@ -302,7 +302,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   `}
                 >
                   {active ? (
-                    <span className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
+                    <span className="w-8 h-8 rounded-lg bg-white border border-white/60 flex items-center justify-center shrink-0 shadow-sm ring-1 ring-black/5">
                       <item.icon className="w-4 h-4 text-[#FF7842]" />
                     </span>
                   ) : (
