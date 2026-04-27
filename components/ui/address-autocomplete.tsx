@@ -201,7 +201,7 @@ export function AddressAutocomplete({
         <Input
           className="pl-10"
           placeholder={placeholder}
-          value={value}
+          value={value ?? ''}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
         />
