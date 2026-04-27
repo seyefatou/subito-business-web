@@ -229,6 +229,15 @@ export default function TrackingDetailPage() {
     || (((destinationVille as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0])
     || (((originVille as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0]);
 
+  // Departure date/time for prominent display
+  const dateAller = (d.pickupDateAller as string | undefined)
+    || (d.scheduledDatetime as string | undefined)
+    || (d.departureDate as string | undefined);
+  const heureAller = d.pickupTimeAller as string | undefined;
+  const dateAllerFormatted = dateAller
+    ? format(new Date(dateAller), "EEEE dd MMMM yyyy", { locale: fr })
+    : null;
+
   return (
     <div className="space-y-8 -m-2 md:-m-4 lg:-m-6 px-6 md:px-8 lg:px-10 py-6 md:py-8">
       {/* Breadcrumbs + Title + Actions */}
@@ -247,6 +256,20 @@ export default function TrackingDetailPage() {
           >
             Détail de la réservation
           </h1>
+          {dateAllerFormatted && (
+            <div className="mt-3 inline-flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="w-9 h-9 rounded-xl gradient-subito flex items-center justify-center text-white shrink-0">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">Départ</p>
+                <p className="text-sm font-bold text-[#171c1f] mt-1">
+                  {dateAllerFormatted}
+                  {heureAller ? <span className="ml-2 text-[#FF7842]">à {heureAller}</span> : null}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex gap-3">
           <Button
@@ -565,9 +588,6 @@ export default function TrackingDetailPage() {
           </article>
         </aside>
       </div>
-
-      {/* Additional Details */}
-      <AdditionalDetailsSection booking={d} />
 
       {/* Pay Booking Dialog */}
       <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
@@ -1072,152 +1092,3 @@ function TrajetPricingCard({ trajet, isOneWay }: TrajetPricingCardProps) {
   );
 }
 
-// Fields already displayed elsewhere — exclude from "additional details"
-const HIDDEN_FIELDS = new Set([
-  "id", "bookingId", "reference", "bookingCode", "serviceType", "status", "paymentStatus",
-  "totalPrice", "discountAmount", "discountPercent", "paidBy", "paymentMethod",
-  "clientName", "clientPhone", "clientEmail", "clientAddress",
-  "canal", "tag", "companyCode", "createdAt", "updatedAt",
-  "pickupDateAller", "pickupTimeAller", "pickupDateRetour", "pickupTimeRetour",
-  "scheduledDatetime", "departureDate", "returnDate", "isOneWay",
-  "adressePriseEnChargeAller", "adressePriseEnChargeRetour",
-  "adressePriseEnChargeDepartAller", "adressePriseEnChargeArriveeAller",
-  "adressePriseEnChargeDepartRetour", "adressePriseEnChargeArriveeRetour",
-  "adressePriseEnChargeAllerLat", "adressePriseEnChargeAllerLng",
-  "adressePriseEnChargeRetourLat", "adressePriseEnChargeRetourLng",
-  "pickupAddress", "adressePriseEnCharge", "adresseDestination",
-  "flightNumber", "passengers", "direction",
-  "package", "vehicleType",
-  "siegeBebes", "animalDeCompagnie", "adresseSupplement",
-  "siegeBebesRetour", "animalDeCompagnieRetour", "adresseSupplementRetour", "adresseSupplementAller",
-  "smallBags", "largeBags",
-  "specialRequests", "notes",
-  "villeDepart", "villeArrivee", "departureCity", "arrivalCity",
-  "addressLat", "addressLng", "returnAddressLat", "returnAddressLng",
-  // Nested service-specific objects (we display fields from these, not the raw containers)
-  "airportShuttle", "interCityBooking", "vtcHourlyBooking", "visaAssistanceRequest",
-  // Driver/vehicle/trajet rendered in dedicated cards
-  "driver", "driverId", "vehicule", "vehiculeId", "trajetAeroport", "trajetAeroportId", "trajet",
-  "steps",
-]);
-
-const FIELD_LABELS: Record<string, string> = {
-  trajetAeroportId: "Trajet aéroport (ID)",
-  trajetAeroport: "Trajet aéroport",
-  vehiculeId: "Véhicule (ID)",
-  vehicule: "Véhicule",
-  vehicle: "Véhicule",
-  employeeId: "Employé (ID)",
-  employee: "Employé",
-  driverId: "Chauffeur (ID)",
-  driver: "Chauffeur",
-  chauffeurId: "Chauffeur (ID)",
-  chauffeur: "Chauffeur",
-  paymentReference: "Référence paiement",
-  paymentDate: "Date paiement",
-  paymentProvider: "Fournisseur paiement",
-  startedAt: "Démarrée le",
-  completedAt: "Terminée le",
-  confirmedAt: "Confirmée le",
-  cancelledAt: "Annulée le",
-  rejectedAt: "Rejetée le",
-  cancellationReason: "Raison annulation",
-  rejectionReason: "Raison rejet",
-  bagages: "Bagages",
-  luggage: "Bagages",
-  numeroDeVol: "Numéro de vol",
-  flightCompany: "Compagnie aérienne",
-  airline: "Compagnie aérienne",
-  arrivalTerminal: "Terminal arrivée",
-  departureTerminal: "Terminal départ",
-  arrivalTime: "Heure arrivée",
-  departureTime: "Heure départ",
-  duration: "Durée",
-  distance: "Distance",
-  notesInterne: "Notes internes",
-  internalNotes: "Notes internes",
-  commentaire: "Commentaire",
-  commentaireClient: "Commentaire client",
-};
-
-function formatFieldLabel(key: string): string {
-  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
-  // Convert camelCase / snake_case to Title Case
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/_/g, " ")
-    .replace(/^./, (s) => s.toUpperCase())
-    .trim();
-}
-
-function formatFieldValue(value: unknown): string {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "boolean") return value ? "Oui" : "Non";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "string") {
-    // ISO date detection
-    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
-      try {
-        return format(new Date(value), "dd MMM yyyy 'à' HH:mm", { locale: fr });
-      } catch {
-        return value;
-      }
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      try {
-        return format(new Date(value + "T00:00:00"), "dd MMM yyyy", { locale: fr });
-      } catch {
-        return value;
-      }
-    }
-    return value;
-  }
-  if (typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    // Try to find a name-like property for relation objects
-    const name = obj.nom || obj.name || obj.label || obj.title;
-    if (typeof name === "string") return name;
-    if (obj.id && (obj.firstName || obj.lastName || obj.prenom)) {
-      return `${(obj.prenom || obj.firstName || "")} ${(obj.nom || obj.lastName || "")}`.trim() || `#${obj.id}`;
-    }
-    if (obj.id) return `#${obj.id}`;
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
-interface AdditionalDetailsSectionProps {
-  booking: BookingResponse & Record<string, unknown>;
-}
-
-function AdditionalDetailsSection({ booking: d }: AdditionalDetailsSectionProps) {
-  const extraEntries = Object.entries(d).filter(([key, value]) => {
-    if (HIDDEN_FIELDS.has(key)) return false;
-    if (value === null || value === undefined || value === "") return false;
-    if (typeof value === "function") return false;
-    // Hide internal lat/lng/secret-looking fields
-    if (/^_/.test(key)) return false;
-    if (Array.isArray(value) && value.length === 0) return false;
-    return true;
-  });
-
-  if (extraEntries.length === 0) return null;
-
-  return (
-    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
-      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Informations détaillées</p>
-      <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-        {extraEntries.map(([key, value]) => (
-          <div key={key} className="min-w-0">
-            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-              {formatFieldLabel(key)}
-            </dt>
-            <dd className="text-sm font-bold text-[#171c1f] break-words">
-              {formatFieldValue(value)}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </article>
-  );
-}
