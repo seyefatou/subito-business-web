@@ -65,8 +65,8 @@ const navigation: NavigationItem[] = [
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
   { name: "Activite", href: "/service-reservations?type=ACTIVITE", icon: Compass },
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
-  { name: "Location de vehicule", href: "/service-reservations?type=FLOTTE", icon: Car },
-  { name: "Assurance", href: "/insurance", icon: Shield },
+  { name: "Location de vehicule", href: "/location-vehicule", icon: Car },
+  { name: "Assurance", href: "/assurance", icon: Shield },
   { name: "Tickets", href: "/tickets", icon: MessageSquare },
   { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   // { name: "Flotte", href: "/fleet", icon: Car },
@@ -217,34 +217,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <style>{`
-        :root {
-          --subito-orange: #FF6B35;
-          --subito-coral: #FF8B6A;
-          --subito-pink: #FF7B7B;
-        }
-
-        .gradient-subito {
-          background: linear-gradient(135deg, #FF6B35 0%, #FF7B7B 100%);
-        }
-
-        .text-subito {
-          color: #FF6B35;
-        }
-
-        .bg-subito {
-          background-color: #FF6B35;
-        }
-
-        .border-subito {
-          border-color: #FF6B35;
-        }
-
-        .hover\\:bg-subito:hover {
-          background-color: #e55a2b;
-        }
-      `}</style>
-
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
