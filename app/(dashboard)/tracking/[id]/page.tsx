@@ -372,7 +372,7 @@ export default function TrackingDetailPage() {
       {/* Bento Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Service + Passenger + Route */}
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6 md:items-start">
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-3 md:items-start">
           {/* Service Information Card */}
           <ServiceInfoCard
             booking={d}
