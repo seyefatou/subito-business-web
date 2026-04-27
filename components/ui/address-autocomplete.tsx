@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const JOLOF_BASE = process.env.NEXT_PUBLIC_JOLOF_API_URL || 'https://map.jolofmobility.com';
+
 export interface AddressSuggestion {
   display_name: string;
   lat: string;
@@ -59,7 +61,29 @@ export function countryNameToCode(name: string): string {
   return map[name.toLowerCase()] || 'sn';
 }
 
-export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
+async function searchAddressesJolof(query: string, countryCode = 'sn'): Promise<AddressSuggestion[] | null> {
+  try {
+    const params = new URLSearchParams({
+      query,
+      limit: '6',
+      language: 'fr',
+      country: countryCode.toUpperCase(),
+    });
+    const res = await fetch(`${JOLOF_BASE}/api/geocoding/autocomplete?${params.toString()}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json?.success || !Array.isArray(json.data)) return null;
+    return json.data.map((item: any) => ({
+      display_name: item.display_name,
+      lat: String(item.lat),
+      lon: String(item.lon),
+    }));
+  } catch {
+    return null;
+  }
+}
+
+async function searchAddressesNominatim(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
   if (!query || query.length < 2) return [];
   try {
     const q = encodeURIComponent(query);
@@ -80,6 +104,13 @@ export async function searchAddresses(query: string, countryCode = 'sn'): Promis
   } catch {
     return [];
   }
+}
+
+export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
+  if (!query || query.length < 2) return [];
+  const jolofResults = await searchAddressesJolof(query, countryCode);
+  if (jolofResults !== null) return jolofResults;
+  return searchAddressesNominatim(query, countryCode);
 }
 
 export function AddressAutocomplete({
