@@ -11,8 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const JOLOF_BASE = process.env.NEXT_PUBLIC_JOLOF_API_URL || 'https://map.jolofmobility.com';
-
 export interface AddressSuggestion {
   display_name: string;
   lat: string;
@@ -61,7 +59,8 @@ export function countryNameToCode(name: string): string {
   return map[name.toLowerCase()] || 'sn';
 }
 
-async function searchAddressesJolof(query: string, countryCode = 'sn'): Promise<AddressSuggestion[] | null> {
+export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
+  if (!query || query.length < 2) return [];
   try {
     const params = new URLSearchParams({
       query,
@@ -69,48 +68,18 @@ async function searchAddressesJolof(query: string, countryCode = 'sn'): Promise<
       language: 'fr',
       country: countryCode.toUpperCase(),
     });
-    const res = await fetch(`${JOLOF_BASE}/api/geocoding/autocomplete?${params.toString()}`);
-    if (!res.ok) return null;
+    const res = await fetch(`https://map.jolofmobility.com/api/geocoding/autocomplete?${params.toString()}`);
+    if (!res.ok) return [];
     const json = await res.json();
-    if (!json?.success || !Array.isArray(json.data)) return null;
+    if (!json?.success || !Array.isArray(json.data)) return [];
     return json.data.map((item: any) => ({
       display_name: item.display_name,
       lat: String(item.lat),
       lon: String(item.lon),
     }));
   } catch {
-    return null;
-  }
-}
-
-async function searchAddressesNominatim(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
-  if (!query || query.length < 2) return [];
-  try {
-    const q = encodeURIComponent(query);
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&limit=6&countrycodes=${countryCode}&accept-language=fr`,
-      {
-        headers: {
-          'User-Agent': 'SubitoBusiness/1.0 (contact@subitobusiness.com)',
-        },
-      }
-    );
-    const data = await res.json();
-    return (data || []).map((item: any) => ({
-      display_name: item.display_name,
-      lat: item.lat,
-      lon: item.lon,
-    }));
-  } catch {
     return [];
   }
-}
-
-export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
-  if (!query || query.length < 2) return [];
-  const jolofResults = await searchAddressesJolof(query, countryCode);
-  if (jolofResults !== null) return jolofResults;
-  return searchAddressesNominatim(query, countryCode);
 }
 
 export function AddressAutocomplete({
