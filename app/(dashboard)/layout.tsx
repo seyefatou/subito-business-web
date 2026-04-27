@@ -285,34 +285,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const active = isActive(item.href);
-              if (active) {
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    title={sidebarCollapsed ? item.name : undefined}
-                    className={`block rounded-xl bg-white border border-slate-200 shadow-sm p-1 ${sidebarCollapsed ? 'lg:p-1' : ''}`}
-                  >
-                    <div className={`relative flex items-center gap-3 rounded-lg gradient-subito text-white text-sm font-medium ${sidebarCollapsed ? 'lg:justify-center lg:px-2 px-3 py-2' : 'px-3 py-2'}`}>
-                      <span className="w-7 h-7 rounded-md bg-white flex items-center justify-center shrink-0">
-                        <item.icon className="w-4 h-4 text-[#FF7842]" />
-                      </span>
-                      <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
-                      {item.href === '/notifications' && unreadCount > 0 && (
-                        <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-white/30 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
-                          {unreadCount > 99 ? '99+' : unreadCount}
-                        </span>
-                      )}
-                      {item.href === '/tickets' && unreadTickets > 0 && (
-                        <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse bg-white/30 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
-                          {unreadTickets > 99 ? '99+' : unreadTickets}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                );
-              }
               return (
                 <Link
                   key={item.name}
@@ -320,12 +292,16 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   onClick={() => setSidebarOpen(false)}
                   title={sidebarCollapsed ? item.name : undefined}
                   className={`
-                    relative flex items-center gap-3 rounded-xl text-sm font-medium
-                    transition-all duration-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900
+                    relative flex items-center gap-3 rounded-xl text-sm
+                    transition-all duration-200
                     ${sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 py-3' : 'px-4 py-3'}
+                    ${active
+                      ? 'bg-white border-l-4 border-[#FF7842] text-[#FF7842] font-semibold shadow-sm pl-3'
+                      : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'
+                    }
                   `}
                 >
-                  <item.icon className="w-5 h-5 shrink-0" />
+                  <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#FF7842]' : ''}`} />
                   <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
                   {item.href === '/notifications' && unreadCount > 0 && (
                     <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-red-500 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
