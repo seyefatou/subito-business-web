@@ -383,6 +383,7 @@ export default function AirportShuttle() {
     const bookingData: CreateAirportShuttleBookingDto = {
       serviceType: 'airport_shuttle',
       trajetAeroportId: formData.trajetAeroportId,
+      direction: formData.direction === 'from_airport' ? 'from_airport' : 'to_airport',
       isOneWay: !formData.is_round_trip,
       pickupDateAller: formData.departure_date,
       pickupTimeAller: formData.departure_time,

@@ -257,6 +257,7 @@ export interface UpdateEmployeeDto {
 export interface CreateAirportShuttleBookingDto {
   serviceType: string;
   trajetAeroportId: number;
+  direction?: 'to_airport' | 'from_airport';
   isOneWay: boolean;
   pickupDateAller: string;
   pickupTimeAller: string;
@@ -1403,15 +1404,25 @@ class ApiClient {
     if (!response.ok) {
       const text = await response.text();
       let error: { message?: string; [k: string]: unknown };
+      const fallbackByStatus: Record<number, string> = {
+        400: "Requête invalide — vérifiez les informations saisies",
+        403: "Accès refusé",
+        404: "Ressource introuvable",
+        409: "Conflit — cette ressource existe déjà (email ou identifiant en doublon)",
+        422: "Données non valides",
+        429: "Trop de requêtes — patientez un instant",
+      };
       try {
         error = JSON.parse(text);
       } catch {
         console.error(`[API] Non-JSON ${response.status} response on ${endpoint}:`, text.slice(0, 500));
-        error = { message: `Erreur ${response.status}` };
+        error = { message: fallbackByStatus[response.status] || `Erreur ${response.status}` };
       }
 
       const rawMsg = error.message;
-      const msg = rawMsg ? translateErrors(rawMsg) : `Erreur ${response.status}`;
+      const msg = rawMsg
+        ? translateErrors(rawMsg)
+        : fallbackByStatus[response.status] || `Erreur ${response.status}`;
 
       // 5xx = server error, don't logout
       if (response.status >= 500) {

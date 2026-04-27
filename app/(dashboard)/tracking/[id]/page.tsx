@@ -183,7 +183,18 @@ export default function TrackingDetailPage() {
     || (d.villeArrivee as VilleObj | undefined);
 
   // User's actual travel direction (independent of the template orientation)
-  const direction = (d.direction as string | undefined) || (d.sens as string | undefined);
+  // Fallback: if not stored, infer from pickup address vs airport name.
+  // - to_airport: pickup is a city address (Grand Yoff, etc.), so it does NOT contain airport keywords
+  // - from_airport: pickup is at the airport itself
+  const explicitDirection = (d.direction as string | undefined) || (d.sens as string | undefined);
+  const inferDirection = (): "to_airport" | "from_airport" | undefined => {
+    if (d.serviceType !== "airport_shuttle") return undefined;
+    const pickup = ((d.adressePriseEnChargeAller as string) || "").toLowerCase();
+    if (!pickup) return undefined;
+    const airportKeywords = /(aéroport|aeroport|airport|aibd|aerogare|terminal)/i;
+    return airportKeywords.test(pickup) ? "from_airport" : "to_airport";
+  };
+  const direction = explicitDirection || inferDirection();
   const isToAirport = direction === "to_airport";
   const isFromAirport = direction === "from_airport";
 
