@@ -175,21 +175,48 @@ export default function TrackingDetailPage() {
     : statusKey === "pending" ? 1
     : 1;
 
-  const villeDepartObj = (trajet?.villeDepart as { nom?: string; name?: string } | undefined)
-    || (d.villeDepart as { nom?: string; name?: string } | undefined);
-  const villeArriveeObj = (trajet?.villeArrivee as { nom?: string; name?: string } | undefined)
-    || (d.villeArrivee as { nom?: string; name?: string } | undefined);
-  const departVille = villeDepartObj?.nom || villeDepartObj?.name || (d.departureCity as string) || "";
-  const arriveeVille = villeArriveeObj?.nom || villeArriveeObj?.name || (d.arrivalCity as string) || "";
+  // Trajet villes (template) — for airport_shuttle the trajet always has airport as one endpoint
+  type VilleObj = { nom?: string; name?: string; isAeroport?: boolean };
+  const villeDepartTrajet = (trajet?.villeDepart as VilleObj | undefined)
+    || (d.villeDepart as VilleObj | undefined);
+  const villeArriveeTrajet = (trajet?.villeArrivee as VilleObj | undefined)
+    || (d.villeArrivee as VilleObj | undefined);
+
+  // User's actual travel direction (independent of the template orientation)
+  const direction = (d.direction as string | undefined) || (d.sens as string | undefined);
+  const isToAirport = direction === "to_airport";
+  const isFromAirport = direction === "from_airport";
+
+  // Identify which ville is the airport vs the city
+  const trajetAirportVille = villeDepartTrajet?.isAeroport ? villeDepartTrajet
+    : villeArriveeTrajet?.isAeroport ? villeArriveeTrajet
+    : null;
+  const trajetCityVille = villeDepartTrajet?.isAeroport ? villeArriveeTrajet
+    : villeArriveeTrajet?.isAeroport ? villeDepartTrajet
+    : null;
+
+  // Effective origin/destination based on user's actual direction
+  const originVille = isToAirport ? trajetCityVille
+    : isFromAirport ? trajetAirportVille
+    : villeDepartTrajet;
+  const destinationVille = isToAirport ? trajetAirportVille
+    : isFromAirport ? trajetCityVille
+    : villeArriveeTrajet;
+
+  const departVille = originVille?.nom || originVille?.name || (d.departureCity as string) || "";
+  const arriveeVille = destinationVille?.nom || destinationVille?.name || (d.arrivalCity as string) || "";
+
+  // Flight number is only relevant when arriving FROM the airport (driver needs to track flight)
+  const showFlightNumber = isFromAirport;
 
   const totalPrice = Number(d.totalPrice || 0);
   const discountAmount = Number(d.discountAmount || 0);
   const baseFare = totalPrice + discountAmount;
 
-  // Trajet hero image (from villeDepart, villeArrivee or trajet itself)
+  // Trajet hero image (from trajet, then origin or destination ville)
   const heroImage = ((trajet?.image as string[] | undefined)?.[0])
-    || (((villeDepartObj as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0])
-    || (((villeArriveeObj as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0]);
+    || (((destinationVille as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0])
+    || (((originVille as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0]);
 
   return (
     <div className="space-y-8 -m-2 md:-m-4 lg:-m-6 px-6 md:px-8 lg:px-10 py-6 md:py-8">
@@ -293,7 +320,11 @@ export default function TrackingDetailPage() {
         {/* Left: Service + Passenger + Route */}
         <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Service Information Card */}
-          <ServiceInfoCard booking={d} serviceType={d.serviceType || serviceType} />
+          <ServiceInfoCard
+            booking={d}
+            serviceType={d.serviceType || serviceType}
+            showFlightNumber={showFlightNumber}
+          />
 
           {/* Passenger / Client Details */}
           <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
@@ -364,19 +395,34 @@ export default function TrackingDetailPage() {
                 ) : null}
               </div>
               <ItineraryTimeline
-                origin={(d.adressePriseEnChargeAller as string)
-                  || (d.adressePriseEnChargeDepartAller as string)
-                  || (d.pickupAddress as string)
-                  || (d.adressePriseEnCharge as string)
-                  || departVille
-                  || "—"}
+                origin={isToAirport
+                  ? ((d.adressePriseEnChargeAller as string)
+                      || (d.adressePriseEnCharge as string)
+                      || departVille
+                      || "—")
+                  : isFromAirport
+                  ? (departVille
+                      || (d.adressePriseEnChargeAller as string)
+                      || "—")
+                  : ((d.adressePriseEnChargeAller as string)
+                      || (d.adressePriseEnChargeDepartAller as string)
+                      || (d.pickupAddress as string)
+                      || (d.adressePriseEnCharge as string)
+                      || departVille
+                      || "—")}
                 originLabel={departVille ? `Départ — ${departVille}` : "Prise en charge"}
-                destination={(d.adressePriseEnChargeArriveeAller as string)
-                  || arriveeVille
-                  || (d.adresseDestination as string)
-                  || "—"}
+                destination={isToAirport
+                  ? (arriveeVille || "—")
+                  : isFromAirport
+                  ? ((d.adressePriseEnChargeAller as string)
+                      || arriveeVille
+                      || "—")
+                  : ((d.adressePriseEnChargeArriveeAller as string)
+                      || arriveeVille
+                      || (d.adresseDestination as string)
+                      || "—")}
                 destinationLabel={arriveeVille ? `Arrivée — ${arriveeVille}` : "Destination"}
-                flightNumber={d.flightNumber as string | undefined}
+                flightNumber={showFlightNumber ? (d.flightNumber as string | undefined) : undefined}
               />
             </div>
 
@@ -403,6 +449,7 @@ export default function TrackingDetailPage() {
                     || departVille
                     || "—"}
                   destinationLabel={departVille ? `Arrivée retour — ${departVille}` : "Destination retour"}
+                  flightNumber={isToAirport ? (d.flightNumber as string | undefined) : undefined}
                   variant="return"
                 />
               </div>
@@ -671,9 +718,10 @@ function ItineraryTimeline({ origin, originLabel, destination, destinationLabel,
 interface ServiceInfoCardProps {
   booking: BookingResponse & Record<string, unknown>;
   serviceType: string;
+  showFlightNumber?: boolean;
 }
 
-function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
+function ServiceInfoCard({ booking: d, serviceType, showFlightNumber = true }: ServiceInfoCardProps) {
   const isShuttle = serviceType === "airport_shuttle";
   const isInterCity = serviceType === "inter_city";
   const isVtc = serviceType === "vtc_hourly";
@@ -684,7 +732,8 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
   const heureAller = d.pickupTimeAller as string | undefined;
 
   const TitleIcon = isShuttle ? PlaneTakeoff : isInterCity ? Car : Clock;
-  const titleLabel = isShuttle ? "Vol & navette"
+  const titleLabel = isShuttle
+    ? (showFlightNumber ? "Vol & navette" : "Navette aéroport")
     : isInterCity ? "Voyage inter-ville"
     : isVtc ? "Course VTC"
     : "Détails service";
@@ -694,6 +743,7 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
   const directionLabel = direction === "to_airport" ? "Vers l'aéroport"
     : direction === "from_airport" ? "Depuis l'aéroport"
     : undefined;
+  const displayFlight = isShuttle && showFlightNumber && !!flightNumber;
 
   return (
     <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
@@ -702,7 +752,7 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
       </div>
       <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">{titleLabel}</p>
       <div className="relative z-10">
-        {isShuttle && flightNumber ? (
+        {displayFlight ? (
           <>
             <h2
               className="text-5xl font-black text-[#171c1f] tracking-tighter mb-2"
