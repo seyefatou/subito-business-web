@@ -132,7 +132,22 @@ export default function TrackingDetailPage() {
     );
   }
 
-  const d = booking;
+  // Extract service-specific sub-object (the API nests airport/inter-city/VTC fields)
+  const sub = (booking.airportShuttle as Record<string, unknown> | undefined)
+    || (booking.interCityBooking as Record<string, unknown> | undefined)
+    || (booking.vtcHourlyBooking as Record<string, unknown> | undefined)
+    || {};
+  const trajet = (sub.trajetAeroport as Record<string, unknown> | undefined)
+    || (sub.trajet as Record<string, unknown> | undefined);
+  const vehicule = (trajet?.vehicule as Record<string, unknown> | undefined)
+    || (sub.vehicule as Record<string, unknown> | undefined)
+    || (booking.vehicule as Record<string, unknown> | undefined);
+  const driver = (sub.driver as Record<string, unknown> | undefined)
+    || (booking.driver as Record<string, unknown> | undefined);
+
+  // Merged view: top-level booking + service sub-object (sub overrides for service-specific fields)
+  const d = { ...booking, ...sub } as BookingResponse & Record<string, unknown>;
+
   const bookingCode = d.bookingCode || d.reference || `#${d.id}`;
   const svc = serviceLabels[d.serviceType || ""] || serviceLabels[serviceType] || { label: d.serviceType || "Réservation", icon: Car, color: "bg-slate-100 text-slate-700" };
   const st = statusLabels[d.status || ""] || { label: d.status || "Inconnu", color: "bg-slate-100 text-slate-700" };
@@ -140,24 +155,31 @@ export default function TrackingDetailPage() {
   const isOneWay = (d.isOneWay as boolean | undefined) !== false && !d.pickupDateRetour;
   const isPaid = String((d.paymentStatus as string) || "").toLowerCase() === "paid";
   const canPay = !isPaid && d.paidBy !== "client" && ["confirmed", "completed"].includes(statusKey);
+  const hasDriver = !!driver && Object.keys(driver).length > 0;
 
-  // Timeline mapping: 1=confirmed, 2=driver assigned, 3=pickup arrival, 4=trip completed
+  // Timeline: step advances when driver is assigned
   const stepIndex = statusKey === "completed" ? 4
     : statusKey === "in_progress" ? 3
+    : hasDriver ? 2
     : statusKey === "confirmed" ? 2
     : statusKey === "pending" ? 1
     : 1;
 
-  const departVille = (d.villeDepart as { nom?: string; name?: string } | undefined)?.nom
-    || (d.villeDepart as { nom?: string; name?: string } | undefined)?.name
-    || (d.departureCity as string) || "";
-  const arriveeVille = (d.villeArrivee as { nom?: string; name?: string } | undefined)?.nom
-    || (d.villeArrivee as { nom?: string; name?: string } | undefined)?.name
-    || (d.arrivalCity as string) || "";
+  const villeDepartObj = (trajet?.villeDepart as { nom?: string; name?: string } | undefined)
+    || (d.villeDepart as { nom?: string; name?: string } | undefined);
+  const villeArriveeObj = (trajet?.villeArrivee as { nom?: string; name?: string } | undefined)
+    || (d.villeArrivee as { nom?: string; name?: string } | undefined);
+  const departVille = villeDepartObj?.nom || villeDepartObj?.name || (d.departureCity as string) || "";
+  const arriveeVille = villeArriveeObj?.nom || villeArriveeObj?.name || (d.arrivalCity as string) || "";
 
   const totalPrice = Number(d.totalPrice || 0);
   const discountAmount = Number(d.discountAmount || 0);
   const baseFare = totalPrice + discountAmount;
+
+  // Trajet hero image (from villeDepart, villeArrivee or trajet itself)
+  const heroImage = ((trajet?.image as string[] | undefined)?.[0])
+    || (((villeDepartObj as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0])
+    || (((villeArriveeObj as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0]);
 
   return (
     <div className="space-y-8 -m-2 md:-m-4 lg:-m-6 px-6 md:px-8 lg:px-10 py-6 md:py-8">
@@ -211,12 +233,37 @@ export default function TrackingDetailPage() {
         </div>
       </section>
 
+      {/* Hero image (trajet/destination) + Status badges */}
+      {heroImage ? (
+        <section className="relative h-48 md:h-64 rounded-3xl overflow-hidden shadow-[0_8px_24px_rgba(23,28,31,0.06)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={heroImage} alt={`${departVille} → ${arriveeVille}`} className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-2">Itinéraire</p>
+                <h2 className="text-white text-3xl md:text-4xl font-black tracking-tight" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  {departVille} → {arriveeVille}
+                </h2>
+              </div>
+              <Badge className={`${svc.color} border-0 gap-1.5 px-3 py-1.5 shadow-md`}>
+                <svc.icon className="w-3.5 h-3.5" />
+                {svc.label}
+              </Badge>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {/* Status / Service / Payment badges */}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge className={`${svc.color} border-0 gap-1.5 px-3 py-1`}>
-          <svc.icon className="w-3.5 h-3.5" />
-          {svc.label}
-        </Badge>
+        {!heroImage && (
+          <Badge className={`${svc.color} border-0 gap-1.5 px-3 py-1`}>
+            <svc.icon className="w-3.5 h-3.5" />
+            {svc.label}
+          </Badge>
+        )}
         <Badge className={`${st.color} border-0 px-3 py-1`}>{st.label}</Badge>
         <Badge className={`border-0 px-3 py-1 ${isPaid ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
           {isPaid ? "Payé" : "Non payé"}
@@ -225,6 +272,9 @@ export default function TrackingDetailPage() {
           <Badge className={`border-0 px-3 py-1 ${d.paidBy === "company" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}>
             Payé par : {d.paidBy === "company" ? "Entreprise" : "Client"}
           </Badge>
+        )}
+        {!isOneWay && (
+          <Badge className="border-0 px-3 py-1 bg-blue-100 text-blue-700">Aller-retour</Badge>
         )}
       </div>
 
@@ -352,59 +402,11 @@ export default function TrackingDetailPage() {
 
         {/* Right Sidebar: Driver + Pricing */}
         <aside className="lg:col-span-4 flex flex-col gap-6">
-          {/* Driver Info (placeholder if not assigned) */}
-          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Votre chauffeur</p>
-            {stepIndex >= 2 ? (
-              <>
-                <div className="flex flex-col items-center text-center mb-6">
-                  <div className="relative mb-4">
-                    <div className="w-24 h-24 rounded-full gradient-subito flex items-center justify-center text-white font-bold text-3xl border-4 border-[#f0f4f8]">
-                      <User className="w-10 h-10" />
-                    </div>
-                    <div className="absolute bottom-1 right-1 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
-                      <CheckCircle2 className="w-3 h-3 text-white" />
-                    </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-[#171c1f]">Chauffeur assigné</h3>
-                  <div className="flex items-center gap-1 text-yellow-500 mt-1">
-                    <Star className="w-4 h-4 fill-yellow-500" />
-                    <span className="font-bold text-[#171c1f]">4.9</span>
-                    <span className="text-slate-400 text-sm font-medium ml-1">(données service)</span>
-                  </div>
-                </div>
-                <div className="bg-[#f0f4f8] p-4 rounded-2xl mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white p-2.5 rounded-xl shadow-sm text-[#FF7842]">
-                      <Car className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-tight text-slate-500">Véhicule</p>
-                      <p className="text-[#171c1f] font-bold">À confirmer</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="rounded-xl gap-1.5" disabled>
-                    <MessageSquare className="w-4 h-4" />
-                    Chat
-                  </Button>
-                  <Button variant="outline" className="rounded-xl gap-1.5" disabled>
-                    <Phone className="w-4 h-4" />
-                    Appeler
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center text-center py-6">
-                <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                  <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
-                </div>
-                <p className="font-bold text-[#171c1f] mb-1">Chauffeur à assigner</p>
-                <p className="text-sm text-slate-500">Vous serez notifié dès qu&apos;un chauffeur sera affecté à votre course.</p>
-              </div>
-            )}
-          </article>
+          {/* Driver / Vehicle Card */}
+          <DriverVehicleCard driver={driver} vehicule={vehicule} hasDriver={hasDriver} />
+
+          {/* Trajet Pricing (from trajetAeroport) */}
+          {trajet ? <TrajetPricingCard trajet={trajet} isOneWay={isOneWay} /> : null}
 
           {/* Price Summary */}
           <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
@@ -741,6 +743,12 @@ function ServiceInfoCard({ booking: d, serviceType }: ServiceInfoCardProps) {
           {(d.adresseSupplement as number | undefined) ? (
             <InfoStat label="Suppl. adresse" value={`${d.adresseSupplement} FCFA`} />
           ) : null}
+          {(d.smallBags as number | undefined) ? (
+            <InfoStat label="Petits bagages" value={String(d.smallBags)} />
+          ) : null}
+          {(d.largeBags as number | undefined) ? (
+            <InfoStat label="Grands bagages" value={String(d.largeBags)} />
+          ) : null}
         </div>
         {(d.specialRequests as string | undefined) || (d.notes as string | undefined) ? (
           <div className="mt-6 p-4 bg-[#f0f4f8] rounded-2xl">
@@ -767,9 +775,235 @@ function InfoStat({ label, value }: InfoStatProps) {
   );
 }
 
+interface DriverVehicleCardProps {
+  driver: Record<string, unknown> | undefined;
+  vehicule: Record<string, unknown> | undefined;
+  hasDriver: boolean;
+}
+
+function DriverVehicleCard({ driver, vehicule, hasDriver }: DriverVehicleCardProps) {
+  if (hasDriver && driver) {
+    const driverName = (driver.prenom as string || driver.firstName as string || "")
+      + " " + (driver.nom as string || driver.lastName as string || "");
+    const driverPhone = driver.telephone as string || driver.phone as string;
+    const driverPhoto = (driver.photo as string) || (driver.avatar as string);
+    const driverRating = driver.rating as number;
+    return (
+      <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Votre chauffeur</p>
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="relative mb-4">
+            {driverPhoto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={driverPhoto} alt={driverName} className="w-24 h-24 rounded-full object-cover border-4 border-[#f0f4f8]" />
+            ) : (
+              <div className="w-24 h-24 rounded-full gradient-subito flex items-center justify-center text-white font-bold text-3xl border-4 border-[#f0f4f8]">
+                <User className="w-10 h-10" />
+              </div>
+            )}
+            <div className="absolute bottom-1 right-1 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
+              <CheckCircle2 className="w-3 h-3 text-white" />
+            </div>
+          </div>
+          <h3 className="text-xl font-bold text-[#171c1f]">{driverName.trim() || "Chauffeur assigné"}</h3>
+          {driverRating ? (
+            <div className="flex items-center gap-1 text-yellow-500 mt-1">
+              <Star className="w-4 h-4 fill-yellow-500" />
+              <span className="font-bold text-[#171c1f]">{driverRating}</span>
+            </div>
+          ) : null}
+        </div>
+        {vehicule ? <VehiculeBlock vehicule={vehicule} /> : null}
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <Button variant="outline" className="rounded-xl gap-1.5" disabled={!driverPhone}>
+            <MessageSquare className="w-4 h-4" />
+            Chat
+          </Button>
+          {driverPhone ? (
+            <a href={`tel:${driverPhone}`} className="block">
+              <Button variant="outline" className="rounded-xl gap-1.5 w-full">
+                <Phone className="w-4 h-4" />
+                Appeler
+              </Button>
+            </a>
+          ) : (
+            <Button variant="outline" className="rounded-xl gap-1.5" disabled>
+              <Phone className="w-4 h-4" />
+              Appeler
+            </Button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  // No driver yet — show vehicle preview if available
+  return (
+    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
+      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Véhicule prévu</p>
+      {vehicule ? (
+        <VehiculeShowcase vehicule={vehicule} />
+      ) : (
+        <div className="flex flex-col items-center text-center py-6">
+          <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+            <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+          </div>
+          <p className="font-bold text-[#171c1f] mb-1">Chauffeur à assigner</p>
+          <p className="text-sm text-slate-500">Vous serez notifié dès qu&apos;un chauffeur sera affecté.</p>
+        </div>
+      )}
+      <div className="mt-6 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-2.5">
+        <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-800 font-medium leading-relaxed">
+          Chauffeur en attente d&apos;assignation. Vous recevrez ses coordonnées dès l&apos;affectation.
+        </p>
+      </div>
+    </article>
+  );
+}
+
+interface VehiculeShowcaseProps {
+  vehicule: Record<string, unknown>;
+}
+
+function VehiculeShowcase({ vehicule }: VehiculeShowcaseProps) {
+  const photo = ((vehicule.image as string[] | undefined)?.[0]) || (vehicule.photo as string);
+  const marque = vehicule.marque as string | undefined;
+  const model = vehicule.model as string | undefined;
+  const categorie = vehicule.categorie as string | undefined;
+  const places = vehicule.nombrePlace as number | undefined;
+  const transmission = vehicule.transmission as string | undefined;
+  const climatisation = vehicule.climatisation as boolean | undefined;
+  const petitBagage = vehicule.petitBagage as number | undefined;
+  const grandBagage = vehicule.grandBagage as number | undefined;
+
+  return (
+    <>
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt={`${marque} ${model}`} className="w-full h-32 object-cover rounded-2xl mb-4" />
+      ) : null}
+      <div className="text-center mb-4">
+        <h3 className="text-xl font-bold text-[#171c1f]">{[marque, model].filter(Boolean).join(" ") || "Véhicule"}</h3>
+        {categorie ? <p className="text-sm text-slate-500 mt-1">{categorie}</p> : null}
+      </div>
+      <dl className="grid grid-cols-2 gap-3">
+        {places ? (
+          <div className="bg-[#f0f4f8] p-3 rounded-xl">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Places</dt>
+            <dd className="text-sm font-bold text-[#171c1f] mt-0.5">{places}</dd>
+          </div>
+        ) : null}
+        {transmission ? (
+          <div className="bg-[#f0f4f8] p-3 rounded-xl">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Boîte</dt>
+            <dd className="text-sm font-bold text-[#171c1f] mt-0.5">{transmission}</dd>
+          </div>
+        ) : null}
+        {petitBagage != null ? (
+          <div className="bg-[#f0f4f8] p-3 rounded-xl">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Petits bagages</dt>
+            <dd className="text-sm font-bold text-[#171c1f] mt-0.5">{petitBagage}</dd>
+          </div>
+        ) : null}
+        {grandBagage != null ? (
+          <div className="bg-[#f0f4f8] p-3 rounded-xl">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Grands bagages</dt>
+            <dd className="text-sm font-bold text-[#171c1f] mt-0.5">{grandBagage}</dd>
+          </div>
+        ) : null}
+        {climatisation ? (
+          <div className="bg-[#f0f4f8] p-3 rounded-xl col-span-2">
+            <dt className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Confort</dt>
+            <dd className="text-sm font-bold text-[#171c1f] mt-0.5">Climatisation</dd>
+          </div>
+        ) : null}
+      </dl>
+    </>
+  );
+}
+
+interface VehiculeBlockProps {
+  vehicule: Record<string, unknown>;
+}
+
+function VehiculeBlock({ vehicule }: VehiculeBlockProps) {
+  const photo = ((vehicule.image as string[] | undefined)?.[0]) || (vehicule.photo as string);
+  const marque = vehicule.marque as string | undefined;
+  const model = vehicule.model as string | undefined;
+  const categorie = vehicule.categorie as string | undefined;
+  return (
+    <div className="bg-[#f0f4f8] p-4 rounded-2xl flex items-center gap-3">
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt={`${marque} ${model}`} className="w-14 h-14 object-cover rounded-xl shrink-0" />
+      ) : (
+        <div className="bg-white p-3 rounded-xl shadow-sm text-[#FF7842]">
+          <Car className="w-5 h-5" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-tight text-slate-500">{categorie || "Véhicule"}</p>
+        <p className="text-[#171c1f] font-bold truncate">{[marque, model].filter(Boolean).join(" ") || "—"}</p>
+      </div>
+    </div>
+  );
+}
+
+interface TrajetPricingCardProps {
+  trajet: Record<string, unknown>;
+  isOneWay: boolean;
+}
+
+function TrajetPricingCard({ trajet, isOneWay }: TrajetPricingCardProps) {
+  const prixAllerSimple = trajet.prixAllerSimple as number | undefined;
+  const prixAllerRetour = trajet.prixAllerRetour as number | undefined;
+  const prixAdresseSupplementaire = trajet.prixAdresseSupplementaire as number | undefined;
+  const prixSiegeBebe = trajet.prixSiegeBebe as number | undefined;
+  const prixAnimal = trajet.prixAnimalCompagnie as number | undefined;
+
+  return (
+    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Tarification du trajet</p>
+      <dl className="space-y-3 text-sm">
+        {prixAllerSimple ? (
+          <div className={`flex justify-between ${isOneWay ? "font-bold" : ""}`}>
+            <dt className="text-slate-500">Aller simple</dt>
+            <dd className="text-[#171c1f]">{FORMAT_FCFA(prixAllerSimple)}</dd>
+          </div>
+        ) : null}
+        {prixAllerRetour ? (
+          <div className={`flex justify-between ${!isOneWay ? "font-bold" : ""}`}>
+            <dt className="text-slate-500">Aller-retour</dt>
+            <dd className="text-[#171c1f]">{FORMAT_FCFA(prixAllerRetour)}</dd>
+          </div>
+        ) : null}
+        {prixAdresseSupplementaire ? (
+          <div className="flex justify-between">
+            <dt className="text-slate-500">Adresse supplémentaire</dt>
+            <dd className="text-[#171c1f]">{FORMAT_FCFA(prixAdresseSupplementaire)}</dd>
+          </div>
+        ) : null}
+        {prixSiegeBebe ? (
+          <div className="flex justify-between">
+            <dt className="text-slate-500">Siège bébé</dt>
+            <dd className="text-[#171c1f]">{FORMAT_FCFA(prixSiegeBebe)}</dd>
+          </div>
+        ) : null}
+        {prixAnimal ? (
+          <div className="flex justify-between">
+            <dt className="text-slate-500">Animal de compagnie</dt>
+            <dd className="text-[#171c1f]">{FORMAT_FCFA(prixAnimal)}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </article>
+  );
+}
+
 // Fields already displayed elsewhere — exclude from "additional details"
 const HIDDEN_FIELDS = new Set([
-  "id", "reference", "bookingCode", "serviceType", "status", "paymentStatus",
+  "id", "bookingId", "reference", "bookingCode", "serviceType", "status", "paymentStatus",
   "totalPrice", "discountAmount", "discountPercent", "paidBy", "paymentMethod",
   "clientName", "clientPhone", "clientEmail", "clientAddress",
   "canal", "tag", "companyCode", "createdAt", "updatedAt",
@@ -778,13 +1012,22 @@ const HIDDEN_FIELDS = new Set([
   "adressePriseEnChargeAller", "adressePriseEnChargeRetour",
   "adressePriseEnChargeDepartAller", "adressePriseEnChargeArriveeAller",
   "adressePriseEnChargeDepartRetour", "adressePriseEnChargeArriveeRetour",
+  "adressePriseEnChargeAllerLat", "adressePriseEnChargeAllerLng",
+  "adressePriseEnChargeRetourLat", "adressePriseEnChargeRetourLng",
   "pickupAddress", "adressePriseEnCharge", "adresseDestination",
   "flightNumber", "passengers", "direction",
   "package", "vehicleType",
   "siegeBebes", "animalDeCompagnie", "adresseSupplement",
+  "siegeBebesRetour", "animalDeCompagnieRetour", "adresseSupplementRetour", "adresseSupplementAller",
+  "smallBags", "largeBags",
   "specialRequests", "notes",
   "villeDepart", "villeArrivee", "departureCity", "arrivalCity",
   "addressLat", "addressLng", "returnAddressLat", "returnAddressLng",
+  // Nested service-specific objects (we display fields from these, not the raw containers)
+  "airportShuttle", "interCityBooking", "vtcHourlyBooking", "visaAssistanceRequest",
+  // Driver/vehicle/trajet rendered in dedicated cards
+  "driver", "driverId", "vehicule", "vehiculeId", "trajetAeroport", "trajetAeroportId", "trajet",
+  "steps",
 ]);
 
 const FIELD_LABELS: Record<string, string> = {
