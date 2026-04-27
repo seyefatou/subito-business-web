@@ -259,7 +259,7 @@ export default function TrackingDetailPage() {
     : null;
 
   return (
-    <div className="space-y-8 -m-2 md:-m-4 lg:-m-6 px-6 md:px-8 lg:px-10 py-6 md:py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 space-y-6">
       {/* Breadcrumbs + Title + Actions */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
@@ -381,18 +381,18 @@ export default function TrackingDetailPage() {
           />
 
           {/* Passenger / Client Details */}
-          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
-            <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Informations client</p>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl gradient-subito flex items-center justify-center text-white font-bold text-lg shrink-0">
+          <article className="bg-white p-5 md:p-6 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-4">Informations client</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl gradient-subito flex items-center justify-center text-white font-bold text-sm shrink-0">
                 {(d.clientName || "C").substring(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="font-bold text-xl text-[#171c1f] truncate">{d.clientName || "—"}</p>
-                {d.canal && <p className="text-slate-500 text-sm">Canal : {d.canal}</p>}
+                <p className="font-bold text-base text-[#171c1f] truncate">{d.clientName || "—"}</p>
+                {d.canal && <p className="text-slate-500 text-xs">Canal : {d.canal}</p>}
               </div>
             </div>
-            <dl className="space-y-3">
+            <dl className="space-y-2">
               {d.clientPhone ? (
                 <KeyValueRow label="Téléphone">
                   <a href={`tel:${d.clientPhone}`} className="font-bold text-[#171c1f] hover:text-[#FF7842] transition-colors flex items-center gap-1.5">
@@ -799,44 +799,40 @@ function ServiceInfoCard({ booking: d, serviceType, showFlightNumber = true }: S
   const displayFlight = isShuttle && showFlightNumber && !!flightNumber;
 
   return (
-    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-4 pointer-events-none">
-        <TitleIcon className="text-[#FF7842]/10 w-24 h-24" />
+    <article className="bg-white p-5 md:p-6 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-3 pointer-events-none">
+        <TitleIcon className="text-[#FF7842]/10 w-16 h-16" />
       </div>
-      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">{titleLabel}</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-4">{titleLabel}</p>
       <div className="relative z-10">
         {displayFlight ? (
           <>
             <h2
-              className="text-5xl font-black text-[#171c1f] tracking-tighter mb-2"
+              className="text-3xl font-black text-[#171c1f] tracking-tighter mb-1"
               style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
             >
               {flightNumber}
             </h2>
-            <p className="text-slate-500 font-medium mb-6">
+            <p className="text-slate-500 text-sm font-medium mb-4">
               Numéro de vol{directionLabel ? ` • ${directionLabel}` : ""}
             </p>
           </>
         ) : (
           <>
             <h2
-              className="text-3xl font-black text-[#171c1f] tracking-tighter mb-2"
+              className="text-2xl font-black text-[#171c1f] tracking-tighter mb-1"
               style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
             >
-              {dateAller ? format(new Date(dateAller), "dd MMM", { locale: fr }) : "—"}
+              {dateAller ? format(new Date(dateAller), "dd MMM yyyy", { locale: fr }) : "—"}
             </h2>
-            <p className="text-slate-500 font-medium mb-6">
-              {dateAller ? format(new Date(dateAller), "yyyy", { locale: fr }) : ""}
-              {heureAller ? ` • ${heureAller}` : ""}
-              {directionLabel ? ` • ${directionLabel}` : ""}
+            <p className="text-slate-500 text-sm font-medium mb-4">
+              {heureAller ? `${heureAller}` : ""}
+              {heureAller && directionLabel ? " • " : ""}
+              {directionLabel || ""}
             </p>
           </>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
-          {dateAller && (
-            <InfoStat label="Date" value={format(new Date(dateAller), "dd MMM yyyy", { locale: fr })} />
-          )}
-          {heureAller && <InfoStat label="Heure" value={heureAller} />}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-2.5">
           {(d.passengers as number | undefined) ? (
             <InfoStat label="Passagers" value={String(d.passengers)} />
           ) : null}
