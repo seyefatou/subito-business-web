@@ -277,63 +277,74 @@ export default function TrackingDetailPage() {
             </dl>
           </article>
 
-          {/* Route / Map placeholder */}
+          {/* Itinéraire visuel */}
           <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
-            <div className="p-6 md:p-8 border-b border-slate-100">
-              <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-1">Trajet</p>
-              <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
-                {departVille && arriveeVille ? `${departVille} → ${arriveeVille}` : "Itinéraire"}
-              </h3>
-              {!isOneWay && <p className="text-slate-500 text-sm mt-1">Aller-retour</p>}
+            <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-1">Itinéraire</p>
+                <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  {departVille && arriveeVille ? `${departVille} → ${arriveeVille}` : "Trajet"}
+                </h3>
+              </div>
+              <Badge className={`border-0 text-xs px-3 py-1 ${isOneWay ? "bg-slate-100 text-slate-700" : "bg-blue-100 text-blue-700"}`}>
+                {isOneWay ? "Aller simple" : "Aller-retour"}
+              </Badge>
             </div>
-            <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RouteAddressCard
-                kind="pickup"
-                label="Prise en charge"
-                title={(d.adressePriseEnChargeAller as string)
+
+            {/* Aller */}
+            <div className="p-6 md:p-8">
+              <div className="flex items-center gap-2 mb-5">
+                <PlaneTakeoff className="w-4 h-4 text-[#FF7842]" />
+                <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842]">Aller</p>
+                {(d.pickupDateAller || d.scheduledDatetime || d.departureDate) ? (
+                  <span className="ml-auto text-sm font-medium text-slate-600">
+                    {format(new Date((d.pickupDateAller || d.scheduledDatetime || d.departureDate) as string), "dd MMM yyyy", { locale: fr })}
+                    {d.pickupTimeAller ? ` à ${d.pickupTimeAller}` : ""}
+                  </span>
+                ) : null}
+              </div>
+              <ItineraryTimeline
+                origin={(d.adressePriseEnChargeAller as string)
                   || (d.adressePriseEnChargeDepartAller as string)
                   || (d.pickupAddress as string)
                   || (d.adressePriseEnCharge as string)
                   || departVille
                   || "—"}
-              />
-              <RouteAddressCard
-                kind="destination"
-                label="Destination"
-                title={(d.adressePriseEnChargeArriveeAller as string)
+                originLabel={departVille ? `Départ — ${departVille}` : "Prise en charge"}
+                destination={(d.adressePriseEnChargeArriveeAller as string)
                   || arriveeVille
                   || (d.adresseDestination as string)
                   || "—"}
+                destinationLabel={arriveeVille ? `Arrivée — ${arriveeVille}` : "Destination"}
+                flightNumber={d.flightNumber as string | undefined}
               />
             </div>
+
+            {/* Retour */}
             {!isOneWay && (
-              <div className="px-6 md:px-8 pb-6 md:pb-8">
-                <div className="border-t border-slate-100 pt-4 mt-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3">Retour</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <RouteAddressCard
-                      kind="pickup"
-                      label="Prise en charge retour"
-                      title={(d.adressePriseEnChargeRetour as string)
-                        || (d.adressePriseEnChargeDepartRetour as string)
-                        || arriveeVille
-                        || "—"}
-                    />
-                    <RouteAddressCard
-                      kind="destination"
-                      label="Destination retour"
-                      title={(d.adressePriseEnChargeArriveeRetour as string)
-                        || departVille
-                        || "—"}
-                    />
-                  </div>
+              <div className="px-6 md:px-8 pb-6 md:pb-8 border-t border-slate-100 pt-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <PlaneLanding className="w-4 h-4 text-blue-600" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Retour</p>
                   {d.pickupDateRetour ? (
-                    <p className="text-sm text-slate-500 mt-3">
-                      {format(new Date(d.pickupDateRetour as string), "dd MMMM yyyy", { locale: fr })}
+                    <span className="ml-auto text-sm font-medium text-slate-600">
+                      {format(new Date(d.pickupDateRetour as string), "dd MMM yyyy", { locale: fr })}
                       {d.pickupTimeRetour ? ` à ${d.pickupTimeRetour}` : ""}
-                    </p>
+                    </span>
                   ) : null}
                 </div>
+                <ItineraryTimeline
+                  origin={(d.adressePriseEnChargeRetour as string)
+                    || (d.adressePriseEnChargeDepartRetour as string)
+                    || arriveeVille
+                    || "—"}
+                  originLabel={arriveeVille ? `Départ retour — ${arriveeVille}` : "Prise en charge retour"}
+                  destination={(d.adressePriseEnChargeArriveeRetour as string)
+                    || departVille
+                    || "—"}
+                  destinationLabel={departVille ? `Arrivée retour — ${departVille}` : "Destination retour"}
+                  variant="return"
+                />
               </div>
             )}
           </article>
@@ -485,28 +496,6 @@ export default function TrackingDetailPage() {
         </aside>
       </div>
 
-      {/* All raw data (collapsible) */}
-      <details className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_24px_rgba(23,28,31,0.04)] overflow-hidden">
-        <summary className="px-6 md:px-8 py-5 cursor-pointer font-bold text-[#171c1f] flex items-center gap-2 hover:bg-slate-50">
-          <ChevronRight className="w-4 h-4 transition-transform [details[open]>summary>&]:rotate-90" />
-          Toutes les données de la réservation
-        </summary>
-        <div className="px-6 md:px-8 pb-6 md:pb-8 border-t border-slate-100">
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 pt-5">
-            {Object.entries(d)
-              .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "function")
-              .map(([key, value]) => (
-                <div key={key} className="flex justify-between gap-4 py-2 border-b border-slate-50 last:border-0">
-                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">{key}</span>
-                  <span className="text-sm font-mono text-[#171c1f] text-right break-all">
-                    {typeof value === "object" ? JSON.stringify(value) : String(value)}
-                  </span>
-                </div>
-              ))}
-          </dl>
-        </div>
-      </details>
-
       {/* Pay Booking Dialog */}
       <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
         <DialogContent className="max-w-md">
@@ -612,22 +601,53 @@ function KeyValueRow({ label, children }: KeyValueRowProps) {
   );
 }
 
-interface RouteAddressCardProps {
-  kind: "pickup" | "destination";
-  label: string;
-  title: string;
+interface ItineraryTimelineProps {
+  origin: string;
+  originLabel: string;
+  destination: string;
+  destinationLabel: string;
+  flightNumber?: string;
+  variant?: "default" | "return";
 }
 
-function RouteAddressCard({ kind, label, title }: RouteAddressCardProps) {
-  const Icon = kind === "pickup" ? MapPin : Home;
+function ItineraryTimeline({ origin, originLabel, destination, destinationLabel, flightNumber, variant = "default" }: ItineraryTimelineProps) {
+  const accentColor = variant === "return" ? "bg-blue-500" : "bg-[#FF7842]";
+  const destAccentColor = variant === "return" ? "bg-[#FF7842]" : "bg-[#00acbb]";
+
   return (
-    <div className="bg-[#f0f4f8] p-4 rounded-2xl flex items-start gap-3">
-      <div className={`p-2.5 rounded-xl shrink-0 ${kind === "pickup" ? "bg-[#ffdbd0] text-[#FF7842]" : "bg-[#00acbb] text-white"}`}>
-        <Icon className="w-4 h-4" />
+    <div className="relative">
+      {/* Origin */}
+      <div className="flex items-start gap-4 relative z-10">
+        <div className={`w-12 h-12 rounded-full ${accentColor} flex items-center justify-center text-white shrink-0 shadow-md`}>
+          <MapPin className="w-5 h-5" />
+        </div>
+        <div className="flex-1 pt-1.5 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{originLabel}</p>
+          <p className="text-base font-bold text-[#171c1f] break-words">{origin}</p>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-500">{label}</p>
-        <p className="text-sm font-bold text-[#171c1f] break-words">{title}</p>
+
+      {/* Connecting line */}
+      <div className="ml-6 my-2 border-l-2 border-dashed border-slate-300 h-8 flex items-center justify-start pl-6">
+        {flightNumber ? (
+          <div className="bg-blue-50 border border-blue-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+            <Plane className="w-3 h-3 text-blue-600" />
+            <span className="text-xs font-bold text-blue-700">Vol {flightNumber}</span>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 italic">Trajet en cours…</div>
+        )}
+      </div>
+
+      {/* Destination */}
+      <div className="flex items-start gap-4 relative z-10">
+        <div className={`w-12 h-12 rounded-full ${destAccentColor} flex items-center justify-center text-white shrink-0 shadow-md`}>
+          <Home className="w-5 h-5" />
+        </div>
+        <div className="flex-1 pt-1.5 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{destinationLabel}</p>
+          <p className="text-base font-bold text-[#171c1f] break-words">{destination}</p>
+        </div>
       </div>
     </div>
   );
