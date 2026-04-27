@@ -72,11 +72,13 @@ export async function searchAddresses(query: string, countryCode = 'sn'): Promis
     if (!res.ok) return [];
     const json = await res.json();
     if (!json?.success || !Array.isArray(json.data)) return [];
-    return json.data.map((item: any) => ({
-      display_name: item.display_name,
-      lat: String(item.lat),
-      lon: String(item.lon),
-    }));
+    return json.data
+      .map((item: any) => ({
+        display_name: item.display_name || item.description,
+        lat: String(item.lat),
+        lon: String(item.lon),
+      }))
+      .filter((s: AddressSuggestion) => Boolean(s.display_name));
   } catch {
     return [];
   }
