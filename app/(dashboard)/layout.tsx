@@ -301,7 +301,13 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                     }
                   `}
                 >
-                  <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-white' : ''}`} />
+                  {active ? (
+                    <span className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
+                      <item.icon className="w-4 h-4 text-[#FF7842]" />
+                    </span>
+                  ) : (
+                    <item.icon className="w-5 h-5 shrink-0" />
+                  )}
                   <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
                   {item.href === '/notifications' && unreadCount > 0 && (
                     <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${active ? 'bg-white/30' : 'bg-red-500'} ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
