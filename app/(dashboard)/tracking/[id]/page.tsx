@@ -51,12 +51,25 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-700" },
-  confirmed: { label: "Confirme", color: "bg-blue-100 text-blue-700" },
+  confirmed: { label: "Confirmée", color: "bg-blue-100 text-blue-700" },
+  assigned: { label: "Chauffeur assigné", color: "bg-purple-100 text-purple-700" },
+  coordonnees_chauffeur_arrivee: { label: "Chauffeur en route", color: "bg-indigo-100 text-indigo-700" },
   in_progress: { label: "En cours", color: "bg-indigo-100 text-indigo-700" },
-  completed: { label: "Termine", color: "bg-green-100 text-green-700" },
-  cancelled: { label: "Annule", color: "bg-red-100 text-red-700" },
-  rejected: { label: "Rejete", color: "bg-red-100 text-red-700" },
+  started: { label: "Démarrée", color: "bg-indigo-100 text-indigo-700" },
+  completed: { label: "Terminée", color: "bg-green-100 text-green-700" },
+  cancelled: { label: "Annulée", color: "bg-red-100 text-red-700" },
+  rejected: { label: "Rejetée", color: "bg-red-100 text-red-700" },
 };
+
+// Map API step status -> timeline index (1..4)
+function stepIndexFromStatus(status: string): number {
+  const k = (status || "").toLowerCase();
+  if (k === "completed") return 4;
+  if (k === "in_progress" || k === "started" || k === "coordonnees_chauffeur_arrivee") return 3;
+  if (k === "assigned") return 2;
+  if (k === "confirmed") return 1;
+  return 1;
+}
 
 const FORMAT_FCFA = (n?: number | null) => (n ? Number(n).toLocaleString("fr-FR") + " FCFA" : "—");
 
@@ -167,13 +180,16 @@ export default function TrackingDetailPage() {
   const canPay = !isPaid && d.paidBy !== "client" && ["confirmed", "completed"].includes(statusKey);
   const hasDriver = !!driver && Object.keys(driver).length > 0;
 
-  // Timeline: step advances when driver is assigned
-  const stepIndex = statusKey === "completed" ? 4
-    : statusKey === "in_progress" ? 3
-    : hasDriver ? 2
-    : statusKey === "confirmed" ? 2
-    : statusKey === "pending" ? 1
-    : 1;
+  // Timeline: prefer the API steps[] array (richer than the single status field)
+  const apiSteps = (booking.steps as Array<{ status?: string }> | undefined) || [];
+  const latestStepStatus = apiSteps.length > 0
+    ? (apiSteps[apiSteps.length - 1].status || "")
+    : statusKey;
+  const stepIndex = Math.max(
+    stepIndexFromStatus(latestStepStatus),
+    stepIndexFromStatus(statusKey),
+    hasDriver ? 2 : 1,
+  );
 
   // Trajet villes (template) — for airport_shuttle the trajet always has airport as one endpoint
   type VilleObj = { nom?: string; name?: string; isAeroport?: boolean };
@@ -230,10 +246,14 @@ export default function TrackingDetailPage() {
     || (((originVille as Record<string, unknown> | undefined)?.image as string[] | undefined)?.[0]);
 
   // Departure date/time for prominent display
-  const dateAller = (d.pickupDateAller as string | undefined)
+  // Top-level booking.pickupDate is authoritative; sub-object pickupDateAller is sometimes
+  // overwritten with the row creation timestamp by the API, so we use it only as a fallback.
+  const dateAller = (booking.pickupDate as string | undefined)
+    || (d.pickupDateAller as string | undefined)
     || (d.scheduledDatetime as string | undefined)
     || (d.departureDate as string | undefined);
-  const heureAller = d.pickupTimeAller as string | undefined;
+  const heureAller = (booking.pickupTime as string | undefined)
+    || (d.pickupTimeAller as string | undefined);
   const dateAllerFormatted = dateAller
     ? format(new Date(dateAller), "EEEE dd MMMM yyyy", { locale: fr })
     : null;
@@ -421,10 +441,10 @@ export default function TrackingDetailPage() {
               <div className="flex items-center gap-2 mb-5">
                 <PlaneTakeoff className="w-4 h-4 text-[#FF7842]" />
                 <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842]">Aller</p>
-                {(d.pickupDateAller || d.scheduledDatetime || d.departureDate) ? (
+                {dateAller ? (
                   <span className="ml-auto text-sm font-medium text-slate-600">
-                    {format(new Date((d.pickupDateAller || d.scheduledDatetime || d.departureDate) as string), "dd MMM yyyy", { locale: fr })}
-                    {d.pickupTimeAller ? ` à ${d.pickupTimeAller}` : ""}
+                    {format(new Date(dateAller), "dd MMM yyyy", { locale: fr })}
+                    {heureAller ? ` à ${heureAller}` : ""}
                   </span>
                 ) : null}
               </div>
@@ -757,10 +777,12 @@ function ServiceInfoCard({ booking: d, serviceType, showFlightNumber = true }: S
   const isInterCity = serviceType === "inter_city";
   const isVtc = serviceType === "vtc_hourly";
 
-  const dateAller = d.pickupDateAller as string | undefined
-    || d.scheduledDatetime as string | undefined
-    || d.departureDate as string | undefined;
-  const heureAller = d.pickupTimeAller as string | undefined;
+  const dateAller = (d.pickupDate as string | undefined)
+    || (d.pickupDateAller as string | undefined)
+    || (d.scheduledDatetime as string | undefined)
+    || (d.departureDate as string | undefined);
+  const heureAller = (d.pickupTime as string | undefined)
+    || (d.pickupTimeAller as string | undefined);
 
   const TitleIcon = isShuttle ? PlaneTakeoff : isInterCity ? Car : Clock;
   const titleLabel = isShuttle
