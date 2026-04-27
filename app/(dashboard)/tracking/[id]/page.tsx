@@ -145,8 +145,18 @@ export default function TrackingDetailPage() {
   const driver = (sub.driver as Record<string, unknown> | undefined)
     || (booking.driver as Record<string, unknown> | undefined);
 
-  // Merged view: top-level booking + service sub-object (sub overrides for service-specific fields)
-  const d = { ...booking, ...sub } as BookingResponse & Record<string, unknown>;
+  // Merged view: start from top-level booking; sub overrides ONLY when it has a real value
+  // (the service sub-object may contain empty strings or nulls for fields the top-level has filled,
+  // e.g. airportShuttle.clientName === "" while booking.clientName === "Jean Fall")
+  const d = (() => {
+    const merged: Record<string, unknown> = { ...booking };
+    for (const [k, v] of Object.entries(sub)) {
+      if (v !== null && v !== undefined && v !== "") {
+        merged[k] = v;
+      }
+    }
+    return merged as BookingResponse & Record<string, unknown>;
+  })();
 
   const bookingCode = d.bookingCode || d.reference || `#${d.id}`;
   const svc = serviceLabels[d.serviceType || ""] || serviceLabels[serviceType] || { label: d.serviceType || "Réservation", icon: Car, color: "bg-slate-100 text-slate-700" };
