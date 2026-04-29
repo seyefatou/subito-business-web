@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -155,6 +156,9 @@ export default function TicketsPage() {
                 >
                   Ouvrir un ticket
                 </DialogTitle>
+                <DialogDescription className="text-[#585e6c]">
+                  Décrivez votre demande pour contacter votre gestionnaire.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
