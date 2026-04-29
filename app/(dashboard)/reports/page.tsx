@@ -46,7 +46,9 @@ import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
 import { toast } from "sonner";
 
-const COLORS = ['#FF6B35', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569'];
+const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
+
+const COLORS = ['#E04A1F', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569'];
 
 const SERVICE_LABELS: Record<string, string> = {
   airport_shuttle: 'Navette Aéroport',
@@ -576,87 +578,104 @@ export default function Reports() {
   };
 
   const kpiItems = [
-    { label: "Dépenses totales", value: totalRevenue.toLocaleString(), suffix: "FCFA", icon: Wallet, color: "from-orange-500 to-red-500" },
-    { label: "Commandes", value: totalBookings, suffix: "", icon: Package, color: "from-blue-500 to-indigo-500" },
-    { label: "Taux de complétion", value: `${completionRate}%`, suffix: "", icon: TrendingUp, color: "from-green-500 to-emerald-500" },
-    { label: "Valeur moyenne", value: avgPrice.toLocaleString(), suffix: "FCFA", icon: FileText, color: "from-purple-500 to-pink-500" },
+    { label: "Dépenses totales", value: totalRevenue.toLocaleString('fr-FR'), suffix: "FCFA", icon: Wallet, iconBg: "bg-[#ffdbd0]", iconColor: "text-[#E04A1F]" },
+    { label: "Commandes", value: totalBookings, suffix: "", icon: Package, iconBg: "bg-[#f0f4f8]", iconColor: "text-[#585e6c]" },
+    { label: "Taux de complétion", value: `${completionRate}%`, suffix: "", icon: TrendingUp, iconBg: "bg-amber-100", iconColor: "text-amber-700" },
+    { label: "Valeur moyenne", value: avgPrice.toLocaleString('fr-FR'), suffix: "FCFA", icon: FileText, iconBg: "bg-[#f0f4f8]", iconColor: "text-[#585e6c]" },
   ];
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-slate-500">Chargement des rapports...</p>
+      <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+        <div className="flex items-center justify-center py-24 bg-white rounded-3xl border border-slate-100">
+          <Loader2 className="w-10 h-10 animate-spin text-[#E04A1F]" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl gradient-subito">
-            <BarChart3 className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Rapports & Analyses</h1>
-            <p className="text-slate-500 mt-1">
-              Statistiques du {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
-            </p>
-          </div>
+    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 space-y-6">
+      {/* Hero Header */}
+      <div className="flex items-baseline justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <span>Finances</span>
+            <span>/</span>
+            <span className="text-[#E04A1F]">Rapports</span>
+          </nav>
+          <h1
+            className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#171c1f] leading-tight"
+            style={MANROPE}
+          >
+            Rapports &amp; Analyses
+          </h1>
+          <p className="text-[#585e6c] font-medium mt-1">
+            Statistiques du {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
+          </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={period} onValueChange={(v) => { setPeriod(v); setCustomStart(""); setCustomEnd(""); }}>
-            <SelectTrigger className="w-40">
-              <Calendar className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Ce mois</SelectItem>
-              <SelectItem value="quarter">Ce trimestre</SelectItem>
-              <SelectItem value="year">Cette année</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="gap-2 rounded-xl border-slate-200 text-[#171c1f] font-bold h-11"
+            onClick={handleExportCSV}
+          >
             <FileDown className="w-4 h-4" />
             CSV
           </Button>
-          <Button variant="outline" className="gap-2" onClick={handleExportPDF}>
+          <Button
+            className="gap-2 rounded-xl bg-[#E04A1F] hover:bg-[#C8330F] text-white font-bold h-11 shadow-md shadow-[#E04A1F]/20"
+            onClick={handleExportPDF}
+          >
             <Download className="w-4 h-4" />
             PDF
           </Button>
         </div>
       </div>
 
-      {/* Custom date range */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="flex flex-col md:flex-row items-end gap-4">
-          <div className="space-y-1 flex-1">
-            <Label className="text-sm text-slate-600">Période personnalisée</Label>
+      {/* Period filters */}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 md:p-5">
+        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-end">
+          <div className="space-y-1.5 md:w-56">
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">
+              Période
+            </Label>
+            <Select value={period} onValueChange={(v) => { setPeriod(v); setCustomStart(""); setCustomEnd(""); }}>
+              <SelectTrigger className="rounded-xl border-slate-200 h-11">
+                <Calendar className="w-4 h-4 mr-2 text-[#585e6c]" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="month">Ce mois</SelectItem>
+                <SelectItem value="quarter">Ce trimestre</SelectItem>
+                <SelectItem value="year">Cette année</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 flex-1">
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">
+              Période personnalisée
+            </Label>
             <div className="flex gap-2">
               <Input
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="flex-1"
+                className="flex-1 rounded-xl border-slate-200 h-11"
               />
               <Input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="flex-1"
+                className="flex-1 rounded-xl border-slate-200 h-11"
               />
             </div>
           </div>
           {(customStart || customEnd) && (
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => { setCustomStart(""); setCustomEnd(""); }}
-              className="text-slate-500"
+              className="text-[#585e6c] font-bold h-11 rounded-xl hover:bg-[#f0f4f8]"
             >
               Réinitialiser
             </Button>
@@ -669,18 +688,23 @@ export default function Reports() {
         {kpiItems.map((kpi, index) => (
           <motion.div
             key={kpi.label}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
+            transition={{ delay: index * 0.05 }}
+            className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 sm:p-5"
           >
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`p-2 rounded-xl bg-gradient-to-br ${kpi.color}`}>
-                <kpi.icon className="w-4 h-4 text-white" />
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-2xl ${kpi.iconBg} flex items-center justify-center shrink-0`}>
+                <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
               </div>
-              <span className="text-xs sm:text-sm text-slate-500">{kpi.label}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">{kpi.label}</span>
             </div>
-            <p className="text-base sm:text-lg font-bold text-slate-800 mt-1">{kpi.value}{kpi.suffix && <span className="text-xs sm:text-sm font-semibold text-slate-500"> {kpi.suffix}</span>}</p>
+            <p className="text-lg sm:text-2xl font-extrabold text-[#171c1f]" style={MANROPE}>
+              {kpi.value}
+              {kpi.suffix && (
+                <span className="text-xs font-bold uppercase tracking-widest text-[#585e6c] ml-1">{kpi.suffix}</span>
+              )}
+            </p>
           </motion.div>
         ))}
       </div>
@@ -688,16 +712,21 @@ export default function Reports() {
       {/* Status breakdown */}
       {Object.keys(byStatus).length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Répartition par statut</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <h3
+            className="text-lg font-extrabold text-[#171c1f] mb-4"
+            style={MANROPE}
+          >
+            Répartition par statut
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(byStatus).map(([status, count]) => (
-              <div key={status} className="text-center p-3 sm:p-4 rounded-xl bg-slate-50">
-                <p className="text-base sm:text-lg font-bold text-slate-800">{count}</p>
-                <p className="text-sm text-slate-500 mt-1 capitalize">
+              <div key={status} className="p-4 rounded-2xl bg-[#f0f4f8]">
+                <p className="text-2xl font-extrabold text-[#171c1f]" style={MANROPE}>{count}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c] mt-1">
                   {STATUS_LABELS[status] || status.replace(/_/g, ' ')}
                 </p>
               </div>
@@ -707,17 +736,23 @@ export default function Reports() {
       )}
 
       {/* Charts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Monthly trend */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">
-            Évolution mensuelle <span className="text-sm font-normal text-slate-400">(en milliers FCFA)</span>
+          <h3
+            className="text-lg font-extrabold text-[#171c1f] mb-1"
+            style={MANROPE}
+          >
+            Évolution mensuelle
           </h3>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c] mb-6">
+            En milliers de FCFA
+          </p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyData}>
@@ -725,15 +760,15 @@ export default function Reports() {
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toLocaleString()}k FCFA`, 'Dépenses']}
+                  formatter={(value: number) => [`${value.toLocaleString('fr-FR')}k FCFA`, 'Dépenses']}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
                 <Line
                   type="monotone"
                   dataKey="total"
-                  stroke="#FF6B35"
+                  stroke="#E04A1F"
                   strokeWidth={3}
-                  dot={{ fill: '#FF6B35', strokeWidth: 2 }}
+                  dot={{ fill: '#E04A1F', strokeWidth: 2 }}
                   name="Dépenses"
                 />
               </LineChart>
@@ -743,14 +778,24 @@ export default function Reports() {
 
         {/* By service pie */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Dépenses par service</h3>
+          <h3
+            className="text-lg font-extrabold text-[#171c1f] mb-6"
+            style={MANROPE}
+          >
+            Dépenses par service
+          </h3>
           {byServiceData.length === 0 ? (
-            <p className="text-slate-400 text-center py-12">Aucune donnée pour cette période</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-16 h-16 rounded-full bg-[#f0f4f8] flex items-center justify-center mb-3">
+                <BarChart3 className="w-8 h-8 text-[#585e6c]" />
+              </div>
+              <p className="text-sm text-[#585e6c] font-medium">Aucune donnée pour cette période</p>
+            </div>
           ) : (
             <>
               <div className="h-64">
@@ -770,7 +815,7 @@ export default function Reports() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`${value.toLocaleString()} FCFA`, '']}
+                      formatter={(value: number) => [`${value.toLocaleString('fr-FR')} FCFA`, '']}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     />
                   </PieChart>
@@ -778,9 +823,9 @@ export default function Reports() {
               </div>
               <div className="grid grid-cols-2 gap-2 mt-4">
                 {byServiceData.slice(0, 6).map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                    <span className="text-sm text-slate-600 truncate">{item.name}</span>
+                  <div key={item.name} className="flex items-center gap-2 min-w-0">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span className="text-xs text-[#585e6c] font-medium truncate">{item.name}</span>
                   </div>
                 ))}
               </div>
@@ -790,14 +835,24 @@ export default function Reports() {
 
         {/* By department bar */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6 lg:col-span-2"
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 lg:col-span-2"
         >
-          <h3 className="text-lg font-semibold text-slate-800 mb-6">Dépenses par département</h3>
+          <h3
+            className="text-lg font-extrabold text-[#171c1f] mb-6"
+            style={MANROPE}
+          >
+            Dépenses par département
+          </h3>
           {byDeptData.length === 0 ? (
-            <p className="text-slate-400 text-center py-12">Aucune donnée pour cette période</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-16 h-16 rounded-full bg-[#f0f4f8] flex items-center justify-center mb-3">
+                <Building2 className="w-8 h-8 text-[#585e6c]" />
+              </div>
+              <p className="text-sm text-[#585e6c] font-medium">Aucune donnée pour cette période</p>
+            </div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -806,10 +861,10 @@ export default function Reports() {
                   <XAxis type="number" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} stroke="#94a3b8" width={120} />
                   <Tooltip
-                    formatter={(value: number) => [`${value.toLocaleString()} FCFA`, 'Dépenses']}
+                    formatter={(value: number) => [`${value.toLocaleString('fr-FR')} FCFA`, 'Dépenses']}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
-                  <Bar dataKey="value" fill="#FF6B35" radius={[0, 8, 8, 0]} />
+                  <Bar dataKey="value" fill="#E04A1F" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -819,40 +874,60 @@ export default function Reports() {
 
       {/* Executive Summary */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-8 text-white"
+        transition={{ delay: 0.25 }}
+        className="bg-gradient-to-br from-[#171c1f] to-[#2d2520] rounded-3xl p-6 md:p-8 text-white relative overflow-hidden"
       >
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h3 className="text-xl font-bold">Rapport Direction Générale</h3>
-            <p className="text-slate-400 mt-1">
-              Synthèse — {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
-            </p>
+        <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-[#E04A1F]/10 blur-3xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] mb-2">
+                Rapport direction générale
+              </p>
+              <h3 className="text-xl md:text-2xl font-extrabold" style={MANROPE}>
+                Synthèse de la période
+              </h3>
+              <p className="text-slate-400 text-sm mt-1">
+                {format(new Date(startDate), 'dd MMM', { locale: fr })} au {format(new Date(endDate), 'dd MMM yyyy', { locale: fr })}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="gap-2 rounded-xl bg-white text-[#171c1f] hover:bg-slate-100 font-bold"
+              onClick={handleExportPDF}
+            >
+              <Download className="w-4 h-4" />
+              Télécharger
+            </Button>
           </div>
-          <Button variant="secondary" size="sm" className="gap-2" onClick={handleExportPDF}>
-            <Download className="w-4 h-4" />
-            Télécharger
-          </Button>
-        </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <div>
-            <p className="text-slate-400 text-xs sm:text-sm">Budget consommé</p>
-            <p className="text-base sm:text-lg font-bold mt-1">{totalRevenue.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-400">FCFA</span></p>
-          </div>
-          <div>
-            <p className="text-slate-400 text-xs sm:text-sm">Volume de commandes</p>
-            <p className="text-base sm:text-lg font-bold mt-1">{totalBookings}</p>
-          </div>
-          <div>
-            <p className="text-slate-400 text-xs sm:text-sm">Service principal</p>
-            <p className="text-sm sm:text-lg font-bold mt-1">{byServiceData[0]?.name || '—'}</p>
-          </div>
-          <div>
-            <p className="text-slate-400 text-xs sm:text-sm">Valeur moyenne</p>
-            <p className="text-base sm:text-lg font-bold mt-1">{avgPrice.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-400">FCFA</span></p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Budget consommé</p>
+              <p className="text-base sm:text-xl font-extrabold mt-1" style={MANROPE}>
+                {totalRevenue.toLocaleString('fr-FR')}
+                <span className="text-xs font-bold text-slate-400 ml-1">FCFA</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Volume de commandes</p>
+              <p className="text-base sm:text-xl font-extrabold mt-1" style={MANROPE}>{totalBookings}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service principal</p>
+              <p className="text-sm sm:text-xl font-extrabold mt-1 truncate" style={MANROPE}>
+                {byServiceData[0]?.name || '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Valeur moyenne</p>
+              <p className="text-base sm:text-xl font-extrabold mt-1" style={MANROPE}>
+                {avgPrice.toLocaleString('fr-FR')}
+                <span className="text-xs font-bold text-slate-400 ml-1">FCFA</span>
+              </p>
+            </div>
           </div>
         </div>
       </motion.div>
