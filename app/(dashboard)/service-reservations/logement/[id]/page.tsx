@@ -423,13 +423,19 @@ export default function LogementDetailPage() {
             </SectionCard>
           )}
 
-          {/* Description */}
+          {/* Description — carte blanche robuste (sans framer-motion pour éviter l'opacity bloquée) */}
           {logement.description && (
-            <SectionCard icon={<Sparkles className="w-5 h-5" />} title="À propos">
-              <p className="text-[#585e6c] leading-relaxed whitespace-pre-line">
+            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8 mt-10">
+              <div className="flex items-center gap-3 mb-5">
+                <IconTile><Sparkles className="w-5 h-5" /></IconTile>
+                <h3 className="text-lg font-bold text-[#171c1f]" style={MANROPE}>
+                  À propos
+                </h3>
+              </div>
+              <p className="text-[#171c1f] leading-relaxed whitespace-pre-line text-base">
                 {logement.description}
               </p>
-            </SectionCard>
+            </section>
           )}
 
           {/* Équipements */}
