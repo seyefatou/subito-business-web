@@ -227,6 +227,8 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const ACTIVITE_PAGE_SIZE = 4;
   const [logementFilter, setLogementFilter] = useState<LogementFilterType>('all');
   const [logementChambresFilter, setLogementChambresFilter] = useState<number | null>(null);
+  const [logementPage, setLogementPage] = useState(1);
+  const LOGEMENT_PAGE_SIZE = 4;
   // Recherche logement
   const [logementSearch, setLogementSearch] = useState({ location: '', dateArrivee: '', dateDepart: '', nbChambres: 0, nbAdultes: 0, nbEnfants: 0 });
   const [logementSearchTriggered, setLogementSearchTriggered] = useState(false);
@@ -329,6 +331,43 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const logements: Logement[] = Array.isArray(logementsRaw)
     ? logementsRaw
     : (logementsRaw as any)?.items || (logementsRaw as any)?.list || [];
+
+  // Filtrer les logements (type + nb chambres + recherche texte)
+  const filteredLogements = logements.filter(l => {
+    if (logementFilter !== 'all') {
+      const t = (l.type || '').toLowerCase();
+      if (logementFilter === 'hotel' && !t.includes('hotel')) return false;
+      if (logementFilter === 'appartement' && !t.includes('appart') && !t.includes('residence') && !t.includes('villa')) return false;
+    }
+    if (logementChambresFilter !== null) {
+      if (l.nbreChambres !== logementChambresFilter) return false;
+    }
+    if (!itemSearch) return true;
+    const search = itemSearch.toLowerCase();
+    return (l.nom || '').toLowerCase().includes(search)
+      || (l.ville || '').toLowerCase().includes(search)
+      || (l.type || '').toLowerCase().includes(search)
+      || (l.description || '').toLowerCase().includes(search)
+      || (l.nbreChambres != null && l.nbreChambres.toString().includes(search))
+      || (l.prixParNuit != null && l.prixParNuit.toString().includes(search))
+      || (l.chambresHotel || []).some((ch: ChambreHotel) =>
+        (ch.nom || '').toLowerCase().includes(search)
+        || (ch.typeChambre || '').toLowerCase().includes(search)
+        || (ch.prixParNuit != null && ch.prixParNuit.toString().includes(search))
+      );
+  });
+
+  // Pagination 4 par page
+  const logementPagesCount = Math.max(1, Math.ceil(filteredLogements.length / LOGEMENT_PAGE_SIZE));
+  const paginatedLogements = filteredLogements.slice(
+    (logementPage - 1) * LOGEMENT_PAGE_SIZE,
+    logementPage * LOGEMENT_PAGE_SIZE,
+  );
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setLogementPage(1);
+  }, [logementFilter, logementChambresFilter, itemSearch]);
 
   // Fetch vehicules
   const { data: vehiculesResponse, isLoading: vehiculesLoading } = useQuery({
@@ -1127,51 +1166,43 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                     ) : null;
                   })()}
 
+                  {/* Compteur résultats */}
+                  {!logementsLoading && filteredLogements.length > 0 && (
+                    <div className="flex items-center justify-end">
+                      <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
+                        {filteredLogements.length} logement{filteredLogements.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+
                   {logementsLoading ? (
                     <div className="flex items-center justify-center py-16">
-                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                      <Loader2 className="w-8 h-8 animate-spin text-[#E04A1F]" />
                     </div>
-                  ) : logements.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400">
-                      <Hotel className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p className="font-medium">Aucun logement disponible</p>
+                  ) : filteredLogements.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 mx-auto rounded-full bg-[#ffdbd0] flex items-center justify-center mb-4">
+                        <Hotel className="w-10 h-10 text-[#E04A1F]" />
+                      </div>
+                      <p className="font-bold text-[#171c1f]" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                        Aucun logement disponible
+                      </p>
+                      <p className="text-sm text-[#585e6c] mt-1">Essayez d&apos;autres filtres ou termes de recherche.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {logements
-                        .filter(l => {
-                          // Filtre par type
-                          if (logementFilter !== 'all') {
-                            const t = (l.type || '').toLowerCase();
-                            if (logementFilter === 'hotel' && !t.includes('hotel')) return false;
-                            if (logementFilter === 'appartement' && !t.includes('appart') && !t.includes('residence') && !t.includes('villa')) return false;
-                          }
-                          // Filtre par nombre de chambres
-                          if (logementChambresFilter !== null) {
-                            if (l.nbreChambres !== logementChambresFilter) return false;
-                          }
-                          // Recherche textuelle
-                          if (!itemSearch) return true;
-                          const search = itemSearch.toLowerCase();
-                          return (l.nom || '').toLowerCase().includes(search)
-                            || (l.ville || '').toLowerCase().includes(search)
-                            || (l.type || '').toLowerCase().includes(search)
-                            || (l.description || '').toLowerCase().includes(search)
-                            || (l.nbreChambres != null && l.nbreChambres.toString().includes(search))
-                            || (l.prixParNuit != null && l.prixParNuit.toString().includes(search))
-                            || (l.chambresHotel || []).some((ch: ChambreHotel) =>
-                              (ch.nom || '').toLowerCase().includes(search)
-                              || (ch.typeChambre || '').toLowerCase().includes(search)
-                              || (ch.prixParNuit != null && ch.prixParNuit.toString().includes(search))
-                            );
-                        })
-                        .map((logement) => {
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {paginatedLogements.map((logement) => {
                           const selected = formData.logementId === logement.id;
                           const isHotel = (logement.type || '').toLowerCase().includes('hotel');
+                          const minPrix = isHotel && logement.chambresHotel?.length
+                            ? Math.min(...logement.chambresHotel.map(ch => ch.prixParNuit || 0))
+                            : logement.prixParNuit || 0;
                           return (
                             <motion.div
                               key={logement.id}
-                              whileHover={{ scale: 1.01 }}
+                              whileHover={{ y: -2 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                               onClick={() => {
                                 if (isHotel && logement.chambresHotel && logement.chambresHotel.length > 0) {
                                   router.push(`/service-reservations/hotel/${logement.id}?returnTo=${encodeURIComponent('/service-reservations?type=LOGEMENT')}`);
@@ -1180,61 +1211,151 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                                 }
                               }}
                               className={`
-                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
-                                ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                                group relative bg-white rounded-3xl overflow-hidden cursor-pointer transition-all
+                                ${selected
+                                  ? 'ring-2 ring-[#E04A1F] shadow-xl shadow-[#E04A1F]/10'
+                                  : 'shadow-sm border border-slate-100 hover:shadow-lg'}
                               `}
                             >
-                              {logement.images?.[0] && (
-                                <img src={logement.images[0]} alt={logement.nom} className="w-full h-32 object-cover rounded-lg mb-3" />
-                              )}
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-slate-800">{logement.nom}</h3>
-                                {logement.nbreEtoiles && (
-                                  <div className="flex items-center">
-                                    {Array.from({ length: logement.nbreEtoiles }).map((_, i) => (
-                                      <Star key={i} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                    ))}
+                              {/* Image bandeau + tag pill */}
+                              <div className="relative h-48 bg-slate-100">
+                                {logement.images?.[0] ? (
+                                  <img
+                                    src={logement.images[0]}
+                                    alt={logement.nom}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-[#f0f4f8]">
+                                    <Hotel className="w-12 h-12 text-slate-300" />
+                                  </div>
+                                )}
+                                <span className="absolute top-3 left-3 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-[#E04A1F] text-white">
+                                  {logement.type || (isHotel ? 'Hôtel' : 'Logement')}
+                                </span>
+                                {selected && (
+                                  <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-lg ring-4 ring-white">
+                                    <Check className="w-4 h-4 text-white" strokeWidth={3} />
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5 mb-1">
-                                {logement.type && (
-                                  <Badge className={`text-xs border-0 ${isHotel ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                    {logement.type}
-                                  </Badge>
-                                )}
-                                {isHotel && logement.chambresHotel && logement.chambresHotel.length > 0 && (
-                                  <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                                    {logement.chambresHotel.length} type{logement.chambresHotel.length > 1 ? 's' : ''} de chambre
-                                  </Badge>
-                                )}
-                                {!isHotel && logement.nbreChambres && (
-                                  <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">
-                                    {logement.nbreChambres} chambre{logement.nbreChambres > 1 ? 's' : ''}
-                                  </Badge>
-                                )}
-                              </div>
-                              {logement.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{logement.ville}{logement.pays ? `, ${logement.pays}` : ''}</p>}
-                              {logement.description && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{logement.description}</p>}
-                              <div className="flex items-center justify-between mt-3">
-                                {logement.capacite && <span className="text-xs text-slate-500"><Users className="w-3 h-3 inline mr-1" />{logement.capacite} pers.</span>}
-                                {isHotel && logement.chambresHotel?.length ? (
-                                  <span className="font-bold text-orange-600">
-                                    A partir de {Math.min(...logement.chambresHotel.map(ch => ch.prixParNuit || 0)).toLocaleString()} FCFA/nuit
-                                  </span>
-                                ) : (
-                                  <span className="font-bold text-orange-600">{logement.prixParNuit?.toLocaleString()} FCFA/nuit</span>
-                                )}
-                              </div>
-                              {selected && (
-                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                                  <Check className="w-4 h-4 text-white" />
+
+                              {/* Body */}
+                              <div className="p-5">
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <h3
+                                    className="font-extrabold text-[#171c1f] text-lg leading-tight"
+                                    style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                  >
+                                    {logement.nom}
+                                  </h3>
+                                  {logement.nbreEtoiles && (
+                                    <div className="flex items-center shrink-0">
+                                      {Array.from({ length: logement.nbreEtoiles }).map((_, i) => (
+                                        <Star key={i} className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+
+                                {/* Meta row */}
+                                <div className="flex items-center gap-3 text-xs text-[#585e6c] mb-3 flex-wrap">
+                                  {logement.ville && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3.5 h-3.5" />
+                                      {logement.ville}
+                                      {logement.pays ? `, ${logement.pays}` : ''}
+                                    </span>
+                                  )}
+                                  {logement.capacite != null && (
+                                    <span className="flex items-center gap-1">
+                                      <Users className="w-3.5 h-3.5" />
+                                      {logement.capacite} pers.
+                                    </span>
+                                  )}
+                                  {!isHotel && logement.nbreChambres != null && (
+                                    <span className="flex items-center gap-1">
+                                      {logement.nbreChambres} chambre{logement.nbreChambres > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {isHotel && logement.chambresHotel && logement.chambresHotel.length > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      {logement.chambresHotel.length} type{logement.chambresHotel.length > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {logement.description && (
+                                  <p className="text-sm text-[#585e6c] line-clamp-2 mb-4">
+                                    {logement.description}
+                                  </p>
+                                )}
+
+                                <div className="flex items-end justify-between">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                                      À partir de
+                                    </p>
+                                    <p
+                                      className="text-2xl font-extrabold text-[#171c1f]"
+                                      style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                    >
+                                      {minPrix > 0 ? minPrix.toLocaleString() : '—'}{' '}
+                                      <span className="text-sm font-bold text-[#585e6c]">FCFA / nuit</span>
+                                    </p>
+                                  </div>
+                                  <div className="w-10 h-10 rounded-full bg-[#f0f4f8] group-hover:bg-[#E04A1F] flex items-center justify-center transition-colors">
+                                    <ArrowRight className="w-4 h-4 text-[#171c1f] group-hover:text-white transition-colors" />
+                                  </div>
+                                </div>
+                              </div>
                             </motion.div>
                           );
                         })}
-                    </div>
+                      </div>
+
+                      {/* Pagination */}
+                      {logementPagesCount > 1 && (
+                        <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                          <button
+                            onClick={() => setLogementPage((p) => Math.max(1, p - 1))}
+                            disabled={logementPage <= 1}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#f0f4f8] text-[#171c1f] text-sm font-bold hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Précédent
+                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {Array.from({ length: logementPagesCount }).map((_, i) => {
+                              const page = i + 1;
+                              const active = page === logementPage;
+                              return (
+                                <button
+                                  key={page}
+                                  onClick={() => setLogementPage(page)}
+                                  className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                                    active
+                                      ? 'bg-[#E04A1F] text-white shadow-md'
+                                      : 'bg-[#f0f4f8] text-[#585e6c] hover:bg-slate-200'
+                                  }`}
+                                  style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                >
+                                  {page}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            onClick={() => setLogementPage((p) => Math.min(logementPagesCount, p + 1))}
+                            disabled={logementPage >= logementPagesCount}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E04A1F] text-white text-sm font-bold hover:bg-[#C8330F] disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
+                          >
+                            Suivant
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Indicateur chambre sélectionnée */}
