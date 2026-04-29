@@ -264,15 +264,9 @@ export default function ActiviteDetailPage() {
             </div>
           )}
 
-          {/* About — texte seul sur fond blanc (image déjà dans la galerie au-dessus) */}
+          {/* About — carte blanche après la galerie (sans framer-motion pour éviter le bug d'animation bloquée) */}
           {(item.descriptionCourte || item.descriptionComplete) && (
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.4 }}
-              className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 mt-4"
-            >
+            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8">
               <h3
                 className="text-xl font-extrabold text-[#171c1f] mb-3"
                 style={MANROPE}
@@ -289,7 +283,7 @@ export default function ActiviteDetailPage() {
                   {item.descriptionComplete}
                 </p>
               )}
-            </motion.section>
+            </section>
           )}
 
           {/* What's Included + Key Details */}
