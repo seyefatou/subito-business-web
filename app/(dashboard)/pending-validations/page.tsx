@@ -27,7 +27,6 @@ import {
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -229,10 +228,9 @@ export default function PendingValidations() {
   // ==================== RENDER ====================
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-slate-500">Chargement des demandes...</p>
+      <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+        <div className="flex items-center justify-center py-24 bg-white rounded-3xl border border-slate-100">
+          <Loader2 className="w-10 h-10 animate-spin text-[#E04A1F]" />
         </div>
       </div>
     );
@@ -464,60 +462,74 @@ export default function PendingValidations() {
 
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Details de la demande</DialogTitle>
+            <DialogTitle
+              className="text-2xl font-extrabold text-[#171c1f]"
+              style={MANROPE}
+            >
+              Détails de la demande
+            </DialogTitle>
+            <DialogDescription className="text-[#585e6c]">
+              Vérifiez les informations puis approuvez ou refusez la prise en charge.
+            </DialogDescription>
           </DialogHeader>
           {selectedItem && (
-            <div className="space-y-5 pt-2">
-              {/* Info générale */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 space-y-2">
-                  <p className="text-xs text-slate-500 font-medium uppercase">Reference</p>
-                  <p className="font-mono font-semibold text-slate-800">{selectedItem.bookingCode || `#${selectedItem.id}`}</p>
-                  <Badge className="bg-amber-100 text-amber-700 border-0 mt-1">
-                    <Clock className="w-3 h-3 mr-1" /> En attente
-                  </Badge>
+            <div className="space-y-4 mt-4">
+              {/* Top : Réf + Montant */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-[#f0f4f8] space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Référence</p>
+                  <p className="font-mono font-bold text-[#171c1f]">{selectedItem.bookingCode || `#${selectedItem.id}`}</p>
+                  <StatusPillEnAttente />
                 </div>
-                <div className="p-4 rounded-xl bg-orange-50 space-y-2">
-                  <p className="text-xs text-slate-500 font-medium uppercase">Montant</p>
-                  <p className="text-2xl font-bold text-orange-600">{selectedItem.amount.toLocaleString('fr-FR')} FCFA</p>
+                <div className="p-4 rounded-2xl bg-[#ffdbd0] space-y-1">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Montant</p>
+                  <p className="text-2xl font-extrabold text-[#E04A1F]" style={MANROPE}>
+                    {selectedItem.amount.toLocaleString('fr-FR')} FCFA
+                  </p>
                 </div>
               </div>
 
               {/* Service */}
-              <div className="p-4 rounded-xl bg-slate-50 space-y-3">
-                <p className="text-xs text-slate-500 font-medium uppercase">Service</p>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="p-4 rounded-2xl bg-[#f0f4f8] space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Service</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-slate-400" />
-                    <span className="text-slate-700">{SERVICE_LABELS[selectedItem.serviceType] || selectedItem.serviceType?.replace(/_/g, ' ') || '—'}</span>
+                    <MapPin className="w-4 h-4 text-[#585e6c]" />
+                    <span className="text-[#171c1f] font-semibold">
+                      {SERVICE_LABELS[selectedItem.serviceType] || selectedItem.serviceType?.replace(/_/g, ' ') || '—'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-400" />
-                    <span className="text-slate-700">{selectedItem.createdAt ? format(new Date(selectedItem.createdAt), "d MMMM yyyy 'a' HH:mm", { locale: fr }) : '—'}</span>
+                    <Calendar className="w-4 h-4 text-[#585e6c]" />
+                    <span className="text-[#171c1f] font-semibold">
+                      {selectedItem.createdAt
+                        ? format(new Date(selectedItem.createdAt), "d MMMM yyyy 'à' HH:mm", { locale: fr })
+                        : '—'}
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Client */}
-              <div className="p-4 rounded-xl bg-slate-50 space-y-3">
-                <p className="text-xs text-slate-500 font-medium uppercase">Client</p>
+              <div className="p-4 rounded-2xl bg-[#f0f4f8] space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Client</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span className="font-medium text-slate-800">{selectedItem.clientName || '—'}</span>
+                    <User className="w-4 h-4 text-[#585e6c]" />
+                    <span className="font-semibold text-[#171c1f]">{selectedItem.clientName || '—'}</span>
                   </div>
                   {selectedItem.clientPhone && (
                     <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-slate-400" />
-                      <span className="text-slate-700">{selectedItem.clientPhone}</span>
+                      <Phone className="w-4 h-4 text-[#585e6c]" />
+                      <span className="text-[#171c1f]">{selectedItem.clientPhone}</span>
                     </div>
                   )}
                   {selectedItem.clientEmail && (
                     <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-slate-400" />
-                      <span className="text-slate-700">{selectedItem.clientEmail}</span>
+                      <Mail className="w-4 h-4 text-[#585e6c]" />
+                      <span className="text-[#171c1f]">{selectedItem.clientEmail}</span>
                     </div>
                   )}
                 </div>
@@ -529,23 +541,23 @@ export default function PendingValidations() {
                 const details: Array<{ label: string; value: string }> = [];
                 if (r['pickupAddress'] || r['pickupLocation']) details.push({ label: 'Lieu de prise en charge', value: String(r['pickupAddress'] || r['pickupLocation'] || '') });
                 if (r['dropoffAddress'] || r['dropoffLocation']) details.push({ label: 'Destination', value: String(r['dropoffAddress'] || r['dropoffLocation'] || '') });
-                if (r['pickupDate']) details.push({ label: 'Date de prise en charge', value: format(new Date(r['pickupDate'] as string), "d MMMM yyyy 'a' HH:mm", { locale: fr }) });
+                if (r['pickupDate']) details.push({ label: 'Date de prise en charge', value: format(new Date(r['pickupDate'] as string), "d MMMM yyyy 'à' HH:mm", { locale: fr }) });
                 if (r['nbPassengers'] || r['nombrePassagers']) details.push({ label: 'Passagers', value: String(r['nbPassengers'] || r['nombrePassagers'] || '') });
-                if (r['vehicleType'] || r['typeVehicule']) details.push({ label: 'Type de vehicule', value: String(r['vehicleType'] || r['typeVehicule'] || '') });
+                if (r['vehicleType'] || r['typeVehicule']) details.push({ label: 'Type de véhicule', value: String(r['vehicleType'] || r['typeVehicule'] || '') });
                 if (r['flightNumber'] || r['numeroVol']) details.push({ label: 'N° de vol', value: String(r['flightNumber'] || r['numeroVol'] || '') });
-                if (r['departureCity'] || r['villeDepart']) details.push({ label: 'Ville depart', value: String(r['departureCity'] || r['villeDepart'] || '') });
-                if (r['arrivalCity'] || r['villeArrivee']) details.push({ label: 'Ville arrivee', value: String(r['arrivalCity'] || r['villeArrivee'] || '') });
+                if (r['departureCity'] || r['villeDepart']) details.push({ label: 'Ville départ', value: String(r['departureCity'] || r['villeDepart'] || '') });
+                if (r['arrivalCity'] || r['villeArrivee']) details.push({ label: 'Ville arrivée', value: String(r['arrivalCity'] || r['villeArrivee'] || '') });
                 if (r['documentType'] || r['typeDocument']) details.push({ label: 'Type de document', value: String(r['documentType'] || r['typeDocument'] || '') });
                 if (r['notes']) details.push({ label: 'Notes', value: String(r['notes']) });
-                if (r['duration'] || r['duree']) details.push({ label: 'Duree', value: String(r['duration'] || r['duree'] || '') });
+                if (r['duration'] || r['duree']) details.push({ label: 'Durée', value: String(r['duration'] || r['duree'] || '') });
                 return details.length > 0 ? (
-                  <div className="p-4 rounded-xl bg-slate-50 space-y-3">
-                    <p className="text-xs text-slate-500 font-medium uppercase">Details de la reservation</p>
+                  <div className="p-4 rounded-2xl bg-[#f0f4f8] space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Détails de la réservation</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                       {details.map((d, i) => (
                         <div key={i}>
-                          <span className="text-slate-500">{d.label} :</span>{' '}
-                          <span className="font-medium text-slate-800">{d.value}</span>
+                          <span className="text-[#585e6c]">{d.label} :</span>{' '}
+                          <span className="font-semibold text-[#171c1f]">{d.value}</span>
                         </div>
                       ))}
                     </div>
@@ -554,23 +566,27 @@ export default function PendingValidations() {
               })()}
 
               {/* Actions */}
-              <div className="flex gap-2 justify-end pt-2">
-                <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+              <div className="flex gap-2 justify-end pt-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDetailDialog(false)}
+                  className="rounded-xl border-slate-200 text-[#585e6c] font-bold"
+                >
                   Fermer
                 </Button>
                 <Button
                   onClick={() => { setShowDetailDialog(false); approveMutation.mutate(selectedItem); }}
                   disabled={isMutating}
-                  className="gradient-subito text-white border-0"
+                  className="rounded-xl bg-[#E04A1F] hover:bg-[#C8330F] text-white font-bold shadow-md shadow-[#E04A1F]/20"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-1" /> Approuver
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" /> Approuver
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => { setShowDetailDialog(false); setShowRejectDialog(true); }}
-                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 font-bold"
                 >
-                  <XCircle className="w-4 h-4 mr-1" /> Refuser
+                  <XCircle className="w-4 h-4 mr-1.5" /> Refuser
                 </Button>
               </div>
             </div>
@@ -580,32 +596,42 @@ export default function PendingValidations() {
 
       {/* Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Refuser la demande</DialogTitle>
+            <DialogTitle
+              className="text-2xl font-extrabold text-[#171c1f]"
+              style={MANROPE}
+            >
+              Refuser la demande
+            </DialogTitle>
+            <DialogDescription className="text-[#585e6c]">
+              Indiquez la raison du refus pour informer le client.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Raison du refus (optionnel)</Label>
-              <Textarea
-                placeholder="Expliquez pourquoi vous refusez cette demande..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="min-h-[100px]"
-              />
-            </div>
+          <div className="space-y-3 mt-4">
+            <Label htmlFor="rejection-reason" className="text-sm font-bold text-[#171c1f]">
+              Raison du refus (optionnel)
+            </Label>
+            <Textarea
+              id="rejection-reason"
+              placeholder="Expliquez pourquoi vous refusez cette demande..."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="min-h-[100px] rounded-xl border-slate-200"
+            />
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2 mt-4 flex-wrap">
             <Button
               variant="outline"
               onClick={() => { setShowRejectDialog(false); setRejectionReason(""); }}
+              className="rounded-xl border-slate-200 text-[#585e6c] font-bold"
             >
               Annuler
             </Button>
             <Button
               onClick={() => { if (selectedItem) rejectMutation.mutate(selectedItem); }}
               disabled={isMutating}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold"
             >
               Confirmer le refus
             </Button>
