@@ -1965,24 +1965,24 @@ class ApiClient {
       this.authDownloadBlob(`/insurance/compagny/contracts/${contractNumber}/download`),
   };
 
-  // ==================== TICKETS COMPAGNY ====================
+  // ==================== TICKETS COMPANY ====================
   tickets = {
     create: (data: CreateTicketDto) =>
-      this.authPost<TicketResponse>('/tickets/compagny', data),
+      this.authPost<TicketResponse>('/company/tickets', data),
 
     list: (params?: { statut?: string; page?: number; limit?: number }) => {
       const q = new URLSearchParams();
       if (params?.statut) q.set('statut', params.statut);
       if (params?.page) q.set('page', params.page.toString());
       if (params?.limit) q.set('limit', params.limit.toString());
-      return this.authGet<PaginatedData<TicketResponse>>(`/tickets/compagny?${q.toString()}`);
+      return this.authGet<PaginatedData<TicketResponse>>(`/company/tickets?${q.toString()}`);
     },
 
     get: (id: number) =>
-      this.authGet<TicketResponse>(`/tickets/compagny/${id}`),
+      this.authGet<TicketResponse>(`/company/tickets/${id}`),
 
     sendMessage: (id: number, data: CreateTicketMessageDto) =>
-      this.authPost<TicketMessageResponse>(`/tickets/compagny/${id}/messages`, data),
+      this.authPost<TicketMessageResponse>(`/company/tickets/${id}/messages`, data),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================
