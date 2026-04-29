@@ -387,20 +387,6 @@ export default function ActiviteDetailPage() {
 
         {/* ReserveCard sticky */}
         <aside className="hidden lg:block lg:col-span-4 sticky top-24 bg-white rounded-3xl shadow-xl shadow-black/5 border border-slate-100 p-6 space-y-5">
-          {/* Starting from + price */}
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              À partir de
-            </p>
-            {item.prix != null && (
-              <p className="text-3xl font-extrabold text-[#E04A1F] mt-1" style={MANROPE}>
-                {item.prix.toLocaleString()}{" "}
-                <span className="text-base font-bold text-[#E04A1F]/80">FCFA</span>
-                <span className="text-sm font-medium text-[#585e6c]"> / personne</span>
-              </p>
-            )}
-          </div>
-
           {/* Date picker */}
           <div>
             <p className="text-[10px] font-bold text-[#585e6c] uppercase tracking-widest mb-2">
@@ -460,9 +446,23 @@ export default function ActiviteDetailPage() {
             </div>
           </div>
 
+          {/* Starting from + price */}
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              À partir de
+            </p>
+            {item.prix != null && (
+              <p className="text-3xl font-extrabold text-[#E04A1F] mt-1" style={MANROPE}>
+                {item.prix.toLocaleString()}{" "}
+                <span className="text-base font-bold text-[#E04A1F]/80">FCFA</span>
+                <span className="text-sm font-medium text-[#585e6c]"> / personne</span>
+              </p>
+            )}
+          </div>
+
           {/* Pricing breakdown */}
           {item.prix != null && (
-            <div className="space-y-2 text-sm pt-2 border-t border-slate-100">
+            <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between text-[#585e6c]">
                 <span>
                   Adulte x{participants}
