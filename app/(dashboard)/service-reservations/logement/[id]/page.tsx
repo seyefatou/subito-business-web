@@ -321,6 +321,18 @@ export default function LogementDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Colonne narrative */}
         <div className="lg:col-span-8 space-y-6">
+          {/* À propos — calqué sur activité : carte blanche épurée juste après la galerie */}
+          {logement.description && (
+            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8 mt-10">
+              <h3 className="text-xl font-extrabold text-[#171c1f] mb-3" style={MANROPE}>
+                À propos
+              </h3>
+              <p className="text-[#171c1f] leading-relaxed whitespace-pre-line text-base">
+                {logement.description}
+              </p>
+            </section>
+          )}
+
           {/* Stats card avec icon-tiles */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -421,21 +433,6 @@ export default function LogementDetailPage() {
             >
               <p className="text-[#585e6c] leading-relaxed">{logement.instructionsAcces}</p>
             </SectionCard>
-          )}
-
-          {/* Description — carte blanche robuste (sans framer-motion pour éviter l'opacity bloquée) */}
-          {logement.description && (
-            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8 mt-10">
-              <div className="flex items-center gap-3 mb-5">
-                <IconTile><Sparkles className="w-5 h-5" /></IconTile>
-                <h3 className="text-lg font-bold text-[#171c1f]" style={MANROPE}>
-                  À propos
-                </h3>
-              </div>
-              <p className="text-[#171c1f] leading-relaxed whitespace-pre-line text-base">
-                {logement.description}
-              </p>
-            </section>
           )}
 
           {/* Équipements */}
