@@ -584,13 +584,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                   <MapPin className="w-16 h-16 text-slate-300" />
                 </div>
               )}
-              <span
-                className={`absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
-                  formData.selectedItemType === 'circuit'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-[#E04A1F] text-white'
-                }`}
-              >
+              <span className="absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-[#E04A1F] text-white">
                 {formData.selectedItemType === 'circuit' ? 'Circuit' : 'Activité'}
               </span>
             </div>
@@ -847,13 +841,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                                     <MapPin className="w-12 h-12 text-slate-300" />
                                   </div>
                                 )}
-                                <span
-                                  className={`absolute top-3 left-3 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
-                                    isCircuit
-                                      ? 'bg-blue-600 text-white'
-                                      : 'bg-[#E04A1F] text-white'
-                                  }`}
-                                >
+                                <span className="absolute top-3 left-3 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-[#E04A1F] text-white">
                                   {isCircuit ? 'Circuit' : 'Activité'}
                                 </span>
                                 {selected && (
@@ -1767,13 +1755,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                           <MapPin className="w-16 h-16 text-slate-300" />
                         </div>
                       )}
-                      <span
-                        className={`absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
-                          formData.selectedItemType === 'circuit'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-[#E04A1F] text-white'
-                        }`}
-                      >
+                      <span className="absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-[#E04A1F] text-white">
                         {formData.selectedItemType === 'circuit' ? 'Circuit' : 'Activité'}
                       </span>
                     </div>

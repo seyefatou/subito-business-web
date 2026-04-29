@@ -209,13 +209,7 @@ export default function ActiviteDetailPage() {
               {item.ville}
             </span>
           )}
-          <span
-            className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${
-              isCircuit
-                ? "text-blue-700 bg-blue-50"
-                : "text-[#E04A1F] bg-[#ffdbd0]"
-            }`}
-          >
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full text-[#E04A1F] bg-[#ffdbd0]">
             {isCircuit ? <Route className="w-3.5 h-3.5" /> : <Compass className="w-3.5 h-3.5" />}
             {categoryLabel}
           </span>
@@ -270,31 +264,57 @@ export default function ActiviteDetailPage() {
             </div>
           )}
 
-          {/* About */}
+          {/* About — image en fond avec overlay sombre + texte blanc lisible */}
           {(item.descriptionCourte || item.descriptionComplete) && (
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.4 }}
-              className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100"
+              className={`relative rounded-3xl overflow-hidden shadow-sm ${
+                images[0] ? "" : "bg-white border border-slate-100"
+              }`}
             >
-              <h3
-                className="text-xl font-extrabold text-[#171c1f] mb-3"
-                style={MANROPE}
-              >
-                {isCircuit ? "À propos du circuit" : "À propos de l'activité"}
-              </h3>
-              {item.descriptionCourte && (
-                <p className="text-[#585e6c] leading-relaxed mb-3 font-medium">
-                  {item.descriptionCourte}
-                </p>
+              {images[0] && (
+                <>
+                  <div className="absolute inset-0">
+                    <img
+                      src={images[0]}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-black/85 via-black/70 to-black/55" />
+                </>
               )}
-              {item.descriptionComplete && (
-                <p className="text-[#585e6c] leading-relaxed whitespace-pre-line">
-                  {item.descriptionComplete}
-                </p>
-              )}
+              <div className={`relative p-6 md:p-8 ${images[0] ? "text-white" : ""}`}>
+                <h3
+                  className={`text-xl font-extrabold mb-3 ${
+                    images[0] ? "text-white" : "text-[#171c1f]"
+                  }`}
+                  style={MANROPE}
+                >
+                  {isCircuit ? "À propos du circuit" : "À propos de l'activité"}
+                </h3>
+                {item.descriptionCourte && (
+                  <p
+                    className={`leading-relaxed mb-3 font-medium ${
+                      images[0] ? "text-white/95" : "text-[#585e6c]"
+                    }`}
+                  >
+                    {item.descriptionCourte}
+                  </p>
+                )}
+                {item.descriptionComplete && (
+                  <p
+                    className={`leading-relaxed whitespace-pre-line ${
+                      images[0] ? "text-white/85" : "text-[#585e6c]"
+                    }`}
+                  >
+                    {item.descriptionComplete}
+                  </p>
+                )}
+              </div>
             </motion.section>
           )}
 
