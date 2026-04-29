@@ -223,6 +223,8 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [itemSearch, setItemSearch] = useState("");
   const [activiteFilter, setActiviteFilter] = useState<ActiviteFilterType>('all');
+  const [activitePage, setActivitePage] = useState(1);
+  const ACTIVITE_PAGE_SIZE = 4;
   const [logementFilter, setLogementFilter] = useState<LogementFilterType>('all');
   const [logementChambresFilter, setLogementChambresFilter] = useState<number | null>(null);
   // Recherche logement
@@ -280,10 +282,30 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   ];
   const activitesCircuitsLoading = circuitsLoading || activitesLoading;
 
-  // Filtrer par type (circuit / activite / tous)
-  const filteredActivitesCircuits = activiteFilter === 'all'
+  // Filtrer par type (circuit / activite / tous) puis par recherche texte
+  const filteredActivitesCircuits = (activiteFilter === 'all'
     ? allActivitesCircuits
-    : allActivitesCircuits.filter(item => item.type === activiteFilter);
+    : allActivitesCircuits.filter(item => item.type === activiteFilter)
+  ).filter(c => {
+    if (!itemSearch) return true;
+    const search = itemSearch.toLowerCase();
+    return (c.titre || '').toLowerCase().includes(search)
+      || (c.ville || '').toLowerCase().includes(search)
+      || (c.descriptionCourte || '').toLowerCase().includes(search)
+      || (c.prix != null && c.prix.toString().includes(search));
+  });
+
+  // Pagination 4 par page
+  const activitePagesCount = Math.max(1, Math.ceil(filteredActivitesCircuits.length / ACTIVITE_PAGE_SIZE));
+  const paginatedActivitesCircuits = filteredActivitesCircuits.slice(
+    (activitePage - 1) * ACTIVITE_PAGE_SIZE,
+    activitePage * ACTIVITE_PAGE_SIZE,
+  );
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setActivitePage(1);
+  }, [activiteFilter, itemSearch]);
 
   // Fetch logements — recherche si déclenchée, sinon liste complète
   const logementSearchParams = {
@@ -629,51 +651,58 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
               {/* Activités & Circuits */}
               {formData.serviceType === 'ACTIVITE' && (
                 <>
-                  {/* Filtre par type */}
-                  <div className="flex gap-2">
-                    {([
-                      { value: 'all' as ActiviteFilterType, label: 'Tous' },
-                      { value: 'circuit' as ActiviteFilterType, label: 'Circuits' },
-                      { value: 'activite' as ActiviteFilterType, label: 'Activites' },
-                    ]).map((filter) => (
-                      <Button
-                        key={filter.value}
-                        variant={activiteFilter === filter.value ? 'default' : 'outline'}
-                        size="sm"
-                        className={activiteFilter === filter.value ? 'gradient-subito text-white border-0' : ''}
-                        onClick={() => setActiviteFilter(filter.value)}
-                      >
-                        {filter.label}
-                        {filter.value !== 'all' && (
-                          <span className="ml-1.5 text-xs opacity-75">
-                            ({allActivitesCircuits.filter(i => filter.value === 'all' || i.type === filter.value).length})
-                          </span>
-                        )}
-                      </Button>
-                    ))}
+                  {/* Header : compteur + filtres + pagination top */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex gap-2">
+                      {([
+                        { value: 'all' as ActiviteFilterType, label: 'Tous' },
+                        { value: 'circuit' as ActiviteFilterType, label: 'Circuits' },
+                        { value: 'activite' as ActiviteFilterType, label: 'Activites' },
+                      ]).map((filter) => {
+                        const count = filter.value === 'all'
+                          ? allActivitesCircuits.length
+                          : allActivitesCircuits.filter(i => i.type === filter.value).length;
+                        const active = activiteFilter === filter.value;
+                        return (
+                          <button
+                            key={filter.value}
+                            onClick={() => setActiviteFilter(filter.value)}
+                            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition ${
+                              active
+                                ? 'bg-[#E04A1F] text-white shadow-md'
+                                : 'bg-[#f0f4f8] text-[#585e6c] hover:bg-slate-200'
+                            }`}
+                          >
+                            {filter.label} <span className="opacity-75">({count})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {filteredActivitesCircuits.length > 0 && (
+                      <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
+                        {filteredActivitesCircuits.length} expérience{filteredActivitesCircuits.length > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
 
                   {activitesCircuitsLoading ? (
                     <div className="flex items-center justify-center py-16">
-                      <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                      <Loader2 className="w-8 h-8 animate-spin text-[#E04A1F]" />
                     </div>
                   ) : filteredActivitesCircuits.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400">
-                      <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p className="font-medium">Aucune offre disponible</p>
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 mx-auto rounded-full bg-[#ffdbd0] flex items-center justify-center mb-4">
+                        <MapPin className="w-10 h-10 text-[#E04A1F]" />
+                      </div>
+                      <p className="font-bold text-[#171c1f]" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                        Aucune offre disponible
+                      </p>
+                      <p className="text-sm text-[#585e6c] mt-1">Essayez d&apos;autres filtres ou termes de recherche.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {filteredActivitesCircuits
-                        .filter(c => {
-                          if (!itemSearch) return true;
-                          const search = itemSearch.toLowerCase();
-                          return (c.titre || '').toLowerCase().includes(search)
-                            || (c.ville || '').toLowerCase().includes(search)
-                            || (c.descriptionCourte || '').toLowerCase().includes(search)
-                            || (c.prix != null && c.prix.toString().includes(search));
-                        })
-                        .map((item) => {
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {paginatedActivitesCircuits.map((item) => {
                           const isCircuit = item.type === 'circuit';
                           const selected = isCircuit
                             ? (formData.circuitId === item.id && formData.selectedItemType === 'circuit')
@@ -681,39 +710,151 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                           return (
                             <motion.div
                               key={`${item.type}-${item.id}`}
-                              whileHover={{ scale: 1.01 }}
+                              whileHover={{ y: -2 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                               onClick={() => {
                                 router.push(`/service-reservations/activite/${item.id}?type=${item.type}&returnTo=${encodeURIComponent('/service-reservations?type=ACTIVITE')}`);
                               }}
                               className={`
-                                relative rounded-xl border-2 p-4 cursor-pointer transition-all
-                                ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
+                                group relative bg-white rounded-3xl overflow-hidden cursor-pointer transition-all
+                                ${selected
+                                  ? 'ring-2 ring-[#E04A1F] shadow-xl shadow-[#E04A1F]/10'
+                                  : 'shadow-sm border border-slate-100 hover:shadow-lg'}
                               `}
                             >
-                              {item.images?.[0] && (
-                                <img src={item.images[0]} alt={item.titre} className="w-full h-32 object-cover rounded-lg mb-3" />
-                              )}
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-slate-800">{item.titre}</h3>
-                                <Badge className={`text-xs border-0 ${isCircuit ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                  {isCircuit ? 'Circuit' : 'Activite'}
-                                </Badge>
+                              {/* Image bandeau + tag pill */}
+                              <div className="relative h-48 bg-slate-100">
+                                {item.images?.[0] ? (
+                                  <img
+                                    src={item.images[0]}
+                                    alt={item.titre}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-[#f0f4f8]">
+                                    <MapPin className="w-12 h-12 text-slate-300" />
+                                  </div>
+                                )}
+                                <span
+                                  className={`absolute top-3 left-3 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
+                                    isCircuit
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-[#E04A1F] text-white'
+                                  }`}
+                                >
+                                  {isCircuit ? 'Circuit' : 'Activité'}
+                                </span>
+                                {selected && (
+                                  <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-lg ring-4 ring-white">
+                                    <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                                  </div>
+                                )}
                               </div>
-                              {item.ville && <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{item.ville}</p>}
-                              {item.descriptionCourte && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{item.descriptionCourte}</p>}
-                              <div className="flex items-center justify-between mt-3">
-                                {item.duree && <Badge className="bg-slate-100 text-slate-700 border-0"><Clock className="w-3 h-3 mr-1" />{item.duree}</Badge>}
-                                <span className="font-bold text-orange-600">{item.prix?.toLocaleString()} FCFA</span>
-                              </div>
-                              {selected && (
-                                <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                                  <Check className="w-4 h-4 text-white" />
+
+                              {/* Body */}
+                              <div className="p-5">
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <h3
+                                    className="font-extrabold text-[#171c1f] text-lg leading-tight"
+                                    style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                  >
+                                    {item.titre}
+                                  </h3>
                                 </div>
-                              )}
+
+                                {/* Meta row */}
+                                <div className="flex items-center gap-3 text-xs text-[#585e6c] mb-3 flex-wrap">
+                                  {item.duree && (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      {item.duree}
+                                    </span>
+                                  )}
+                                  {item.maxParticipants != null && (
+                                    <span className="flex items-center gap-1">
+                                      <Users className="w-3.5 h-3.5" />
+                                      Max {item.maxParticipants}
+                                    </span>
+                                  )}
+                                  {item.ville && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3.5 h-3.5" />
+                                      {item.ville}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {item.descriptionCourte && (
+                                  <p className="text-sm text-[#585e6c] line-clamp-2 mb-4">
+                                    {item.descriptionCourte}
+                                  </p>
+                                )}
+
+                                <div className="flex items-end justify-between">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                                      À partir de
+                                    </p>
+                                    <p
+                                      className="text-2xl font-extrabold text-[#171c1f]"
+                                      style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                    >
+                                      {item.prix?.toLocaleString() || '—'}{' '}
+                                      <span className="text-sm font-bold text-[#585e6c]">FCFA</span>
+                                    </p>
+                                  </div>
+                                  <div className="w-10 h-10 rounded-full bg-[#f0f4f8] group-hover:bg-[#E04A1F] flex items-center justify-center transition-colors">
+                                    <ArrowRight className="w-4 h-4 text-[#171c1f] group-hover:text-white transition-colors" />
+                                  </div>
+                                </div>
+                              </div>
                             </motion.div>
                           );
                         })}
-                    </div>
+                      </div>
+
+                      {/* Pagination */}
+                      {activitePagesCount > 1 && (
+                        <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                          <button
+                            onClick={() => setActivitePage((p) => Math.max(1, p - 1))}
+                            disabled={activitePage <= 1}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#f0f4f8] text-[#171c1f] text-sm font-bold hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Précédent
+                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {Array.from({ length: activitePagesCount }).map((_, i) => {
+                              const page = i + 1;
+                              const active = page === activitePage;
+                              return (
+                                <button
+                                  key={page}
+                                  onClick={() => setActivitePage(page)}
+                                  className={`w-9 h-9 rounded-full text-sm font-bold transition ${
+                                    active
+                                      ? 'bg-[#E04A1F] text-white shadow-md'
+                                      : 'bg-[#f0f4f8] text-[#585e6c] hover:bg-slate-200'
+                                  }`}
+                                  style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                                >
+                                  {page}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            onClick={() => setActivitePage((p) => Math.min(activitePagesCount, p + 1))}
+                            disabled={activitePage >= activitePagesCount}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#E04A1F] text-white text-sm font-bold hover:bg-[#C8330F] disabled:opacity-40 disabled:cursor-not-allowed transition shadow-md"
+                          >
+                            Suivant
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1018,33 +1159,39 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
               {/* Vehicules */}
               {formData.serviceType === 'FLOTTE' && (
                 <>
-                  {/* Filtre par nombre de places */}
+                  {/* Filtre par nombre de places - editorial pill row */}
                   {!vehiculesLoading && vehicules.length > 0 && (() => {
                     const placesValues = Array.from(new Set(
                       vehicules.map(v => v.places).filter((p): p is number => p != null && p > 0)
                     )).sort((a, b) => a - b);
                     return placesValues.length > 0 ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-slate-500 font-medium">Places :</span>
-                        <Button
-                          variant={vehiculePlacesFilter === null ? 'default' : 'outline'}
-                          size="sm"
-                          className={vehiculePlacesFilter === null ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                      <div className="flex items-center gap-3 flex-wrap pb-2">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Places</span>
+                        <button
+                          type="button"
                           onClick={() => setVehiculePlacesFilter(null)}
+                          className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                            vehiculePlacesFilter === null
+                              ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                              : 'bg-white text-slate-700 hover:bg-slate-50 ring-1 ring-slate-200'
+                          }`}
                         >
                           Toutes
-                        </Button>
+                        </button>
                         {placesValues.map((nb) => (
-                          <Button
+                          <button
                             key={nb}
-                            variant={vehiculePlacesFilter === nb ? 'default' : 'outline'}
-                            size="sm"
-                            className={vehiculePlacesFilter === nb ? 'gradient-subito text-white border-0 h-7 text-xs' : 'h-7 text-xs'}
+                            type="button"
                             onClick={() => setVehiculePlacesFilter(nb)}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                              vehiculePlacesFilter === nb
+                                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                                : 'bg-white text-slate-700 hover:bg-slate-50 ring-1 ring-slate-200'
+                            }`}
                           >
                             {nb} place{nb > 1 ? 's' : ''}
-                            <span className="ml-1 opacity-75">({vehicules.filter(v => v.places === nb).length})</span>
-                          </Button>
+                            <span className="ml-1 opacity-60">({vehicules.filter(v => v.places === nb).length})</span>
+                          </button>
                         ))}
                       </div>
                     ) : null;
@@ -1055,16 +1202,15 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                       <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
                     </div>
                   ) : vehicules.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400">
-                      <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p className="font-medium">Aucun vehicule disponible</p>
+                    <div className="text-center py-20 bg-slate-50 rounded-3xl">
+                      <Car className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                      <p className="font-bold text-slate-700">Aucun vehicule disponible</p>
+                      <p className="text-sm text-slate-400 mt-1">Revenez bientot pour decouvrir notre flotte.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                       {vehicules.filter(v => {
-                        // Filtre par places
                         if (vehiculePlacesFilter !== null && v.places !== vehiculePlacesFilter) return false;
-                        // Recherche textuelle
                         if (!itemSearch) return true;
                         const s = itemSearch.toLowerCase();
                         return (v.marque || '').toLowerCase().includes(s)
@@ -1077,32 +1223,109 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                         return (
                           <motion.div
                             key={vehicule.id}
-                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => router.push(`/service-reservations/vehicule/${vehicule.id}?returnTo=${encodeURIComponent('/service-reservations?type=FLOTTE')}`)}
-                            className={`
-                              rounded-xl border-2 p-4 cursor-pointer transition-all
-                              ${selected ? 'border-orange-400 bg-orange-50/50' : 'border-slate-200 hover:border-slate-300'}
-                            `}
+                            className={`group bg-white rounded-3xl overflow-hidden flex flex-col cursor-pointer transition-all duration-500 ${
+                              selected
+                                ? 'ring-2 ring-orange-600 shadow-[0_24px_48px_rgba(172,53,9,0.15)]'
+                                : 'ring-1 ring-black/5 hover:shadow-[0_24px_48px_rgba(23,28,31,0.08)]'
+                            }`}
                           >
-                            {vehicule.images?.[0] && (
-                              <img src={vehicule.images[0]} alt={`${vehicule.marque} ${vehicule.modele}`} className="w-full h-32 object-cover rounded-lg mb-3" />
-                            )}
-                            <h3 className="font-semibold text-slate-800">{vehicule.marque} {vehicule.modele}</h3>
-                            {vehicule.annee && <span className="text-xs text-slate-500">{vehicule.annee}</span>}
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {vehicule.type && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs">{vehicule.type}</Badge>}
-                              {vehicule.places && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Users className="w-3 h-3 mr-1" />{vehicule.places} places</Badge>}
-                              {vehicule.transmission && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Settings2 className="w-3 h-3 mr-1" />{vehicule.transmission}</Badge>}
-                              {vehicule.carburant && <Badge className="bg-slate-100 text-slate-700 border-0 text-xs"><Fuel className="w-3 h-3 mr-1" />{vehicule.carburant}</Badge>}
+                            <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
+                              {vehicule.images?.[0] ? (
+                                <img
+                                  src={vehicule.images[0]}
+                                  alt={`${vehicule.marque} ${vehicule.modele}`}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Car className="w-16 h-16 text-slate-300" />
+                                </div>
+                              )}
+                              {vehicule.type && (
+                                <div className="absolute top-4 left-4">
+                                  <span className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-orange-600">
+                                    {vehicule.type}
+                                  </span>
+                                </div>
+                              )}
+                              {selected && (
+                                <div className="absolute top-4 right-4 w-9 h-9 rounded-full bg-orange-600 flex items-center justify-center shadow-lg">
+                                  <Check className="w-5 h-5 text-white" />
+                                </div>
+                              )}
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-500">
-                              {vehicule.climatisation && <span>Climatisation</span>}
-                              {vehicule.chauffeur && <span>Chauffeur</span>}
-                              {vehicule.gps && <span>GPS</span>}
-                            </div>
-                            <div className="flex items-center justify-between mt-3">
-                              {vehicule.zoneOperations && <span className="text-xs text-slate-500"><MapPin className="w-3 h-3 inline mr-1" />{vehicule.zoneOperations}</span>}
-                              <span className="font-bold text-orange-600">{vehicule.prixParJour?.toLocaleString()} FCFA/jour</span>
+                            <div className="p-6 flex flex-col flex-1">
+                              <div className="flex justify-between items-start mb-5">
+                                <div className="min-w-0">
+                                  <h3 className="font-extrabold text-xl text-slate-900 leading-tight truncate">
+                                    {vehicule.marque} {vehicule.modele}
+                                  </h3>
+                                  {vehicule.annee && (
+                                    <p className="text-slate-400 text-xs mt-1 font-medium">Annee {vehicule.annee}</p>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0 ml-3">
+                                  <span className="block text-xl font-black text-orange-600 leading-none">
+                                    {vehicule.prixParJour?.toLocaleString()}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">FCFA / jour</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 mb-6">
+                                {vehicule.transmission && (
+                                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+                                    <Settings2 className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="text-xs font-bold text-slate-800 truncate">{vehicule.transmission}</span>
+                                  </div>
+                                )}
+                                {vehicule.places && (
+                                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+                                    <Users className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="text-xs font-bold text-slate-800">{vehicule.places} places</span>
+                                  </div>
+                                )}
+                                {vehicule.carburant && (
+                                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+                                    <Fuel className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="text-xs font-bold text-slate-800 truncate">{vehicule.carburant}</span>
+                                  </div>
+                                )}
+                                {vehicule.zoneOperations && (
+                                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+                                    <MapPin className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="text-xs font-bold text-slate-800 truncate">{vehicule.zoneOperations}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {(vehicule.climatisation || vehicule.chauffeur || vehicule.gps) && (
+                                <div className="flex flex-wrap gap-1.5 mb-5">
+                                  {vehicule.climatisation && (
+                                    <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 text-[10px] font-bold uppercase tracking-wider">Clim</span>
+                                  )}
+                                  {vehicule.chauffeur && (
+                                    <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 text-[10px] font-bold uppercase tracking-wider">Chauffeur</span>
+                                  )}
+                                  {vehicule.gps && (
+                                    <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 text-[10px] font-bold uppercase tracking-wider">GPS</span>
+                                  )}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/service-reservations/vehicule/${vehicule.id}?returnTo=${encodeURIComponent('/service-reservations?type=FLOTTE')}`);
+                                }}
+                                className={`mt-auto w-full py-3.5 rounded-2xl font-bold text-sm tracking-wide transition-all active:scale-95 ${
+                                  selected
+                                    ? 'bg-gradient-to-br from-orange-600 to-orange-400 text-white shadow-lg shadow-orange-600/20'
+                                    : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                                }`}
+                              >
+                                {selected ? 'Selectionne' : 'Selectionner ce vehicule'}
+                              </button>
                             </div>
                           </motion.div>
                         );
@@ -1324,14 +1547,24 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
 
                 {/* Adresse livraison (flotte only) */}
                 {formData.serviceType === 'FLOTTE' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="adresseLivraison">Adresse de livraison *</Label>
-                    <Input
-                      id="adresseLivraison"
-                      placeholder="Adresse de livraison du vehicule"
-                      value={formData.adresseLivraison}
-                      onChange={(e) => handleChange('adresseLivraison', e.target.value)}
-                    />
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100/40 rounded-2xl p-5 ring-1 ring-orange-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-sm">
+                        <MapPin className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Label htmlFor="adresseLivraison" className="text-[10px] font-bold text-orange-900 uppercase tracking-widest">
+                          Adresse de livraison du vehicule *
+                        </Label>
+                        <Input
+                          id="adresseLivraison"
+                          placeholder="ex: Aeroport LSS, Plateau Dakar..."
+                          value={formData.adresseLivraison}
+                          onChange={(e) => handleChange('adresseLivraison', e.target.value)}
+                          className="mt-2 bg-white border-0 rounded-xl h-11 px-4 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-orange-200"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1427,10 +1660,70 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                   </div>
                 )}
                 {formData.serviceType === 'FLOTTE' && selectedVehicule && (
-                  <div className="p-4 rounded-xl bg-purple-50 border border-purple-200">
-                    <p className="font-semibold text-slate-800">{selectedVehicule.marque} {selectedVehicule.modele}</p>
-                    {selectedVehicule.type && <p className="text-sm text-slate-500">{selectedVehicule.type}</p>}
-                    {formData.adresseLivraison && <p className="text-sm text-slate-500">Livraison: {formData.adresseLivraison}</p>}
+                  <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_24px_rgba(23,28,31,0.04)] flex flex-col md:flex-row ring-1 ring-black/5">
+                    <div className="md:w-2/5 relative h-48 md:h-auto bg-slate-100 shrink-0">
+                      {selectedVehicule.images?.[0] ? (
+                        <img
+                          src={selectedVehicule.images[0]}
+                          alt={`${selectedVehicule.marque} ${selectedVehicule.modele}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Car className="w-16 h-16 text-slate-300" />
+                        </div>
+                      )}
+                      {selectedVehicule.type && (
+                        <div className="absolute top-4 left-4">
+                          <span className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-orange-600">
+                            {selectedVehicule.type}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 p-6 flex flex-col justify-center">
+                      <h2 className="text-xl font-extrabold text-slate-900 leading-tight">
+                        {selectedVehicule.marque} {selectedVehicule.modele}
+                      </h2>
+                      {selectedVehicule.annee && (
+                        <p className="text-slate-400 text-xs mt-1 font-medium">Annee {selectedVehicule.annee}</p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2.5 mt-4">
+                        {selectedVehicule.transmission && (
+                          <div className="flex items-center gap-2 text-xs text-slate-700">
+                            <Settings2 className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                            <span className="font-semibold truncate">{selectedVehicule.transmission}</span>
+                          </div>
+                        )}
+                        {selectedVehicule.places && (
+                          <div className="flex items-center gap-2 text-xs text-slate-700">
+                            <Users className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                            <span className="font-semibold">{selectedVehicule.places} places</span>
+                          </div>
+                        )}
+                        {selectedVehicule.carburant && (
+                          <div className="flex items-center gap-2 text-xs text-slate-700">
+                            <Fuel className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                            <span className="font-semibold truncate">{selectedVehicule.carburant}</span>
+                          </div>
+                        )}
+                        {selectedVehicule.prixParJour != null && (
+                          <div className="flex items-center gap-2 text-xs text-slate-700">
+                            <span className="text-orange-600 font-black">FCFA</span>
+                            <span className="font-bold">{selectedVehicule.prixParJour.toLocaleString()}/j</span>
+                          </div>
+                        )}
+                      </div>
+                      {formData.adresseLivraison && (
+                        <div className="mt-4 pt-4 border-t border-slate-100 flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Livraison</p>
+                            <p className="text-sm text-slate-700 font-medium truncate">{formData.adresseLivraison}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
