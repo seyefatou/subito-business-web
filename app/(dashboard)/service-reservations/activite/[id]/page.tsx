@@ -222,54 +222,54 @@ export default function ActiviteDetailPage() {
         </div>
       </div>
 
-      {/* Image gallery 1+3 grid */}
-      {images.length === 0 ? (
-        <div className="h-72 md:h-[28rem] rounded-3xl bg-[#f0f4f8] mb-10 flex items-center justify-center">
-          <ImageIcon className="w-20 h-20 text-slate-300" />
-        </div>
-      ) : images.length === 1 ? (
-        <div className="h-72 md:h-[28rem] rounded-3xl overflow-hidden bg-slate-100 mb-10">
-          <img src={images[0]} alt={item.titre} className="w-full h-full object-cover" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10 h-auto md:h-[28rem]">
-          <div className="md:col-span-2 rounded-3xl overflow-hidden bg-slate-100 h-72 md:h-full">
-            <img src={images[0]} alt={item.titre} className="w-full h-full object-cover" />
-          </div>
-          <div className="hidden md:flex flex-col gap-3">
-            {[1, 2, 3].map((idx) => {
-              const src = images[idx];
-              const isLastSlot = idx === 3;
-              const overflow = images.length - 4;
-              return (
-                <div
-                  key={idx}
-                  className="flex-1 rounded-3xl overflow-hidden bg-[#f0f4f8] relative"
-                >
-                  {src && (
-                    <img
-                      src={src}
-                      alt={`${item.titre} ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  )}
-                  {isLastSlot && overflow > 0 && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-extrabold text-2xl" style={MANROPE}>
-                      +{overflow}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Layout 8/4 */}
+      {/* Layout 8/4 — galerie + narrative à gauche, reserve panel à droite */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Colonne narrative */}
+        {/* Colonne narrative + galerie */}
         <div className="lg:col-span-8 space-y-6">
+          {/* Image gallery 1+3 grid */}
+          {images.length === 0 ? (
+            <div className="h-72 md:h-96 rounded-3xl bg-[#f0f4f8] flex items-center justify-center">
+              <ImageIcon className="w-20 h-20 text-slate-300" />
+            </div>
+          ) : images.length === 1 ? (
+            <div className="h-72 md:h-96 rounded-3xl overflow-hidden bg-slate-100">
+              <img src={images[0]} alt={item.titre} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-auto md:h-96">
+              <div className="md:col-span-2 rounded-3xl overflow-hidden bg-slate-100 h-72 md:h-full">
+                <img src={images[0]} alt={item.titre} className="w-full h-full object-cover" />
+              </div>
+              <div className="hidden md:flex flex-col gap-3">
+                {[1, 2, 3].map((idx) => {
+                  const src = images[idx];
+                  const isLastSlot = idx === 3;
+                  const overflow = images.length - 4;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex-1 rounded-3xl overflow-hidden bg-[#f0f4f8] relative"
+                    >
+                      {src && (
+                        <img
+                          src={src}
+                          alt={`${item.titre} ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                      {isLastSlot && overflow > 0 && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-extrabold text-2xl" style={MANROPE}>
+                          +{overflow}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* About */}
           {(item.descriptionCourte || item.descriptionComplete) && (
             <motion.section
