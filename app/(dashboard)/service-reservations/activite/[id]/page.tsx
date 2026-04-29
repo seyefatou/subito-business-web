@@ -264,31 +264,42 @@ export default function ActiviteDetailPage() {
             </div>
           )}
 
-          {/* About — fond blanc, descendu légèrement pour respirer après la galerie */}
+          {/* About — image preview à gauche + texte à droite sur fond blanc */}
           {(item.descriptionCourte || item.descriptionComplete) && (
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.4 }}
-              className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 mt-4"
+              className="bg-white rounded-3xl shadow-sm border border-slate-100 mt-4 overflow-hidden flex flex-col md:flex-row"
             >
-              <h3
-                className="text-xl font-extrabold text-[#171c1f] mb-3"
-                style={MANROPE}
-              >
-                {isCircuit ? "À propos du circuit" : "À propos de l'activité"}
-              </h3>
-              {item.descriptionCourte && (
-                <p className="text-[#585e6c] leading-relaxed mb-3 font-medium">
-                  {item.descriptionCourte}
-                </p>
+              {images[0] && (
+                <div className="md:w-2/5 h-48 md:h-auto bg-slate-100 shrink-0 relative">
+                  <img
+                    src={images[0]}
+                    alt={item.titre}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               )}
-              {item.descriptionComplete && (
-                <p className="text-[#585e6c] leading-relaxed whitespace-pre-line">
-                  {item.descriptionComplete}
-                </p>
-              )}
+              <div className="flex-1 p-6 md:p-8">
+                <h3
+                  className="text-xl font-extrabold text-[#171c1f] mb-3"
+                  style={MANROPE}
+                >
+                  {isCircuit ? "À propos du circuit" : "À propos de l'activité"}
+                </h3>
+                {item.descriptionCourte && (
+                  <p className="text-[#171c1f] leading-relaxed mb-3 font-medium">
+                    {item.descriptionCourte}
+                  </p>
+                )}
+                {item.descriptionComplete && (
+                  <p className="text-[#585e6c] leading-relaxed whitespace-pre-line">
+                    {item.descriptionComplete}
+                  </p>
+                )}
+              </div>
             </motion.section>
           )}
 
