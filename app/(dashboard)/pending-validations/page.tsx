@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { api, PaymentRequest } from "@/lib/api";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -21,6 +23,7 @@ import {
   Mail,
   Car,
   Plane,
+  FileText,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +58,13 @@ function StatusPillEnAttente() {
       En attente
     </span>
   );
+}
+
+function getServiceIcon(serviceType: string, type: 'booking' | 'travel-document') {
+  if (type === 'travel-document' || serviceType === 'visa_assistance') return FileText;
+  if (serviceType === 'airport_shuttle') return Plane;
+  if (serviceType === 'inter_city' || serviceType === 'vtc_hourly') return Car;
+  return MapPin;
 }
 
 // ==================== TYPES ====================
@@ -325,123 +335,130 @@ export default function PendingValidations() {
         </div>
       )}
 
-      {/* Table */}
-      {orders.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <Inbox className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">
+      {/* Liste */}
+      {filteredOrders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100">
+          <div className="w-20 h-20 rounded-full bg-[#ffdbd0] flex items-center justify-center mb-4">
+            <Inbox className="w-10 h-10 text-[#E04A1F]" />
+          </div>
+          <p className="font-bold text-[#171c1f] text-lg" style={MANROPE}>
             Aucune demande en attente
-          </h3>
-          <p className="text-slate-500 max-w-md mx-auto">
-            Les demandes apparaissent ici quand un client réserve et choisit &quot;paiement par l&apos;entreprise&quot;.
-            Une fois traitées (approuvées ou refusées), elles disparaissent de cette liste.
-            Retrouvez l&apos;historique de toutes vos commandes dans <a href="/tracking" className="text-orange-600 font-medium hover:underline">Suivi des commandes</a>.
+          </p>
+          <p className="text-sm text-[#585e6c] mt-1 max-w-md text-center px-6">
+            Les demandes apparaissent ici quand un client réserve et choisit « paiement par l&apos;entreprise ».
+            Retrouvez l&apos;historique de toutes vos commandes dans{' '}
+            <Link href="/tracking" className="text-[#E04A1F] font-bold hover:underline">
+              Suivi des commandes
+            </Link>.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Référence</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Service</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Client</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Montant</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Date</th>
-                  <th className="text-left text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Statut</th>
-                  <th className="text-right text-xs font-medium text-slate-500 uppercase tracking-wider px-6 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {orders.map((item) => (
-                  <tr key={`${item.type}-${item.id}`} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-mono font-medium text-slate-800">
-                        {item.bookingCode || `#${item.id}`}
-                      </span>
-                      <span className="block text-xs text-slate-400 mt-0.5 capitalize">
-                        {item.type === 'travel-document' ? 'Document voyage' : 'Réservation'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-slate-700">
-                          {SERVICE_LABELS[item.serviceType] || item.serviceType?.replace(/_/g, ' ') || '—'}
+        <div className="space-y-3">
+          {filteredOrders.map((item, idx) => {
+            const ServiceIcon = getServiceIcon(item.serviceType, item.type);
+            const typeLabel = item.type === 'travel-document' ? 'Document voyage' : 'Réservation';
+            const serviceLabel = SERVICE_LABELS[item.serviceType] || item.serviceType?.replace(/_/g, ' ') || '—';
+            return (
+              <motion.div
+                key={`${item.type}-${item.id}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03 }}
+              >
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-[#ffdbd0] transition-all p-5 md:p-6">
+                  <div className="flex items-start gap-4 md:gap-6 flex-wrap md:flex-nowrap">
+                    {/* Icone service */}
+                    <div className="w-12 h-12 rounded-2xl bg-[#ffdbd0] flex items-center justify-center shrink-0">
+                      <ServiceIcon className="w-5 h-5 text-[#E04A1F]" />
+                    </div>
+
+                    {/* Bloc texte */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[10px] font-mono font-bold text-slate-400 tracking-wider">
+                          {item.bookingCode || `#${item.id}`}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <span className="text-sm text-slate-700">{item.clientName || '—'}</span>
-                          {item.clientPhone && (
-                            <span className="block text-xs text-slate-400">{item.clientPhone}</span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <CreditCard className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-semibold text-slate-800">
-                          {item.amount.toLocaleString('fr-FR')} FCFA
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          · {typeLabel}
                         </span>
+                        <StatusPillEnAttente />
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm text-slate-600">
-                          {item.createdAt ? format(new Date(item.createdAt), "d MMM yyyy", { locale: fr }) : '—'}
+                      <h3
+                        className="text-base md:text-lg font-extrabold text-[#171c1f] leading-tight truncate"
+                        style={MANROPE}
+                      >
+                        {serviceLabel}
+                      </h3>
+                      <div className="flex items-center gap-4 text-xs text-[#585e6c] mt-2 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3.5 h-3.5" />
+                          {item.clientName || '—'}
                         </span>
+                        {item.clientPhone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3.5 h-3.5" />
+                            {item.clientPhone}
+                          </span>
+                        )}
+                        {!item.clientPhone && item.clientEmail && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3.5 h-3.5" />
+                            {item.clientEmail}
+                          </span>
+                        )}
+                        {item.createdAt && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {format(new Date(item.createdAt), 'd MMM yyyy', { locale: fr })}
+                          </span>
+                        )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge className="bg-amber-100 text-amber-700 border-0">
-                        <Clock className="w-3 h-3 mr-1" />
-                        En attente
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => { setSelectedItem(item); setShowDetailDialog(true); }}
-                          className="gap-1 h-8 text-xs"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          Details
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => approveMutation.mutate(item)}
-                          disabled={isMutating}
-                          className="gradient-subito text-white border-0 gap-1 h-8 text-xs"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Approuver
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => { setSelectedItem(item); setShowRejectDialog(true); }}
-                          disabled={isMutating}
-                          className="gap-1 border-red-200 text-red-600 hover:bg-red-50 h-8 text-xs"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Refuser
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+
+                    {/* Bloc montant */}
+                    <div className="text-left md:text-right shrink-0">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Montant</p>
+                      <p className="text-xl md:text-2xl font-extrabold text-[#E04A1F] mt-0.5" style={MANROPE}>
+                        {item.amount.toLocaleString('fr-FR')} FCFA
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="border-t border-slate-100 mt-4 pt-4 flex justify-end gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setSelectedItem(item); setShowDetailDialog(true); }}
+                      className="gap-1.5 rounded-xl border-slate-200 text-[#585e6c] hover:bg-slate-50 h-9 text-xs font-bold"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      Détails
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => approveMutation.mutate(item)}
+                      disabled={isMutating}
+                      className="gap-1.5 rounded-xl bg-[#E04A1F] hover:bg-[#C8330F] text-white h-9 text-xs font-bold shadow-md shadow-[#E04A1F]/20"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Approuver
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setSelectedItem(item); setShowRejectDialog(true); }}
+                      disabled={isMutating}
+                      className="gap-1.5 rounded-xl border-red-200 text-red-600 hover:bg-red-50 h-9 text-xs font-bold"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      Refuser
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
