@@ -562,6 +562,118 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
         })()}
       </div>
 
+      {/* Selected activité/circuit preview — visible from step 3 onward to keep product images present during booking */}
+      {currentStep >= 3 && formData.serviceType === 'ACTIVITE' && selectedCircuit && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row"
+        >
+          {/* Image principale + miniatures */}
+          <div className="md:w-2/5 relative shrink-0">
+            <div className="relative h-56 md:h-full bg-slate-100">
+              {selectedCircuit.images?.[0] ? (
+                <img
+                  src={selectedCircuit.images[0]}
+                  alt={selectedCircuit.titre}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <MapPin className="w-16 h-16 text-slate-300" />
+                </div>
+              )}
+              <span
+                className={`absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
+                  formData.selectedItemType === 'circuit'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-[#E04A1F] text-white'
+                }`}
+              >
+                {formData.selectedItemType === 'circuit' ? 'Circuit' : 'Activité'}
+              </span>
+            </div>
+            {/* Miniatures (autres images) */}
+            {selectedCircuit.images && selectedCircuit.images.length > 1 && (
+              <div className="hidden md:flex gap-2 p-3 bg-[#f0f4f8] absolute bottom-0 left-0 right-0">
+                {selectedCircuit.images.slice(1, 4).map((img, i) => (
+                  <div key={i} className="w-14 h-10 rounded-lg overflow-hidden border-2 border-white/80 shadow-sm shrink-0">
+                    <img src={img} alt={`${selectedCircuit.titre} ${i + 2}`} className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+                {selectedCircuit.images.length > 4 && (
+                  <div className="w-14 h-10 rounded-lg bg-black/60 border-2 border-white/80 shadow-sm flex items-center justify-center text-white text-xs font-bold">
+                    +{selectedCircuit.images.length - 4}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Body */}
+          <div className="flex-1 p-5 md:p-6 flex flex-col justify-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Vous réservez
+            </p>
+            <h3
+              className="text-xl md:text-2xl font-extrabold text-[#171c1f] leading-tight"
+              style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+            >
+              {selectedCircuit.titre}
+            </h3>
+            <div className="flex items-center gap-3 text-xs text-[#585e6c] mt-2 flex-wrap">
+              {selectedCircuit.duree && (
+                <span className="flex items-center gap-1 font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  {selectedCircuit.duree}
+                </span>
+              )}
+              {selectedCircuit.maxParticipants != null && (
+                <span className="flex items-center gap-1 font-medium">
+                  <Users className="w-3.5 h-3.5" />
+                  Max {selectedCircuit.maxParticipants}
+                </span>
+              )}
+              {selectedCircuit.ville && (
+                <span className="flex items-center gap-1 font-medium">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {selectedCircuit.ville}
+                </span>
+              )}
+            </div>
+            {selectedCircuit.descriptionCourte && (
+              <p className="text-sm text-[#585e6c] mt-3 line-clamp-2">
+                {selectedCircuit.descriptionCourte}
+              </p>
+            )}
+            {selectedCircuit.prix != null && (
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-end justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                    Prix par personne
+                  </p>
+                  <p
+                    className="text-2xl font-extrabold text-[#E04A1F]"
+                    style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                  >
+                    {selectedCircuit.prix.toLocaleString()}{' '}
+                    <span className="text-sm font-bold text-[#E04A1F]/80">FCFA</span>
+                  </p>
+                </div>
+                {formData.nombrePersonnes > 0 && (
+                  <p className="text-xs text-[#585e6c] font-semibold">
+                    × {formData.nombrePersonnes} pers. ={' '}
+                    <span className="text-[#171c1f] font-extrabold">
+                      {(selectedCircuit.prix * formData.nombrePersonnes).toLocaleString()} FCFA
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* Step content */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -1642,11 +1754,69 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
 
                 {/* Selected item */}
                 {formData.serviceType === 'ACTIVITE' && selectedCircuit && (
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <p className="font-semibold text-slate-800">{selectedCircuit.titre}</p>
-                    {selectedCircuit.ville && <p className="text-sm text-slate-500">{selectedCircuit.ville}</p>}
-                    {selectedCircuit.duree && <p className="text-sm text-slate-500">Duree: {selectedCircuit.duree}</p>}
-                    <p className="text-sm text-slate-500 mt-1">{formData.nombrePersonnes} personne{formData.nombrePersonnes > 1 ? 's' : ''}</p>
+                  <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex flex-col md:flex-row">
+                    <div className="md:w-2/5 relative h-48 md:h-auto bg-slate-100 shrink-0">
+                      {selectedCircuit.images?.[0] ? (
+                        <img
+                          src={selectedCircuit.images[0]}
+                          alt={selectedCircuit.titre}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <MapPin className="w-16 h-16 text-slate-300" />
+                        </div>
+                      )}
+                      <span
+                        className={`absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full ${
+                          formData.selectedItemType === 'circuit'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-[#E04A1F] text-white'
+                        }`}
+                      >
+                        {formData.selectedItemType === 'circuit' ? 'Circuit' : 'Activité'}
+                      </span>
+                    </div>
+                    <div className="flex-1 p-5 md:p-6 flex flex-col justify-center">
+                      <h3
+                        className="text-xl font-extrabold text-[#171c1f] leading-tight"
+                        style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                      >
+                        {selectedCircuit.titre}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-[#585e6c] mt-2 flex-wrap font-medium">
+                        {selectedCircuit.duree && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-[#E04A1F]" />
+                            {selectedCircuit.duree}
+                          </span>
+                        )}
+                        {selectedCircuit.ville && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-[#E04A1F]" />
+                            {selectedCircuit.ville}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-[#E04A1F]" />
+                          {formData.nombrePersonnes} personne{formData.nombrePersonnes > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {selectedCircuit.prix != null && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                            Total estimé
+                          </p>
+                          <p
+                            className="text-2xl font-extrabold text-[#E04A1F]"
+                            style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                          >
+                            {(selectedCircuit.prix * formData.nombrePersonnes).toLocaleString()}{' '}
+                            <span className="text-sm font-bold text-[#E04A1F]/80">FCFA</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {formData.serviceType === 'LOGEMENT' && selectedLogement && (
