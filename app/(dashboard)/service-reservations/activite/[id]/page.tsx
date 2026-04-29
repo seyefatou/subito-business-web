@@ -266,7 +266,7 @@ export default function ActiviteDetailPage() {
 
           {/* About — carte blanche après la galerie (sans framer-motion pour éviter le bug d'animation bloquée) */}
           {(item.descriptionCourte || item.descriptionComplete) && (
-            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8">
+            <section className="relative z-10 bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8 mt-6">
               <h3
                 className="text-xl font-extrabold text-[#171c1f] mb-3"
                 style={MANROPE}
