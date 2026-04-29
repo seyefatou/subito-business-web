@@ -21,9 +21,11 @@ import {
   Mail,
   Car,
   Plane,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,9 +33,29 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+
+const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
+
+type TypeFilter = 'all' | 'booking' | 'travel-document';
+
+const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'booking', label: 'Réservations' },
+  { value: 'travel-document', label: 'Documents' },
+];
+
+function StatusPillEnAttente() {
+  return (
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-amber-100 text-amber-700">
+      <Clock className="w-3 h-3 mr-1" />
+      En attente
+    </span>
+  );
+}
 
 // ==================== TYPES ====================
 interface PriseEnChargeItem {
@@ -76,6 +98,8 @@ export default function PendingValidations() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<PriseEnChargeItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
 
   // Fetch pending payment requests ONLY (dedicated endpoints)
   const { data: bookingPRResponse, isLoading: loadingBookings } = useQuery({
@@ -131,6 +155,22 @@ export default function PendingValidations() {
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return items;
   }, [bookingPRResponse, travelPRResponse]);
+
+  const filteredOrders = useMemo(() => {
+    let list = orders;
+    if (typeFilter !== 'all') {
+      list = list.filter((o) => o.type === typeFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter((o) =>
+        (o.clientName || '').toLowerCase().includes(q) ||
+        (o.bookingCode || '').toLowerCase().includes(q) ||
+        o.id.toString().includes(q)
+      );
+    }
+    return list;
+  }, [orders, typeFilter, searchQuery]);
 
   // ==================== MUTATIONS ====================
   const invalidateAll = () => {
@@ -189,46 +229,101 @@ export default function PendingValidations() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-3 rounded-xl gradient-subito">
-          <CreditCard className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Prises en charge</h1>
-          <p className="text-slate-500 mt-1">
-            Demandes en attente de validation — quand un client réserve et demande que l&apos;entreprise paie
-          </p>
-        </div>
+    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 space-y-6">
+      {/* Hero Header */}
+      <div className="mb-2">
+        <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <span>Finances</span>
+          <span>/</span>
+          <span className="text-[#E04A1F]">Prises en charge</span>
+        </nav>
+        <h1
+          className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#171c1f] leading-tight"
+          style={MANROPE}
+        >
+          Prises en charge
+        </h1>
+        <p className="text-[#585e6c] font-medium mt-1">
+          Demandes en attente de validation — quand un client réserve et demande à l&apos;entreprise de payer
+        </p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-5 h-5 text-amber-600" />
-            <span className="text-sm font-medium text-amber-900">En attente</span>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-amber-700" />
           </div>
-          <p className="text-2xl font-bold text-amber-600">{orders.length}</p>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">En attente</p>
+            <p className="text-2xl font-extrabold text-amber-600 mt-0.5" style={MANROPE}>
+              {orders.length}
+            </p>
+          </div>
         </div>
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <div className="flex items-center gap-2 mb-1">
-            <Banknote className="w-5 h-5 text-slate-600" />
-            <span className="text-sm font-medium text-slate-900">Montant total</span>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#f0f4f8] flex items-center justify-center shrink-0">
+            <Banknote className="w-5 h-5 text-[#585e6c]" />
           </div>
-          <p className="text-2xl font-bold text-slate-600">
-            {orders.reduce((sum, o) => sum + o.amount, 0).toLocaleString('fr-FR')} FCFA
-          </p>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Montant total</p>
+            <p className="text-xl md:text-2xl font-extrabold text-[#171c1f] mt-0.5 truncate" style={MANROPE}>
+              {orders.reduce((sum, o) => sum + o.amount, 0).toLocaleString('fr-FR')} FCFA
+            </p>
+          </div>
         </div>
-        <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-          <div className="flex items-center gap-2 mb-1">
-            <CreditCard className="w-5 h-5 text-orange-600" />
-            <span className="text-sm font-medium text-orange-900">À traiter</span>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#ffdbd0] flex items-center justify-center shrink-0">
+            <CreditCard className="w-5 h-5 text-[#E04A1F]" />
           </div>
-          <p className="text-2xl font-bold text-orange-600">{orders.length}</p>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">À traiter</p>
+            <p className="text-2xl font-extrabold text-[#E04A1F] mt-0.5" style={MANROPE}>
+              {orders.length}
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 md:p-5 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#585e6c]" />
+          <Input
+            placeholder="Rechercher par client ou référence..."
+            className="pl-11 h-11 rounded-xl border-slate-200"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {TYPE_FILTERS.map((f) => {
+            const active = typeFilter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setTypeFilter(f.value)}
+                className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition ${
+                  active
+                    ? 'bg-[#E04A1F] text-white shadow-md'
+                    : 'bg-[#f0f4f8] text-[#585e6c] hover:bg-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Compteur */}
+      {!isLoading && filteredOrders.length > 0 && (
+        <div className="flex items-center justify-end">
+          <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
+            {filteredOrders.length} demande{filteredOrders.length > 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
 
       {/* Table */}
       {orders.length === 0 ? (
