@@ -271,7 +271,8 @@ export default function Tracking() {
       (b.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.reference || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.bookingCode || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchService = filterService === 'all' || b.serviceType === filterService;
+    const normalizedType = b.serviceType === 'intercity' ? 'inter_city' : b.serviceType;
+    const matchService = filterService === 'all' || normalizedType === filterService;
     const matchStatus = filterStatus === 'all' || b.status === filterStatus;
     return matchSearch && matchService && matchStatus;
   });
@@ -310,7 +311,7 @@ export default function Tracking() {
     if (k === "completed" || k === "paid")
       return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
     if (k === "in_progress" || k === "processing")
-      return { bg: "bg-[#ffdbd0]", text: "text-[#852300]", dot: "bg-[#FF6B35]", pulse: true };
+      return { bg: "bg-[#ffdbd0]", text: "text-[#852300]", dot: "bg-[#E04A1F]", pulse: true };
     if (k === "confirmed")
       return { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" };
     if (k === "pending")
@@ -333,7 +334,7 @@ export default function Tracking() {
           </h1>
           <p className="text-[#585e6c] font-medium">
             Vous avez{" "}
-            <span className="text-[#FF6B35] font-bold">{totalBookingsCount}</span>{" "}
+            <span className="text-[#E04A1F] font-bold">{totalBookingsCount}</span>{" "}
             commande{totalBookingsCount > 1 ? "s" : ""} au total — {stats.inProgress} en cours,{" "}
             {stats.completed} termine{stats.completed > 1 ? "s" : ""}.
           </p>
@@ -343,7 +344,7 @@ export default function Tracking() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               placeholder="Rechercher une commande..."
-              className="pl-10 pr-4 py-2.5 bg-white border-none rounded-xl text-sm w-64 shadow-sm focus:ring-2 focus:ring-[#FF6B35]/20 outline-none"
+              className="pl-10 pr-4 py-2.5 bg-white border-none rounded-xl text-sm w-64 shadow-sm focus:ring-2 focus:ring-[#E04A1F]/20 outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -377,7 +378,7 @@ export default function Tracking() {
               onClick={() => setFilterService(f.id)}
               className={`px-6 py-2 rounded-full text-sm whitespace-nowrap font-bold transition-all ${
                 active
-                  ? "bg-[#FF6B35] text-white shadow-sm"
+                  ? "bg-[#E04A1F] text-white shadow-sm"
                   : "bg-[#f0f4f8] text-[#585e6c] hover:bg-[#e4e9ed]"
               }`}
             >
@@ -392,7 +393,7 @@ export default function Tracking() {
         <div className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden">
           {isLoadingAll ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-[#FF6B35]" />
+              <Loader2 className="w-8 h-8 animate-spin text-[#E04A1F]" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-slate-400">
@@ -434,11 +435,10 @@ export default function Tracking() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.02 }}
-                          className="hover:bg-[#f0f4f8]/30 transition-colors cursor-pointer group"
-                          onClick={() => openDetail(booking)}
+                          className="hover:bg-[#f0f4f8]/30 transition-colors group"
                         >
                           <td className="px-6 py-5">
-                            <span className="font-mono text-sm font-bold text-[#FF6B35]">
+                            <span className="font-mono text-sm font-bold text-[#E04A1F]">
                               {code}
                             </span>
                           </td>
@@ -506,11 +506,27 @@ export default function Tracking() {
                             </span>
                           </td>
                           <td className="px-6 py-5 text-right">
-                            {['airport_shuttle', 'inter_city', 'vtc_hourly'].includes(booking.serviceType || '') ? (
+                            {['airport_shuttle', 'inter_city', 'intercity', 'vtc_hourly'].includes(booking.serviceType || '') ? (
                               <Link
-                                href={`/tracking/${booking.id}?type=${booking.serviceType}`}
+                                href={`/tracking/${booking.id}?type=${booking.serviceType === 'intercity' ? 'inter_city' : booking.serviceType}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-[#FF6B35] font-bold text-sm hover:underline underline-offset-4"
+                                className="text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4"
+                              >
+                                Details
+                              </Link>
+                            ) : booking.serviceType === 'visa_assistance' ? (
+                              <Link
+                                href={`/travel-documents/${booking.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4"
+                              >
+                                Details
+                              </Link>
+                            ) : ['FLOTTE', 'LOGEMENT', 'ACTIVITE', 'HOTEL'].includes(booking.serviceType || '') ? (
+                              <Link
+                                href={`/service-reservations/${booking.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4"
                               >
                                 Details
                               </Link>
@@ -520,7 +536,7 @@ export default function Tracking() {
                                   e.stopPropagation();
                                   openDetail(booking);
                                 }}
-                                className="text-[#FF6B35] font-bold text-sm hover:underline underline-offset-4"
+                                className="text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4"
                               >
                                 Details
                               </button>
@@ -562,7 +578,7 @@ export default function Tracking() {
                     onClick={() => setPage(p)}
                     className={`h-10 w-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${
                       active
-                        ? "bg-[#FF6B35] text-white shadow-lg shadow-[#FF6B35]/20"
+                        ? "bg-[#E04A1F] text-white shadow-lg shadow-[#E04A1F]/20"
                         : "bg-white text-[#171c1f] shadow-sm hover:bg-[#eaeef2]"
                     }`}
                   >
@@ -584,7 +600,7 @@ export default function Tracking() {
 
       {/* Insights Bento */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#FF6B35] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px]">
+        <div className="bg-[#E04A1F] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px]">
           <div className="flex justify-between items-start">
             <Package className="w-8 h-8 opacity-50" />
             <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
@@ -606,7 +622,7 @@ export default function Tracking() {
 
         <div className="bg-[#f0f4f8] p-8 rounded-[2rem] flex flex-col justify-between min-h-[160px]">
           <div className="flex justify-between items-start">
-            <Loader2 className="w-8 h-8 text-[#FF6B35]" />
+            <Loader2 className="w-8 h-8 text-[#E04A1F]" />
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
               En cours
             </span>
@@ -636,8 +652,8 @@ export default function Tracking() {
             </p>
           </div>
           <div className="flex items-center gap-2 relative z-10">
-            <CheckCircle2 className="w-5 h-5 text-[#FF6B35]" />
-            <span className="text-xs font-bold text-[#FF6B35]">
+            <CheckCircle2 className="w-5 h-5 text-[#E04A1F]" />
+            <span className="text-xs font-bold text-[#E04A1F]">
               Taux de reussite{" "}
               {stats.total > 0
                 ? Math.round((stats.completed / stats.total) * 100)
@@ -645,7 +661,7 @@ export default function Tracking() {
               %
             </span>
           </div>
-          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#FF6B35]/20 rounded-full blur-3xl" />
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#E04A1F]/20 rounded-full blur-3xl" />
         </div>
       </div>
 
@@ -705,8 +721,8 @@ export default function Tracking() {
                 )}
               </div>
 
-              {/* ======= AIRPORT SHUTTLE / INTER-CITY: Trajet Aller / Retour ======= */}
-              {(bookingDetail.serviceType === 'airport_shuttle' || bookingDetail.serviceType === 'inter_city') && (() => {
+              {/* ======= AIRPORT SHUTTLE: Trajet Aller / Retour ======= */}
+              {bookingDetail.serviceType === 'airport_shuttle' && (() => {
                 const d = bookingDetail as any;
                 const isRoundTrip = d.isOneWay === false || !!d.pickupDateRetour;
                 const departVille = d.villeDepart?.nom || d.villeDepart?.name || d.departureCity || '';
@@ -714,15 +730,17 @@ export default function Tracking() {
                 return (
                   <div className="space-y-3">
                     {/* Route summary */}
-                    <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
-                      <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span className="text-sm font-medium text-slate-800">{departVille}</span>
-                      <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="text-sm font-medium text-slate-800">{arriveeVille}</span>
-                      <Badge className={`ml-auto border-0 text-xs ${isRoundTrip ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
-                        {isRoundTrip ? 'Aller-retour' : 'Aller simple'}
-                      </Badge>
-                    </div>
+                    {(departVille || arriveeVille) && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
+                        <Plane className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{departVille || '—'}</span>
+                        <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{arriveeVille || '—'}</span>
+                        <Badge className={`ml-auto border-0 text-xs shrink-0 ${isRoundTrip ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                          {isRoundTrip ? 'Aller-retour' : 'Aller simple'}
+                        </Badge>
+                      </div>
+                    )}
 
                     {/* ALLER */}
                     <div className="p-4 rounded-xl border border-slate-200 space-y-2">
@@ -744,31 +762,17 @@ export default function Tracking() {
                             <p className="text-sm font-medium text-slate-800">{d.passengers}</p>
                           </div>
                         )}
+                        {d.flightNumber && (
+                          <div>
+                            <p className="text-xs text-slate-500">Numero de vol</p>
+                            <p className="text-sm font-medium text-slate-800">{d.flightNumber}</p>
+                          </div>
+                        )}
                       </div>
-                      {/* Addresses for airport shuttle */}
                       {d.adressePriseEnChargeAller && (
                         <div>
                           <p className="text-xs text-slate-500">Adresse de prise en charge</p>
                           <p className="text-sm text-slate-800">{d.adressePriseEnChargeAller}</p>
-                        </div>
-                      )}
-                      {/* Addresses for inter-city */}
-                      {d.adressePriseEnChargeDepartAller && (
-                        <div>
-                          <p className="text-xs text-slate-500">Adresse depart</p>
-                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeDepartAller}</p>
-                        </div>
-                      )}
-                      {d.adressePriseEnChargeArriveeAller && (
-                        <div>
-                          <p className="text-xs text-slate-500">Adresse arrivee</p>
-                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeArriveeAller}</p>
-                        </div>
-                      )}
-                      {d.flightNumber && (
-                        <div>
-                          <p className="text-xs text-slate-500">Numero de vol</p>
-                          <p className="text-sm font-medium text-slate-800">{d.flightNumber}</p>
                         </div>
                       )}
                     </div>
@@ -795,6 +799,102 @@ export default function Tracking() {
                             <p className="text-sm text-slate-800">{d.adressePriseEnChargeRetour}</p>
                           </div>
                         )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ======= INTER-CITY: Trajet Aller / Retour (route) ======= */}
+              {bookingDetail.serviceType === 'inter_city' && (() => {
+                const d = bookingDetail as any;
+                const isRoundTrip = d.isOneWay === false || !!d.pickupDateRetour;
+                const departVille = d.villeDepart?.nom || d.villeDepart?.name || d.departureCity || '';
+                const arriveeVille = d.villeArrivee?.nom || d.villeArrivee?.name || d.arrivalCity || '';
+                return (
+                  <div className="space-y-3">
+                    {/* Route summary */}
+                    {(departVille || arriveeVille) && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
+                        <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{departVille || '—'}</span>
+                        <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{arriveeVille || '—'}</span>
+                        <Badge className={`ml-auto border-0 text-xs shrink-0 ${isRoundTrip ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                          {isRoundTrip ? 'Aller-retour' : 'Aller simple'}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* ALLER */}
+                    <div className="p-4 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Car className="w-4 h-4 text-green-600" />
+                        <p className="text-sm font-semibold text-slate-700">Aller</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">Date & Heure depart</p>
+                          <p className="text-sm font-medium text-slate-800">
+                            {d.pickupDateAller ? format(new Date(d.pickupDateAller), 'dd MMM yyyy', { locale: fr }) : '—'}
+                            {d.pickupTimeAller || d.departureTime ? ` a ${d.pickupTimeAller || d.departureTime}` : ''}
+                          </p>
+                        </div>
+                        {d.arrivalTime && (
+                          <div>
+                            <p className="text-xs text-slate-500">Heure d&apos;arrivee</p>
+                            <p className="text-sm font-medium text-slate-800">{d.arrivalTime}</p>
+                          </div>
+                        )}
+                        {d.passengers && (
+                          <div>
+                            <p className="text-xs text-slate-500">Passagers</p>
+                            <p className="text-sm font-medium text-slate-800">{d.passengers}</p>
+                          </div>
+                        )}
+                        {d.vehicleType && (
+                          <div>
+                            <p className="text-xs text-slate-500">Vehicule</p>
+                            <p className="text-sm font-medium text-slate-800">{d.vehicleType}</p>
+                          </div>
+                        )}
+                      </div>
+                      {d.adressePriseEnChargeDepartAller && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse depart</p>
+                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeDepartAller}</p>
+                        </div>
+                      )}
+                      {d.adressePriseEnChargeArriveeAller && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse arrivee</p>
+                          <p className="text-sm text-slate-800">{d.adressePriseEnChargeArriveeAller}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RETOUR */}
+                    {isRoundTrip && (
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/30 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Car className="w-4 h-4 text-blue-600" />
+                          <p className="text-sm font-semibold text-slate-700">Retour</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">Date & Heure depart</p>
+                            <p className="text-sm font-medium text-slate-800">
+                              {d.pickupDateRetour ? format(new Date(d.pickupDateRetour), 'dd MMM yyyy', { locale: fr }) : '—'}
+                              {d.pickupTimeRetour || d.departureTimeRetour ? ` a ${d.pickupTimeRetour || d.departureTimeRetour}` : ''}
+                            </p>
+                          </div>
+                          {d.arrivalTimeRetour && (
+                            <div>
+                              <p className="text-xs text-slate-500">Heure d&apos;arrivee</p>
+                              <p className="text-sm font-medium text-slate-800">{d.arrivalTimeRetour}</p>
+                            </div>
+                          )}
+                        </div>
                         {d.adressePriseEnChargeDepartRetour && (
                           <div>
                             <p className="text-xs text-slate-500">Adresse depart retour</p>
@@ -816,38 +916,71 @@ export default function Tracking() {
               {/* ======= VTC HOURLY ======= */}
               {bookingDetail.serviceType === 'vtc_hourly' && (() => {
                 const d = bookingDetail as any;
+                const pickupAddress = d.pickupAddress || d.adressePriseEnCharge;
                 return (
-                  <div className="p-4 rounded-xl border border-slate-200 space-y-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="w-4 h-4 text-purple-600" />
-                      <p className="text-sm font-semibold text-slate-700">Details VTC</p>
+                  <div className="space-y-3">
+                    {/* Route summary */}
+                    {(pickupAddress || d.package) && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
+                        <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">
+                          {pickupAddress || '—'}
+                        </span>
+                        {d.package && (
+                          <Badge className="ml-auto border-0 text-xs bg-purple-100 text-purple-700 shrink-0">
+                            {d.package}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Trajet card */}
+                    <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-4 h-4 text-purple-600" />
+                        <p className="text-sm font-semibold text-slate-700">Details du trajet</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {d.scheduledDatetime && (
+                          <div>
+                            <p className="text-xs text-slate-500">Date & Heure</p>
+                            <p className="text-sm font-medium text-slate-800">
+                              {format(new Date(d.scheduledDatetime), 'dd MMM yyyy HH:mm', { locale: fr })}
+                            </p>
+                          </div>
+                        )}
+                        {d.vehicleType && (
+                          <div>
+                            <p className="text-xs text-slate-500">Type de vehicule</p>
+                            <p className="text-sm font-medium text-slate-800">{d.vehicleType}</p>
+                          </div>
+                        )}
+                        {d.package && (
+                          <div>
+                            <p className="text-xs text-slate-500">Forfait</p>
+                            <p className="text-sm font-medium text-slate-800">{d.package}</p>
+                          </div>
+                        )}
+                        {d.country && (
+                          <div>
+                            <p className="text-xs text-slate-500">Pays</p>
+                            <p className="text-sm font-medium text-slate-800">{d.country}</p>
+                          </div>
+                        )}
+                      </div>
+                      {pickupAddress && (
+                        <div>
+                          <p className="text-xs text-slate-500">Adresse de prise en charge</p>
+                          <p className="text-sm text-slate-800">{pickupAddress}</p>
+                        </div>
+                      )}
+                      {d.notes && (
+                        <div>
+                          <p className="text-xs text-slate-500">Notes</p>
+                          <p className="text-sm text-slate-800">{d.notes}</p>
+                        </div>
+                      )}
                     </div>
-                    {d.scheduledDatetime && (
-                      <div>
-                        <p className="text-xs text-slate-500">Date & Heure</p>
-                        <p className="text-sm font-medium text-slate-800">
-                          {format(new Date(d.scheduledDatetime), 'dd MMM yyyy HH:mm', { locale: fr })}
-                        </p>
-                      </div>
-                    )}
-                    {(d.pickupAddress || d.adressePriseEnCharge) && (
-                      <div>
-                        <p className="text-xs text-slate-500">Adresse de prise en charge</p>
-                        <p className="text-sm text-slate-800">{d.pickupAddress || d.adressePriseEnCharge}</p>
-                      </div>
-                    )}
-                    {d.package && (
-                      <div>
-                        <p className="text-xs text-slate-500">Forfait</p>
-                        <p className="text-sm font-medium text-slate-800">{d.package}</p>
-                      </div>
-                    )}
-                    {d.vehicleType && (
-                      <div>
-                        <p className="text-xs text-slate-500">Type de vehicule</p>
-                        <p className="text-sm font-medium text-slate-800">{d.vehicleType}</p>
-                      </div>
-                    )}
                   </div>
                 );
               })()}
@@ -855,80 +988,193 @@ export default function Tracking() {
               {/* ======= VISA / TRAVEL DOCUMENTS ======= */}
               {bookingDetail.serviceType === 'visa_assistance' && (() => {
                 const d = bookingDetail as any;
+                const departLabel = [d.departureCity, d.departureCountry].filter(Boolean).join(', ');
+                const destinationLabel = [d.destinationCity, d.destinationCountry].filter(Boolean).join(', ');
+                const hasReturn = !!d.returnDate;
                 return (
                   <div className="space-y-3">
-                    {d.destinationCountry && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Destination</span>
-                        <span className="text-sm font-medium text-slate-800">
-                          {d.destinationCity ? `${d.destinationCity}, ` : ''}{d.destinationCountry}
-                        </span>
+                    {/* Route summary */}
+                    {(departLabel || destinationLabel) && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50">
+                        <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{departLabel || '—'}</span>
+                        <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 truncate">{destinationLabel || '—'}</span>
+                        <Badge className={`ml-auto border-0 text-xs shrink-0 ${hasReturn ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                          {hasReturn ? 'Aller-retour' : 'Aller simple'}
+                        </Badge>
                       </div>
                     )}
-                    {d.departureCountry && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Depart</span>
-                        <span className="text-sm font-medium text-slate-800">
-                          {d.departureCity ? `${d.departureCity}, ` : ''}{d.departureCountry}
-                        </span>
+
+                    {/* ALLER */}
+                    {(d.departureDate || departLabel) && (
+                      <div className="p-4 rounded-xl border border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <PlaneTakeoff className="w-4 h-4 text-orange-600" />
+                          <p className="text-sm font-semibold text-slate-700">Depart</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {d.departureDate && (
+                            <div>
+                              <p className="text-xs text-slate-500">Date</p>
+                              <p className="text-sm font-medium text-slate-800">
+                                {format(new Date(d.departureDate), 'dd MMM yyyy', { locale: fr })}
+                              </p>
+                            </div>
+                          )}
+                          {departLabel && (
+                            <div>
+                              <p className="text-xs text-slate-500">Ville / Pays</p>
+                              <p className="text-sm font-medium text-slate-800">{departLabel}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                    {d.passportNumber && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Passeport</span>
-                        <span className="text-sm font-medium text-slate-800">{d.passportNumber}</span>
+
+                    {/* RETOUR */}
+                    {hasReturn && (
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/30 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <PlaneLanding className="w-4 h-4 text-blue-600" />
+                          <p className="text-sm font-semibold text-slate-700">Retour</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">Date</p>
+                            <p className="text-sm font-medium text-slate-800">
+                              {format(new Date(d.returnDate), 'dd MMM yyyy', { locale: fr })}
+                            </p>
+                          </div>
+                          {destinationLabel && (
+                            <div>
+                              <p className="text-xs text-slate-500">Provenance</p>
+                              <p className="text-sm font-medium text-slate-800">{destinationLabel}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                    {d.travelReason && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Motif</span>
-                        <span className="text-sm font-medium text-slate-800 capitalize">{d.travelReason}</span>
+
+                    {/* Documents & details card */}
+                    <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileText className="w-4 h-4 text-orange-600" />
+                        <p className="text-sm font-semibold text-slate-700">Documents & details</p>
                       </div>
-                    )}
-                    {d.departureDate && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Date depart</span>
-                        <span className="text-sm font-medium text-slate-800">
-                          {format(new Date(d.departureDate), 'dd MMM yyyy', { locale: fr })}
-                        </span>
+                      <div className="grid grid-cols-2 gap-3">
+                        {d.passportNumber && (
+                          <div>
+                            <p className="text-xs text-slate-500">Passeport</p>
+                            <p className="text-sm font-medium text-slate-800">{d.passportNumber}</p>
+                          </div>
+                        )}
+                        {d.nationality && (
+                          <div>
+                            <p className="text-xs text-slate-500">Nationalite</p>
+                            <p className="text-sm font-medium text-slate-800">{d.nationality}</p>
+                          </div>
+                        )}
+                        {d.travelReason && (
+                          <div>
+                            <p className="text-xs text-slate-500">Motif</p>
+                            <p className="text-sm font-medium text-slate-800 capitalize">{d.travelReason}</p>
+                          </div>
+                        )}
+                        {d.numberOfPeople && (
+                          <div>
+                            <p className="text-xs text-slate-500">Voyageurs</p>
+                            <p className="text-sm font-medium text-slate-800">{d.numberOfPeople}</p>
+                          </div>
+                        )}
+                        {d.hotelCategory && (
+                          <div>
+                            <p className="text-xs text-slate-500">Categorie hotel</p>
+                            <p className="text-sm font-medium text-slate-800">{d.hotelCategory}</p>
+                          </div>
+                        )}
+                        {d.roomType && (
+                          <div>
+                            <p className="text-xs text-slate-500">Type de chambre</p>
+                            <p className="text-sm font-medium text-slate-800">{d.roomType}</p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {d.returnDate && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500">Date retour</span>
-                        <span className="text-sm font-medium text-slate-800">
-                          {format(new Date(d.returnDate), 'dd MMM yyyy', { locale: fr })}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {d.flightReservation && <Badge className="bg-blue-100 text-blue-700 border-0">Reservation vol</Badge>}
-                      {d.hotelReservation && <Badge className="bg-green-100 text-green-700 border-0">Reservation hotel</Badge>}
-                      {d.travelInsurance && <Badge className="bg-purple-100 text-purple-700 border-0">Assurance voyage</Badge>}
+                      {(d.flightReservation || d.hotelReservation || d.travelInsurance) && (
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1.5">Services inclus</p>
+                          <div className="flex flex-wrap gap-2">
+                            {d.flightReservation && <Badge className="bg-blue-100 text-blue-700 border-0 gap-1"><Plane className="w-3 h-3" />Reservation vol</Badge>}
+                            {d.hotelReservation && <Badge className="bg-green-100 text-green-700 border-0 gap-1"><Hotel className="w-3 h-3" />Reservation hotel</Badge>}
+                            {d.travelInsurance && <Badge className="bg-purple-100 text-purple-700 border-0">Assurance voyage</Badge>}
+                          </div>
+                        </div>
+                      )}
+                      {d.hotelDetails && (
+                        <div>
+                          <p className="text-xs text-slate-500">Details hotel</p>
+                          <p className="text-sm text-slate-800">{d.hotelDetails}</p>
+                        </div>
+                      )}
+                      {d.notes && (
+                        <div>
+                          <p className="text-xs text-slate-500">Notes</p>
+                          <p className="text-sm text-slate-800">{d.notes}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })()}
 
               {/* ======= GENERIC FIELDS (for services without specific sections) ======= */}
-              {!['airport_shuttle', 'inter_city', 'vtc_hourly', 'visa_assistance'].includes(bookingDetail.serviceType || '') && (
-                <div className="space-y-3">
-                  {(bookingDetail as any).departureDate && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-500">Date depart</span>
-                      <span className="text-sm font-medium text-slate-800">
-                        {format(new Date((bookingDetail as any).departureDate), 'dd MMM yyyy HH:mm', { locale: fr })}
-                      </span>
+              {!['airport_shuttle', 'inter_city', 'vtc_hourly', 'visa_assistance'].includes(bookingDetail.serviceType || '') && (() => {
+                const d = bookingDetail as any;
+                const hasContent = d.departureDate || d.passengers || d.pickupAddress || d.dropoffAddress || d.notes;
+                if (!hasContent) return null;
+                return (
+                  <div className="p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Package className="w-4 h-4 text-slate-600" />
+                      <p className="text-sm font-semibold text-slate-700">Details du service</p>
                     </div>
-                  )}
-                  {(bookingDetail as any).passengers && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-500">Passagers</span>
-                      <span className="text-sm font-medium text-slate-800">{(bookingDetail as any).passengers}</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      {d.departureDate && (
+                        <div>
+                          <p className="text-xs text-slate-500">Date depart</p>
+                          <p className="text-sm font-medium text-slate-800">
+                            {format(new Date(d.departureDate), 'dd MMM yyyy HH:mm', { locale: fr })}
+                          </p>
+                        </div>
+                      )}
+                      {d.passengers && (
+                        <div>
+                          <p className="text-xs text-slate-500">Passagers</p>
+                          <p className="text-sm font-medium text-slate-800">{d.passengers}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                    {d.pickupAddress && (
+                      <div>
+                        <p className="text-xs text-slate-500">Adresse de prise en charge</p>
+                        <p className="text-sm text-slate-800">{d.pickupAddress}</p>
+                      </div>
+                    )}
+                    {d.dropoffAddress && (
+                      <div>
+                        <p className="text-xs text-slate-500">Adresse de depose</p>
+                        <p className="text-sm text-slate-800">{d.dropoffAddress}</p>
+                      </div>
+                    )}
+                    {d.notes && (
+                      <div>
+                        <p className="text-xs text-slate-500">Notes</p>
+                        <p className="text-sm text-slate-800">{d.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ======= COMMON FIELDS (all services) ======= */}
               <div className="space-y-3">

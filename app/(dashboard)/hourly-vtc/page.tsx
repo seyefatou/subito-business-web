@@ -426,125 +426,249 @@ export default function HourlyVTC() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-2xl mx-auto text-center py-16"
+        className="max-w-6xl mx-auto space-y-10"
       >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 15 }}
-          className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6"
-        >
-          <CheckCircle2 className="w-12 h-12 text-green-600" />
-        </motion.div>
-
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">
-          Reservation confirmee !
-        </h1>
-        <p className="text-slate-500 mb-2">
-          Votre reference : <span className="font-bold text-slate-800">{bookingRef}</span>
-        </p>
-        <p className="text-slate-500 mb-2">
-          VTC reserve pour {formData.clientName}
-        </p>
-        <p className="text-sm text-slate-400 mb-8">
-          Un chauffeur vous sera assigne sous peu et vous contactera
-        </p>
-
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => router.push("/tracking")}
+        {/* Hero */}
+        <section className="flex flex-col items-center text-center py-6">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="w-20 h-20 bg-[#E04A1F] rounded-full flex items-center justify-center mb-6 shadow-xl shadow-[#E04A1F]/30"
           >
-            Voir dans le suivi
-          </Button>
-          <Button
-            className="gradient-subito text-white border-0"
-            onClick={() => router.push("/")}
-          >
-            Retour a l&apos;accueil
-          </Button>
+            <CheckCircle2 className="w-10 h-10 text-white" strokeWidth={2.5} />
+          </motion.div>
+          <h1 className="text-3xl md:text-5xl font-extrabold text-slate-900 mb-2 tracking-tight">
+            Reservation confirmee !
+          </h1>
+          <p className="text-slate-500 font-medium text-base md:text-lg">
+            Votre chauffeur est reserve. Preparez-vous pour un trajet d&apos;exception.
+          </p>
+          <div className="mt-4 px-4 py-2 bg-slate-200 rounded-full">
+            <span className="text-sm font-bold text-slate-700 tracking-wider">REF: {bookingRef}</span>
+          </div>
+        </section>
+
+        {/* Bento */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7 bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+              <Info className="w-5 h-5 text-[#E04A1F]" />
+              Details du service
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Type de service</span>
+                <p className="text-lg font-semibold text-slate-900">VTC a l&apos;heure</p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Duree</span>
+                <p className="text-lg font-semibold text-slate-900">
+                  {packages.find(p => p.id === formData.package)?.label || '—'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Vehicule</span>
+                <p className="text-lg font-semibold text-slate-900 capitalize">
+                  {vehicleTypes.find(v => v.id === formData.vehicleType)?.name || '—'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Statut</span>
+                <div className="inline-flex items-center px-3 py-1 bg-[#ffdbd0] rounded-full">
+                  <span className="text-xs font-bold text-orange-700">Confirme</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-[#E04A1F] shrink-0">
+                  <CalendarIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase">Date</p>
+                  <p className="font-semibold text-slate-900">
+                    {formData.pickupDate && format(formData.pickupDate, 'EEEE d MMMM yyyy', { locale: fr })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-[#E04A1F] shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase">Heure</p>
+                  <p className="font-semibold text-slate-900">{formData.pickupTime}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 bg-white rounded-3xl p-8 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-[#E04A1F]" />
+            <h2 className="text-xl font-bold mb-6 text-slate-900">Recapitulatif financier</h2>
+            <div className="py-6 border-t-2 border-dashed border-slate-100 mt-4">
+              <div className="flex justify-between items-end">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Total paye</span>
+                  <p className="text-3xl font-extrabold text-[#E04A1F]">{totalPrice.toLocaleString()} FCFA</p>
+                </div>
+                <CreditCard className="w-10 h-10 text-teal-500" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 mt-4">
+              <Button
+                onClick={() => router.push("/tracking")}
+                className="bg-[#E04A1F] text-white py-6 rounded-xl font-bold text-base shadow-lg hover:opacity-90 transition-all gap-2 border-0"
+              >
+                Voir dans le suivi
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => router.push("/")}
+                className="bg-slate-100 text-slate-900 py-6 rounded-xl font-bold border-0 hover:bg-slate-200 transition-all gap-2"
+              >
+                Retour au tableau de bord
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Info cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex items-start gap-4 p-6 rounded-2xl bg-slate-50">
+            <Check className="w-5 h-5 text-[#E04A1F] shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Assurance incluse</h4>
+              <p className="text-xs text-slate-500 mt-1">Tous vos trajets sont couverts par notre assurance premium partenaire.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-4 p-6 rounded-2xl bg-slate-50">
+            <Users className="w-5 h-5 text-[#E04A1F] shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Support 24/7</h4>
+              <p className="text-xs text-slate-500 mt-1">Une assistance dediee pour vos besoins professionnels a tout moment.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-4 p-6 rounded-2xl bg-slate-50">
+            <Info className="w-5 h-5 text-[#E04A1F] shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm text-slate-900">Gestion simplifiee</h4>
+              <p className="text-xs text-slate-500 mt-1">Retrouvez toutes vos factures dans votre espace client Business.</p>
+            </div>
+          </div>
         </div>
       </motion.div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 rounded-xl gradient-subito">
-          <Clock className="w-6 h-6 text-white" />
+    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="mb-10">
+        <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <span>Reservations</span>
+              <span>/</span>
+              <span className="text-[#E04A1F]">VTC a l&apos;heure</span>
+            </nav>
+            <h1
+              className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              Reservation VTC
+            </h1>
+            <p className="text-[#585e6c] font-medium mt-1">
+              {steps[currentStep - 1]?.title} — etape {currentStep} sur {steps.length}
+            </p>
+          </div>
+          <span className="text-[#E04A1F] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full whitespace-nowrap uppercase tracking-widest">
+            Etape {currentStep}/{steps.length}
+          </span>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">VTC a l&apos;Heure</h1>
-          <p className="text-slate-500">Reservez un vehicule avec chauffeur pour vos deplacements</p>
-        </div>
-      </div>
 
-      {/* Country Selector */}
-      <div className="mb-6">
+        {/* Country Selector */}
         <RadioGroup
           value={formData.country}
           onValueChange={(v) => handleChange('country', v as VtcCountry)}
-          className="flex gap-3"
+          className="flex gap-3 mb-8 flex-wrap"
         >
           {countries.map(country => (
             <label
               key={country.code}
               className={`
-                flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
+                flex items-center gap-3 px-5 py-3 rounded-full border-2 cursor-pointer transition-all
                 ${formData.country === country.code
-                  ? 'border-orange-400 bg-orange-50'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-orange-500 bg-[#ffdbd0]/40'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
                 }
               `}
             >
               <RadioGroupItem value={country.code} className="hidden" />
-              <span className="text-2xl">{country.flag}</span>
-              <span className="font-medium text-slate-800">{country.name}</span>
+              <span className="text-xl">{country.flag}</span>
+              <span className="font-semibold text-sm text-slate-900">{country.name}</span>
               {formData.country === country.code && (
-                <Check className="w-5 h-5 text-orange-600 ml-auto" />
+                <Check className="w-4 h-4 text-[#E04A1F]" />
               )}
             </label>
           ))}
         </RadioGroup>
-      </div>
 
-      {/* Progress */}
-      <div className="flex items-center justify-between mb-8">
-        {steps.map((step, index) => (
-          <React.Fragment key={step.id}>
-            <div className="flex items-center gap-2">
-              <div className={`
-                w-10 h-10 rounded-xl flex items-center justify-center transition-all
-                ${currentStep >= step.id
-                  ? 'gradient-subito text-white'
-                  : 'bg-slate-200 text-slate-400'
-                }
-              `}>
-                {currentStep > step.id ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <step.icon className="w-5 h-5" />
+        {/* Editorial Stepper with connecting lines */}
+        <div className="flex items-center w-full">
+          {steps.map((step, idx) => {
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            const isLast = idx === steps.length - 1;
+            return (
+              <React.Fragment key={step.id}>
+                <div className="flex flex-col items-center gap-2 shrink-0">
+                  <div
+                    className={`rounded-full flex items-center justify-center transition-all font-bold ${
+                      isActive
+                        ? "w-12 h-12 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#E04A1F]/20"
+                        : isDone
+                        ? "w-10 h-10 bg-[#E04A1F] text-white"
+                        : "w-10 h-10 bg-[#dfe3e7] text-slate-500"
+                    }`}
+                  >
+                    {isDone ? (
+                      <Check className="w-5 h-5" strokeWidth={3} />
+                    ) : (
+                      <span className="text-sm">{step.id}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs hidden sm:block whitespace-nowrap ${
+                      isActive
+                        ? "font-bold text-[#E04A1F]"
+                        : isDone
+                        ? "font-semibold text-[#171c1f]"
+                        : "font-medium text-slate-400"
+                    }`}
+                  >
+                    {step.title}
+                  </span>
+                </div>
+                {!isLast && (
+                  <div className="flex-1 h-1 mx-2 sm:mx-4 -mt-6 rounded-full overflow-hidden bg-[#dfe3e7]">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
+                      }`}
+                    />
+                  </div>
                 )}
-              </div>
-              <span className={`font-medium text-sm hidden sm:block ${
-                currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
-              }`}>
-                {step.title}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 rounded ${
-                currentStep > step.id ? 'bg-orange-400' : 'bg-slate-200'
-              }`} />
-            )}
-          </React.Fragment>
-        ))}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      {/* Content (full width — chaque etape gere sa propre grille interne) */}
+      <div className="bg-white rounded-[2rem] shadow-xl shadow-black/5 p-6 md:p-10 mb-6">
         <AnimatePresence mode="wait">
           {/* Step 1: Vehicle & Package */}
           {currentStep === 1 && (
@@ -555,91 +679,197 @@ export default function HourlyVTC() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
+              {/* Vehicle bento grid */}
               <div>
-                <h3 className="font-semibold text-slate-800 mb-4">Choisissez votre vehicule</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="mb-6">
+                  <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Selectionnez votre vehicule</h3>
+                  <p className="text-sm text-slate-500 mt-1">Choisissez la categorie adaptee a votre trajet et au nombre de passagers.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                   {vehicleTypes.map(vehicle => {
                     const isSelected = formData.vehicleType === vehicle.id;
+                    const isFeatured = vehicle.id === 'berline_premium';
+                    const isPopular = vehicle.id === 'berline';
+                    const colSpan = isFeatured ? 'md:col-span-8' : 'md:col-span-4';
+                    const iconFor = (id: string) => {
+                      if (id === 'berline_premium') return '🛋️';
+                      if (id === 'suv') return '🚙';
+                      if (id === 'monospace' || id === 'van') return '🚐';
+                      return '🚗';
+                    };
                     return (
                       <motion.div
                         key={vehicle.id}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => handleChange('vehicleType', vehicle.id)}
                         className={`
-                          relative p-4 rounded-2xl border-2 cursor-pointer transition-all
+                          ${colSpan} group relative rounded-3xl cursor-pointer transition-all duration-300 overflow-hidden
                           ${isSelected
-                            ? 'border-orange-400 bg-orange-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'bg-[#ffdbd0]/40 ring-2 ring-orange-500 shadow-xl shadow-orange-500/10'
+                            : 'bg-white shadow-sm hover:shadow-xl ring-1 ring-slate-100'
                           }
                         `}
                       >
-                        {isSelected && (
-                          <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
-                            <Check className="w-4 h-4 text-white" />
+                        {isFeatured ? (
+                          <div className="flex flex-col md:flex-row h-full">
+                            <div className="p-6 md:p-8 flex-1 flex flex-col justify-center">
+                              {isSelected && (
+                                <div className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center shadow-lg">
+                                  <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                                </div>
+                              )}
+                              <div className="absolute top-4 right-4 z-10">
+                                {!isSelected && (
+                                  <div className="bg-teal-100 text-teal-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                    Premium
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-4 bg-white rounded-2xl text-[#E04A1F] w-fit mb-6 text-3xl shadow-sm">
+                                {iconFor(vehicle.id)}
+                              </div>
+                              <h4 className="text-2xl font-extrabold text-slate-900 mb-2">{vehicle.name}</h4>
+                              <p className="text-sm text-slate-500 leading-relaxed mb-6">{vehicle.description}</p>
+                              <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                                  <Users className="w-4 h-4 text-[#E04A1F]" />
+                                  <span className="text-sm">{vehicle.capacity} passagers</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                                  <Car className="w-4 h-4 text-[#E04A1F]" />
+                                  <span className="text-sm">VIP</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="hidden md:block md:w-1/2 bg-gradient-to-br from-orange-100 to-orange-200 relative">
+                              <div className="absolute inset-0 flex items-center justify-center text-8xl">
+                                {iconFor(vehicle.id)}
+                              </div>
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col p-6 h-full">
+                            <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-slate-100 rounded-xl text-[#E04A1F] group-hover:scale-110 transition-transform text-2xl">
+                                {iconFor(vehicle.id)}
+                              </div>
+                              {isPopular && !isSelected && (
+                                <span className="bg-[#ffdbd0] text-orange-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">
+                                  Populaire
+                                </span>
+                              )}
+                              {isSelected && (
+                                <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                                </div>
+                              )}
+                            </div>
+                            <h4 className="text-xl font-bold text-slate-900 mb-2">{vehicle.name}</h4>
+                            <p className="text-sm text-slate-500 leading-relaxed mb-6 flex-grow">{vehicle.description}</p>
+                            <div className="flex items-center gap-4 py-4 border-t border-slate-100 mt-auto">
+                              <div className="flex items-center gap-1.5 text-slate-600 font-medium text-sm">
+                                <Users className="w-4 h-4" />
+                                <span>{vehicle.capacity} Max</span>
+                              </div>
+                            </div>
                           </div>
                         )}
-
-                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-2">
-                          <Car className="w-6 h-6 text-slate-400" />
-                        </div>
-                        <h4 className="font-semibold text-slate-800 mb-1">{vehicle.name}</h4>
-                        <p className="text-xs text-slate-500 mb-2">{vehicle.description}</p>
-                        <div className="flex items-center gap-1 text-slate-600">
-                          <Users className="w-3 h-3" />
-                          <span className="text-xs">{vehicle.capacity} places</span>
-                        </div>
                       </motion.div>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Package cards */}
               {formData.vehicleType && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
                 >
-                  <h3 className="font-semibold text-slate-800 mb-4">Choisissez votre forfait</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {packages.map(pkg => {
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Choisissez votre forfait</h3>
+                    <p className="text-sm text-slate-500 mt-1">Selectionnez la duree de mise a disposition.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {packages.map((pkg, idx) => {
                       const isSelected = formData.package === pkg.id;
+                      const isRecommended = idx === 1;
                       const price = selectedVehicle?.prices[pkg.id] || 0;
+                      const iconComp = idx === 0 ? Clock : idx === 1 ? CalendarIcon : Info;
+                      const Icon = iconComp;
                       return (
                         <motion.div
                           key={pkg.id}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleChange('package', pkg.id)}
                           className={`
-                            relative p-6 rounded-2xl border-2 cursor-pointer transition-all
+                            group relative flex flex-col p-8 rounded-3xl transition-all duration-300 cursor-pointer
                             ${isSelected
-                              ? 'border-orange-400 bg-orange-50'
-                              : 'border-slate-200 hover:border-slate-300'
+                              ? 'bg-white ring-2 ring-orange-600 shadow-xl shadow-orange-500/10'
+                              : isRecommended
+                              ? 'bg-white ring-2 ring-orange-300 shadow-xl'
+                              : 'bg-white ring-1 ring-slate-100 hover:ring-orange-200 hover:shadow-xl'
                             }
                           `}
                         >
-                          {isSelected && (
-                            <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
-                              <Check className="w-4 h-4 text-white" />
+                          {isRecommended && (
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#E04A1F] text-white text-[10px] font-bold uppercase tracking-widest rounded-full whitespace-nowrap">
+                              Recommande
                             </div>
                           )}
-
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-slate-800 mb-1">{pkg.label}</p>
-                            <p className="text-sm text-slate-500 mb-3">{pkg.kmIncluded} km inclus</p>
-                            <p className="text-xl font-bold text-orange-600">{price.toLocaleString()} FCFA</p>
+                          <div className="absolute top-4 right-4">
+                            {isSelected ? (
+                              <div className="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
+                                <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-orange-600 transition-colors" />
+                            )}
+                          </div>
+                          <div className="mb-6">
+                            <div className="w-14 h-14 text-3xl text-[#E04A1F] mb-4 p-3 bg-[#ffdbd0] rounded-2xl flex items-center justify-center">
+                              <Icon className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-900">{pkg.label}</h3>
+                            <p className="text-slate-500 text-sm mt-1">{pkg.kmIncluded} km inclus</p>
+                          </div>
+                          <div className="mt-auto">
+                            <div className="text-3xl font-black text-slate-900 mb-2">
+                              {price.toLocaleString()} <span className="text-sm font-medium text-slate-400">FCFA</span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                              {idx === 0 && 'Ideal pour vos rendez-vous rapides en centre-ville.'}
+                              {idx === 1 && 'Parfait pour une demi-journee de prospection intensive.'}
+                              {idx === 2 && 'Concu pour une journee complete de delegation sans contraintes.'}
+                            </p>
                           </div>
                         </motion.div>
                       );
                     })}
                   </div>
 
-                  <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                    <div className="flex items-start gap-2">
-                      <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-                      <div className="text-sm text-blue-800">
-                        <p className="font-medium mb-1">Depassements :</p>
-                        <p>- Kilometres supplementaires : +350 FCFA/km</p>
-                        <p>- Heures supplementaires : Variable selon le vehicule</p>
+                  {/* Depassements info card */}
+                  <div className="p-6 md:p-8 bg-teal-50 rounded-3xl flex items-start gap-6 border border-teal-100">
+                    <div className="bg-teal-500 p-3 rounded-2xl shadow-lg shadow-teal-500/30 shrink-0">
+                      <Info className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-teal-900 text-lg mb-2">Informations sur les depassements</h4>
+                      <div className="space-y-3 text-teal-800/90 text-sm leading-relaxed">
+                        <p>En cas de depassement du forfait choisi, les frais supplementaires s&apos;appliquent comme suit :</p>
+                        <div className="flex flex-wrap gap-6">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-teal-600" />
+                            <span><strong>Heure supplementaire :</strong> Variable</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-teal-600" />
+                            <span><strong>Km supplementaire :</strong> 350 FCFA / km</span>
+                          </div>
+                        </div>
+                        <p className="italic text-xs pt-2">Note : Le depassement est calcule a la fin de la mission et facture sur votre compte entreprise.</p>
                       </div>
                     </div>
                   </div>
@@ -655,78 +885,165 @@ export default function HourlyVTC() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
-              <div className="p-4 bg-orange-50 rounded-xl border border-orange-200 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
-                    <Car className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-800">{selectedVehicle?.name} - {selectedPackage?.label}</p>
-                    <p className="text-sm text-slate-600">{selectedPackage?.kmIncluded} km inclus</p>
-                  </div>
-                  <p className="text-lg font-bold text-orange-600">{totalPrice.toLocaleString()} F</p>
+              {/* Left: Summary */}
+              <aside className="lg:col-span-5 space-y-6">
+                <div>
+                  <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Details du trajet</h3>
+                  <p className="text-sm text-slate-500 mt-1">Finalisez votre reservation en precisant les modalites de prise en charge.</p>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 rounded-2xl p-4">
-                  <Label className="text-xs text-slate-500 mb-2 block">Date de prise en charge</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
-                      >
-                        <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
-                        {formData.pickupDate ? format(formData.pickupDate, "dd/MM/yyyy", { locale: fr }) : "Selectionner"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.pickupDate || undefined}
-                        onSelect={(date) => handleChange('pickupDate', date || null)}
-                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                <div className="bg-white rounded-3xl p-6 shadow-xl shadow-black/5 border border-slate-100 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">Recapitulatif</span>
+                    <span className="px-3 py-1 bg-[#ffdbd0] text-orange-700 text-xs font-bold rounded-full">En cours</span>
+                  </div>
+
+                  <div className="relative rounded-2xl overflow-hidden aspect-video group bg-gradient-to-br from-slate-800 to-slate-900">
+                    <div className="absolute inset-0 flex items-center justify-center text-7xl">
+                      <Car className="w-20 h-20 text-white/80" />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-6">
+                      <p className="text-white font-extrabold text-xl">{selectedVehicle?.name}</p>
+                      <p className="text-white/80 text-sm font-medium">{selectedVehicle?.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-50 p-4 rounded-2xl">
+                      <p className="text-xs text-slate-500 font-semibold uppercase">Duree</p>
+                      <p className="text-slate-900 font-bold text-lg">{selectedPackage?.label || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl">
+                      <p className="text-xs text-slate-500 font-semibold uppercase">Passagers</p>
+                      <p className="text-slate-900 font-bold text-lg">Jusqu&apos;a {selectedVehicle?.capacity || 0}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-slate-500 font-medium">Tarif estime</p>
+                      <p className="text-2xl font-black text-[#E04A1F]">{totalPrice.toLocaleString()} FCFA</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 px-2">
+                  <div className="h-1 flex-1 rounded-full bg-[#ffdbd0]/400" />
+                  <div className="h-1 flex-1 rounded-full bg-[#ffdbd0]/400" />
+                  <div className="h-1 flex-1 rounded-full bg-slate-200" />
+                  <div className="h-1 flex-1 rounded-full bg-slate-200" />
+                  <div className="h-1 flex-1 rounded-full bg-slate-200" />
+                </div>
+              </aside>
+
+              {/* Right: Form */}
+              <div className="lg:col-span-7">
+                <div className="bg-slate-50 rounded-[2rem] p-6 md:p-8 space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4 text-[#E04A1F]" />
+                        Date de prise en charge
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start bg-white border-0 rounded-2xl p-4 h-auto font-semibold text-slate-900 hover:bg-white"
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
+                            {formData.pickupDate ? format(formData.pickupDate, "dd MMM yyyy", { locale: fr }) : "Selectionner une date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.pickupDate || undefined}
+                            onSelect={(date) => handleChange('pickupDate', date || null)}
+                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-[#E04A1F]" />
+                        Heure de prise en charge
+                      </Label>
+                      <div className="bg-white rounded-2xl p-1">
+                        <TimePicker
+                          value={formData.pickupTime}
+                          onChange={(v) => handleChange('pickupTime', v)}
+                          placeholder="Choisir une heure"
+                          selectedDate={formData.pickupDate}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-[#E04A1F]" />
+                      Lieu de prise en charge
+                    </Label>
+                    <div className="bg-white rounded-2xl p-1">
+                      <AddressAutocomplete
+                        value={formData.pickupLocation}
+                        onChange={(val) => handleChange('pickupLocation', val)}
+                        onSelect={(address, lat, lng) => {
+                          setFormData(prev => ({ ...prev, pickupLocation: address, pickupLocationLat: lat, pickupLocationLng: lng }));
+                        }}
+                        placeholder="Entrez l'adresse de depart..."
+                        iconColor="text-[#E04A1F]"
+                        countryCode={countryNameToCode(formData.country)}
                       />
-                    </PopoverContent>
-                  </Popover>
+                    </div>
+                    <div className="flex gap-2 flex-wrap pt-1">
+                      {['Aeroport', 'Centre-ville', 'Zone industrielle'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => handleChange('pickupLocation', chip)}
+                          className="px-4 py-2 bg-slate-200 text-xs font-bold rounded-full text-slate-600 hover:bg-[#ffdbd0] hover:text-orange-700 transition-colors"
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Map placeholder */}
+                  <div className="rounded-2xl overflow-hidden h-48 relative bg-gradient-to-br from-slate-100 to-slate-200">
+                    <div className="absolute inset-0 opacity-40" style={{
+                      backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(172,53,9,0.1), transparent 50%), radial-gradient(circle at 70% 60%, rgba(0,105,114,0.1), transparent 50%)'
+                    }} />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-14 h-14 rounded-full bg-[#E04A1F] shadow-xl flex items-center justify-center animate-pulse">
+                        <MapPin className="w-6 h-6 text-white" fill="currentColor" />
+                      </div>
+                    </div>
+                    <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-600" />
+                      <span className="text-xs font-bold text-slate-800">{formData.country}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-[#E04A1F]" />
+                      Instructions (optionnel)
+                    </Label>
+                    <Textarea
+                      value={formData.instructions}
+                      onChange={(e) => handleChange('instructions', e.target.value)}
+                      className="bg-white border-0 rounded-2xl p-4 text-slate-900 min-h-[100px] font-medium"
+                      placeholder="Numero de vol, code porte, preferences particulieres..."
+                    />
+                  </div>
                 </div>
-
-                <div className="bg-slate-50 rounded-2xl p-4">
-                  <Label className="text-xs text-slate-500 mb-2 block">Heure de prise en charge</Label>
-                  <TimePicker
-                    value={formData.pickupTime}
-                    onChange={(v) => handleChange('pickupTime', v)}
-                    placeholder="Choisir une heure"
-                    selectedDate={formData.pickupDate}
-                  />
-                </div>
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4">
-                <Label className="text-xs text-slate-500 mb-2 block">Lieu de prise en charge</Label>
-                <AddressAutocomplete
-                  value={formData.pickupLocation}
-                  onChange={(val) => handleChange('pickupLocation', val)}
-                  onSelect={(address, lat, lng) => {
-                    setFormData(prev => ({ ...prev, pickupLocation: address, pickupLocationLat: lat, pickupLocationLng: lng }));
-                  }}
-                  placeholder="Adresse complete"
-                  iconColor="text-orange-600"
-                  countryCode={countryNameToCode(formData.country)}
-                />
-              </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4">
-                <Label className="text-xs text-slate-500 mb-2 block">Instructions (optionnel)</Label>
-                <Textarea
-                  value={formData.instructions}
-                  onChange={(e) => handleChange('instructions', e.target.value)}
-                  className="border-0 bg-transparent p-0 text-slate-800 min-h-[80px]"
-                  placeholder="Ex: Plusieurs arrets prevus, passage a l'aeroport..."
-                />
               </div>
             </motion.div>
           )}
@@ -738,13 +1055,16 @@ export default function HourlyVTC() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="space-y-8"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Informations client</h3>
+              <div>
+                <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Informations client</h3>
+                <p className="text-sm text-slate-500 mt-1">Renseignez les details du voyageur pour cette reservation.</p>
+              </div>
 
               {/* Employee selector with search */}
-              <div className="space-y-2">
-                <Label>Voyageur (employe) *</Label>
+              <div className="space-y-3">
+                <Label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Voyageur (employe) *</Label>
                 <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -818,7 +1138,7 @@ export default function HourlyVTC() {
                                   {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
                                 </div>
                                 {formData.employeeId === emp.id && (
-                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                  <Check className="w-4 h-4 text-[#E04A1F] shrink-0" />
                                 )}
                               </CommandItem>
                             );
@@ -845,49 +1165,60 @@ export default function HourlyVTC() {
                 </DialogContent>
               </Dialog>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nom complet *</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Nom complet</Label>
+                  <div className="relative group">
                     <Input
                       placeholder="Ex: Moussa Diop"
-                      className="pl-10"
+                      className="w-full bg-slate-50 border-0 rounded-2xl py-6 px-6 pr-12 text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 focus:ring-orange-500/20"
                       value={formData.clientName}
                       onChange={(e) => handleChange('clientName', e.target.value)}
                     />
+                    <User className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-[#E04A1F] transition-colors" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Telephone *</Label>
-                  <PhoneInput
-                    value={formData.clientPhone}
-                    onChange={(v) => handleChange('clientPhone', v)}
-                    error={!!phoneError}
-                  />
+                <div className="space-y-3">
+                  <Label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Telephone</Label>
+                  <div className="bg-slate-50 rounded-2xl p-1">
+                    <PhoneInput
+                      value={formData.clientPhone}
+                      onChange={(v) => handleChange('clientPhone', v)}
+                      error={!!phoneError}
+                    />
+                  </div>
                   {phoneError && (
                     <p className="text-sm text-red-500">Numero invalide</p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Email (optionnel)</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <div className="space-y-3">
+                <Label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Email professionnel</Label>
+                <div className="relative group">
                   <Input
                     type="email"
-                    placeholder="Ex: moussa.diop@email.com"
-                    className="pl-10"
+                    placeholder="Ex: moussa.diop@enterprise.sn"
+                    className="w-full bg-slate-50 border-0 rounded-2xl py-6 px-6 pr-12 text-slate-900 font-semibold placeholder:text-slate-400 focus:ring-2 focus:ring-orange-500/20"
                     value={formData.clientEmail}
                     onChange={(e) => handleChange('clientEmail', e.target.value)}
                   />
+                  <Mail className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-[#E04A1F] transition-colors" />
                 </div>
               </div>
 
-
-
+              {/* Info tiles */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <div className="p-6 rounded-[2rem] bg-slate-100 flex flex-col justify-between h-36">
+                  <Check className="w-6 h-6 text-slate-600" strokeWidth={2.5} />
+                  <p className="text-sm font-semibold text-slate-700">Vos donnees sont securisees et cryptees.</p>
+                </div>
+                <div className="p-6 rounded-[2rem] bg-teal-50 flex flex-col justify-between h-36">
+                  <Info className="w-6 h-6 text-teal-600" />
+                  <p className="text-sm font-semibold text-teal-800">Confirmation instantanee apres paiement.</p>
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -898,59 +1229,113 @@ export default function HourlyVTC() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <div className="bg-slate-50 rounded-2xl p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Resume</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Vehicule</span>
-                    <span className="font-medium text-slate-800">{selectedVehicle?.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Forfait</span>
-                    <span className="font-medium text-slate-800">{selectedPackage?.label} ({selectedPackage?.kmIncluded} km)</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Client</span>
-                    <span className="font-medium text-slate-800">{formData.clientName}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                    <span className="text-lg font-semibold text-slate-800">Total</span>
-                    <span className="text-2xl font-bold text-orange-600">{totalPrice.toLocaleString()} FCFA</span>
-                  </div>
+              {/* Left: Payment selection */}
+              <div className="lg:col-span-7 space-y-8">
+                <div>
+                  <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Paiement &amp; confirmation</h3>
+                  <p className="text-sm text-slate-500 mt-1">Verification finale de votre trajet professionnel.</p>
                 </div>
+
+                <section className="bg-slate-50 rounded-[2rem] p-8 space-y-6">
+                  <h4 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                    <CreditCard className="w-5 h-5 text-[#E04A1F]" />
+                    Mode de paiement
+                  </h4>
+                  <RadioGroup
+                    value={formData.paymentMethod}
+                    onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
+                    className="flex flex-col md:flex-row gap-4"
+                  >
+                    {paymentMethods.map(method => {
+                      const isSelected = formData.paymentMethod === method.id;
+                      return (
+                        <label key={method.id} className="flex-1 cursor-pointer">
+                          <RadioGroupItem value={method.id} className="hidden" />
+                          <div className={`
+                            p-6 rounded-2xl bg-white border-2 transition-all
+                            ${isSelected ? 'border-orange-600 bg-[#ffdbd0]/30 shadow-lg shadow-orange-500/5' : 'border-transparent hover:border-slate-200'}
+                          `}>
+                            <div className="flex justify-between items-start mb-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {method.id === 'company_account' ? (
+                                  <Users className="w-6 h-6" />
+                                ) : (
+                                  <User className="w-6 h-6" />
+                                )}
+                              </div>
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                isSelected ? 'border-orange-600 bg-orange-600' : 'border-slate-300'
+                              }`}>
+                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
+                            </div>
+                            <p className="font-bold text-lg text-slate-900">{method.label}</p>
+                            <p className="text-sm text-slate-500 mt-1">
+                              {method.id === 'company_account' ? 'Facturation centralisee' : 'Paiement direct par l\'employe'}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
+                </section>
               </div>
 
-              <div>
-                <h3 className="font-semibold text-slate-800 mb-4">Mode de paiement</h3>
-                <RadioGroup
-                  value={formData.paymentMethod}
-                  onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
-                  className="grid grid-cols-2 gap-3"
-                >
-                  {paymentMethods.map(method => (
-                    <label
-                      key={method.id}
-                      className={`
-                        block p-4 rounded-xl border-2 cursor-pointer transition-all
-                        ${formData.paymentMethod === method.id
-                          ? 'border-orange-400 bg-orange-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <div className="flex items-center gap-3">
-                        <RadioGroupItem value={method.id} />
-                        <span className="font-medium text-slate-800">{method.label}</span>
-                        {formData.paymentMethod === method.id && (
-                          <Check className="w-5 h-5 text-orange-600 ml-auto" />
-                        )}
+              {/* Right: Final summary */}
+              <aside className="lg:col-span-5">
+                <div className="sticky top-6 bg-white rounded-[2rem] overflow-hidden shadow-xl shadow-black/5 border border-slate-100">
+                  <div className="h-32 relative bg-[#E04A1F]">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
+                      <span className="bg-white px-3 py-1 rounded-full text-[#E04A1F] text-[10px] font-bold uppercase tracking-widest mb-2 inline-block w-fit">
+                        Recap de la course
+                      </span>
+                      <h3 className="text-white text-2xl font-extrabold">{selectedVehicle?.name}</h3>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tighter">Type</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Clock className="w-4 h-4 text-teal-600" />
+                          <span className="text-sm font-bold">{selectedPackage?.label || '—'}</span>
+                        </div>
                       </div>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tighter">Client</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="w-5 h-5 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[10px] font-bold text-orange-700">
+                            {formData.clientName?.[0]?.toUpperCase() || '?'}
+                          </div>
+                          <span className="text-sm font-bold truncate">{formData.clientName || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-2xl p-5">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-slate-500">Prix forfait</span>
+                        <span className="text-sm font-semibold text-slate-900">{totalPrice.toLocaleString()} FCFA</span>
+                      </div>
+                      <div className="h-px bg-slate-200 my-3" />
+                      <div className="flex justify-between items-end">
+                        <span className="text-lg font-black">Total</span>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-[#E04A1F]">{totalPrice.toLocaleString()} FCFA</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-center text-xs text-slate-500 leading-relaxed">
+                      En confirmant, vous acceptez les conditions generales de vente et la politique de confidentialite de Subito.
+                    </p>
+                  </div>
+                </div>
+              </aside>
             </motion.div>
           )}
 
@@ -1012,7 +1397,7 @@ export default function HourlyVTC() {
               <div className="p-6 rounded-xl border border-slate-200">
                 <p className="text-sm text-slate-500 mb-2">Client</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F] flex items-center justify-center text-white font-semibold">
                     {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
@@ -1026,7 +1411,7 @@ export default function HourlyVTC() {
               </div>
 
               {/* Payment total */}
-              <div className="p-6 rounded-xl bg-orange-50 border-2 border-orange-200">
+              <div className="p-6 rounded-xl bg-[#ffdbd0]/40 border-2 border-orange-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-600">Mode de paiement</span>
                   <span className="font-medium text-slate-800">
@@ -1061,12 +1446,12 @@ export default function HourlyVTC() {
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 bg-slate-50 p-4 md:p-6 rounded-2xl">
         {currentStep > 1 ? (
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="gap-2"
+            className="gap-2 text-slate-600 font-bold px-6 py-3 hover:bg-slate-200 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Retour
@@ -1075,7 +1460,7 @@ export default function HourlyVTC() {
           <Button
             variant="ghost"
             onClick={() => router.push("/")}
-            className="gap-2"
+            className="gap-2 text-slate-600 font-bold px-6 py-3 hover:bg-slate-200 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Annuler
@@ -1086,7 +1471,7 @@ export default function HourlyVTC() {
           <Button
             onClick={handleNext}
             disabled={!canContinue()}
-            className="gradient-subito text-white border-0 gap-2"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             Continuer
             <ChevronRight className="w-4 h-4" />
@@ -1095,7 +1480,7 @@ export default function HourlyVTC() {
           <Button
             onClick={handleSubmit}
             disabled={createBooking.isPending}
-            className="gradient-subito text-white border-0 gap-2 text-lg px-8"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${totalPrice.toLocaleString()} FCFA`}
           </Button>

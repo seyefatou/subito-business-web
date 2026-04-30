@@ -64,9 +64,9 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Subito Brand Colors */
-    --subito-orange: #FF6B35;
-    --subito-coral: #FF6B35;
-    --subito-pink: #FF6B35;
+    --subito-orange: #E04A1F;
+    --subito-coral: #E04A1F;
+    --subito-pink: #E04A1F;
   }
 
   .dark {
@@ -120,19 +120,47 @@
     background-image: linear-gradient(135deg, #FF7842 0%, #DC3F1A 100%);
   }
 
+  .gradient-subito-hover:hover {
+    background-image: linear-gradient(135deg, #F26730 0%, #C8330F 100%);
+  }
+
   .text-subito {
-    color: #FF6B35;
+    color: #E04A1F;
   }
 
   .bg-subito {
-    background-color: #FF6B35;
+    background-image: linear-gradient(135deg, #FF7842 0%, #DC3F1A 100%);
   }
 
   .border-subito {
-    border-color: #FF6B35;
+    border-color: #E04A1F;
   }
 
   .hover\:bg-subito:hover {
-    background-color: #e55a2b;
+    background-image: linear-gradient(135deg, #F26730 0%, #C8330F 100%);
+  }
+
+  /* Sidebar custom scrollbar — thin, subito-themed, fades on hover */
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(224, 74, 31, 0.25) transparent;
+    scrollbar-gutter: stable;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(224, 74, 31, 0.25);
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+  .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(224, 74, 31, 0.55);
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb:active {
+    background-color: rgba(224, 74, 31, 0.8);
   }
 }

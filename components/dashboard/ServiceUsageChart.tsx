@@ -14,7 +14,7 @@ interface ChartDataItem {
   total: number;
 }
 
-const COLORS: string[] = ['#FF6B35', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
+const COLORS: string[] = ['#E04A1F', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
 
 const serviceLabels: Record<string, string> = {
   airport_shuttle: "Navette Aeroport",

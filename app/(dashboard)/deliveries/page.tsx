@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -27,6 +28,7 @@ import {
   FileText,
   Ban,
   Truck,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,7 +148,7 @@ export default function Deliveries() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="p-3 rounded-xl gradient-subito">
+        <div className="p-3 rounded-xl bg-[#E04A1F]">
           <Package className="w-6 h-6 text-white" />
         </div>
         <div>
@@ -199,6 +201,12 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
     const raw = typesResponse?.data || typesResponse;
     if (Array.isArray(raw)) return raw;
     return [];
+  })();
+
+  // Pick a moto image for the Reseau Premium Subito promo card — prefer a type whose name contains "moto"
+  const motoPromoImage: string | undefined = (() => {
+    const motoType = deliveryTypes.find(t => /moto/i.test(t.nom || ''));
+    return motoType?.image || deliveryTypes.find(t => !!t.image)?.image;
   })();
 
   // Fetch employees
@@ -281,11 +289,10 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
     createMutation.mutate(payload);
   };
 
-  // Fetch estimate when reaching confirmation step
+  // Fetch estimate as soon as both addresses are geolocated (visible from step 2 onwards)
   useEffect(() => {
-    if (currentStep === 6 && formData.deliveryTypeId && formData.pickupLat && formData.pickupLng && formData.dropoffLat && formData.dropoffLng) {
+    if (currentStep >= 2 && formData.deliveryTypeId && formData.pickupLat && formData.pickupLng && formData.dropoffLat && formData.dropoffLng) {
       setEstimateLoading(true);
-      setEstimate(null);
       api.deliveries.estimate({
         deliveryTypeId: formData.deliveryTypeId,
         pickupLat: formData.pickupLat,
@@ -320,183 +327,466 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
   if (bookingSuccess) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-lg mx-auto text-center py-16"
+        className="max-w-4xl mx-auto space-y-12"
       >
-        <div className="w-20 h-20 rounded-full gradient-subito flex items-center justify-center mx-auto mb-6">
-          <Check className="w-10 h-10 text-white" />
+        {/* Hero */}
+        <section className="text-center py-10">
+          <div className="mb-8 relative inline-block">
+            <div className="w-24 h-24 rounded-full bg-[#E04A1F] flex items-center justify-center text-white shadow-2xl shadow-[#E04A1F]/30 relative z-10">
+              <Check className="w-12 h-12" strokeWidth={3} />
+            </div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-orange-500/10 animate-pulse" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full border border-orange-500/5" />
+          </div>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">Commande confirmee !</h2>
+          <p className="text-base text-slate-500 max-w-md mx-auto">
+            Votre demande de livraison a ete enregistree avec succes.
+          </p>
+        </section>
+
+        {/* Order info bento */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="md:col-span-7 bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 flex flex-col justify-between">
+            <div>
+              <p className="text-slate-400 text-xs uppercase tracking-widest font-bold mb-2">Numero de suivi</p>
+              <h3 className="text-3xl font-extrabold text-[#E04A1F] tracking-tight">
+                {bookingRef || '—'}
+              </h3>
+            </div>
+            <div className="mt-8 flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
+              <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Enlevement estime</p>
+                <p className="font-bold text-slate-900">
+                  {formData.deliveryDate && format(new Date(formData.deliveryDate), 'dd MMM yyyy', { locale: fr })}
+                  {formData.deliveryTime && `, ${formData.deliveryTime}`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-5 bg-slate-50 rounded-[2rem] p-8 flex flex-col justify-center">
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+              Un transporteur sera affecte a votre course dans les prochaines minutes. Vous recevrez une notification des que le colis sera pris en charge.
+            </p>
+            <div className="space-y-3">
+              <Button
+                onClick={onSuccess}
+                className="w-full bg-[#E04A1F] text-white border-0 py-5 rounded-xl font-bold text-sm shadow-lg shadow-[#E04A1F]/20 active:scale-95 transition-all gap-2"
+              >
+                Voir mes livraisons
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setBookingSuccess(false); setFormData(initialFormData); setCurrentStep(1); }}
+                className="w-full py-5 rounded-xl font-bold text-sm bg-slate-200 border-0 hover:bg-slate-300 transition-all gap-2"
+              >
+                Nouvelle livraison
+              </Button>
+            </div>
+          </div>
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Livraison creee !</h2>
-        {bookingRef && (
-          <p className="text-slate-500 mb-6">Reference : <span className="font-mono font-semibold text-subito">{bookingRef}</span></p>
-        )}
-        <p className="text-sm text-slate-400 mb-8">L&apos;admin doit confirmer la livraison avant d&apos;assigner un livreur.</p>
-        <div className="flex gap-3 justify-center">
-          <Button variant="outline" onClick={() => { setBookingSuccess(false); setFormData(initialFormData); setCurrentStep(1); }}>
-            Nouvelle livraison
-          </Button>
-          <Button className="gradient-subito text-white border-0" onClick={onSuccess}>
-            Voir mes livraisons
-          </Button>
-        </div>
+
+        {/* Next steps */}
+        <section>
+          <div className="flex items-center gap-4 mb-8">
+            <h4 className="font-extrabold text-xl text-slate-900">Prochaines etapes</h4>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-10 h-10 rounded-full bg-teal-500 text-white flex items-center justify-center font-extrabold text-sm">
+                  1
+                </div>
+                <h5 className="font-bold text-slate-900 text-sm">Attribution</h5>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed pl-14">
+                Notre algorithme selectionne le meilleur coursier disponible pour votre trajet.
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-extrabold text-sm">
+                  2
+                </div>
+                <h5 className="font-bold text-slate-900 text-sm">Enlevement</h5>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed pl-14">
+                Le coursier se presente a l&apos;adresse de depart indiquee pour recuperer le colis.
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-extrabold text-sm">
+                  3
+                </div>
+                <h5 className="font-bold text-slate-900 text-sm">Livraison</h5>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed pl-14">
+                Suivez le trajet en temps reel jusqu&apos;a la remise en main propre a destination.
+              </p>
+            </div>
+          </div>
+        </section>
       </motion.div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Step indicator */}
-      <div className="flex items-center justify-between mb-8">
-        {steps.map((step, i) => {
-          const Icon = step.icon;
-          const isActive = currentStep === step.id;
-          const isDone = currentStep > step.id;
-          return (
-            <React.Fragment key={step.id}>
-              <div className="flex flex-col items-center gap-1">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  isActive ? 'gradient-subito text-white shadow-lg scale-110' :
-                  isDone ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {isDone ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="mb-10">
+        <div className="flex items-baseline justify-between gap-4 flex-wrap mb-8">
+          <div>
+            <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <span>Livraisons</span>
+              <span>/</span>
+              <span className="text-[#E04A1F]">Nouvelle</span>
+            </nav>
+            <h1
+              className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              Nouvelle Commande
+            </h1>
+            <p className="text-[#585e6c] font-medium mt-1">
+              {steps[currentStep - 1]?.title} — etape {currentStep} sur {steps.length}
+            </p>
+          </div>
+          <span className="text-[#E04A1F] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full whitespace-nowrap uppercase tracking-widest">
+            Etape {currentStep}/{steps.length}
+          </span>
+        </div>
+
+        {/* Editorial Stepper with connecting lines */}
+        <div className="flex items-center w-full">
+          {steps.map((step, idx) => {
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            const isLast = idx === steps.length - 1;
+            return (
+              <React.Fragment key={step.id}>
+                <div className="flex flex-col items-center gap-2 shrink-0">
+                  <div
+                    className={`rounded-full flex items-center justify-center transition-all font-bold ${
+                      isActive
+                        ? "w-12 h-12 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#E04A1F]/20"
+                        : isDone
+                        ? "w-10 h-10 bg-[#E04A1F] text-white"
+                        : "w-10 h-10 bg-[#dfe3e7] text-slate-500"
+                    }`}
+                  >
+                    {isDone ? (
+                      <Check className="w-5 h-5" strokeWidth={3} />
+                    ) : (
+                      <span className="text-sm">{step.id}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs hidden sm:block whitespace-nowrap ${
+                      isActive
+                        ? "font-bold text-[#E04A1F]"
+                        : isDone
+                        ? "font-semibold text-[#171c1f]"
+                        : "font-medium text-slate-400"
+                    }`}
+                  >
+                    {step.title}
+                  </span>
                 </div>
-                <span className={`text-xs font-medium ${isActive ? 'text-subito' : 'text-slate-400'}`}>{step.title}</span>
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-2 rounded ${isDone ? 'bg-green-300' : 'bg-slate-200'}`} />
-              )}
-            </React.Fragment>
-          );
-        })}
+                {!isLast && (
+                  <div className="flex-1 h-1 mx-2 sm:mx-4 -mt-6 rounded-full overflow-hidden bg-[#dfe3e7]">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
+                      }`}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Form content + Summary (8/4 editorial split) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="lg:col-span-8 bg-white rounded-[2rem] shadow-xl shadow-black/5 p-6 md:p-10">
 
       {/* Steps */}
       <AnimatePresence mode="wait">
         {/* Step 1: Type + Date */}
         {currentStep === 1 && (
-          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <h3 className="text-lg font-semibold text-slate-800">Type et horaire de livraison</h3>
+          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+            <div>
+              <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Type de livraison</h3>
+              <p className="text-sm text-slate-500 mt-1">Choisissez la vitesse et le vehicule adaptes a votre colis.</p>
+            </div>
 
-            <div className="space-y-2">
-              <Label>Type de livraison *</Label>
+            <div className="space-y-4">
               {deliveryTypes.length === 0 ? (
                 <div className="flex items-center gap-2 p-4 rounded-xl bg-slate-50 text-slate-500 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" /> Chargement des types...
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {deliveryTypes.map(t => {
-                    const selected = formData.deliveryTypeId === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setFormData(prev => ({ ...prev, deliveryTypeId: t.id }))}
-                        className={`p-4 rounded-xl border-2 transition-all text-left ${
-                          selected ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {t.image && (
-                          <img src={t.image} alt={t.nom} className="w-12 h-12 object-contain mb-2 rounded" />
-                        )}
-                        <p className={`font-medium ${selected ? 'text-orange-700' : 'text-slate-700'}`}>{t.nom}</p>
-                        {t.description && <p className="text-xs text-slate-400 mt-1">{t.description}</p>}
-                      </button>
-                    );
-                  })}
-                </div>
+                deliveryTypes.map((t, idx) => {
+                  const selected = formData.deliveryTypeId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, deliveryTypeId: t.id }))}
+                      className={`group w-full text-left p-6 md:p-8 rounded-3xl transition-all duration-300 overflow-hidden relative ${
+                        selected
+                          ? 'bg-white shadow-xl shadow-orange-500/5 outline outline-2 outline-orange-600'
+                          : 'bg-slate-50 hover:bg-white hover:shadow-lg'
+                      }`}
+                    >
+                      {selected && (
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffdbd0]/400/5 rounded-bl-full translate-x-8 -translate-y-8" />
+                      )}
+                      <div className="flex items-start gap-6 relative z-10">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+                          selected ? 'bg-[#ffdbd0] text-[#E04A1F] group-hover:scale-110' : 'bg-slate-200 text-slate-500 group-hover:text-[#E04A1F]'
+                        }`}>
+                          {t.image ? (
+                            <img src={t.image} alt={t.nom} className="w-10 h-10 object-contain rounded" />
+                          ) : (
+                            <Truck className="w-8 h-8" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-center mb-1 gap-3">
+                            <h4 className={`text-xl font-bold capitalize ${selected ? 'text-slate-900' : 'text-slate-800'}`}>
+                              {t.nom}
+                            </h4>
+                            {idx === 0 && (
+                              <span className="px-3 py-1 bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full whitespace-nowrap">
+                                Rapide
+                              </span>
+                            )}
+                          </div>
+                          {t.description && (
+                            <p className="text-sm text-slate-500 leading-relaxed">{t.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Date de livraison *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.deliveryDate
-                        ? format(new Date(formData.deliveryDate), 'dd MMM yyyy', { locale: fr })
-                        : 'Choisir une date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.deliveryDate ? new Date(formData.deliveryDate) : undefined}
-                      onSelect={(date) => date && setFormData(prev => ({ ...prev, deliveryDate: format(date, 'yyyy-MM-dd') }))}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            <div>
+              <h4 className="text-base font-bold text-slate-900 mb-4">Horaire de collecte</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal bg-slate-50 border-0 py-5 rounded-xl">
+                        <CalendarIcon className="mr-2 h-4 w-4 text-[#E04A1F]" />
+                        {formData.deliveryDate
+                          ? format(new Date(formData.deliveryDate), 'dd MMM yyyy', { locale: fr })
+                          : 'Choisir une date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.deliveryDate ? new Date(formData.deliveryDate) : undefined}
+                        onSelect={(date) => date && setFormData(prev => ({ ...prev, deliveryDate: format(date, 'yyyy-MM-dd') }))}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Heure *</Label>
-                <TimePicker
-                  value={formData.deliveryTime}
-                  onChange={(v) => setFormData(prev => ({ ...prev, deliveryTime: v }))}
-                  selectedDate={formData.deliveryDate || null}
-                />
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Heure *</Label>
+                  <TimePicker
+                    value={formData.deliveryTime}
+                    onChange={(v) => setFormData(prev => ({ ...prev, deliveryTime: v }))}
+                    selectedDate={formData.deliveryDate || null}
+                  />
+                </div>
               </div>
             </div>
+
           </motion.div>
         )}
 
         {/* Step 2: Addresses */}
         {currentStep === 2 && (
-          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <h3 className="text-lg font-semibold text-slate-800">Adresses</h3>
-
-            {/* Pickup */}
-            <div className="p-4 rounded-xl border border-slate-200 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="font-medium text-slate-700">Prise en charge</span>
-              </div>
-              <AddressAutocomplete
-                value={formData.pickupAddress}
-                onChange={(val) => setFormData(prev => ({ ...prev, pickupAddress: val, pickupLat: null, pickupLng: null }))}
-                onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, pickupAddress: address, pickupLat: lat, pickupLng: lng }))}
-                placeholder="Tapez une adresse (ex: Ouakam, Dakar)"
-                iconColor="text-green-500"
-                countryCode={deliveryCountry}
-                showCountrySelect={true}
-                onCountryChange={setDeliveryCountry}
-              />
-              {formData.pickupLat && (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Adresse confirmee ({formData.pickupLat.toFixed(4)}, {formData.pickupLng?.toFixed(4)})
-                </p>
-              )}
+          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+            <div>
+              <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Informations d&apos;acheminement</h3>
+              <p className="text-sm text-slate-500 mt-1">Renseignez les points de collecte et de destination.</p>
             </div>
 
-            <div className="flex justify-center">
-              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                <ArrowRight className="w-4 h-4 text-slate-400 rotate-90" />
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Pickup */}
+              <section className="bg-slate-50 p-6 md:p-8 rounded-[2rem] flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-[#E04A1F]">
+                      <MapPin className="w-6 h-6" fill="currentColor" />
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-900">Prise en charge</h4>
+                  </div>
+                  {formData.pickupLat && (
+                    <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-700 text-[10px] font-bold uppercase tracking-wider">
+                      Validee
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-slate-600 px-1">Adresse complete</Label>
+                  <AddressAutocomplete
+                    value={formData.pickupAddress}
+                    onChange={(val) => setFormData(prev => ({ ...prev, pickupAddress: val, pickupLat: null, pickupLng: null }))}
+                    onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, pickupAddress: address, pickupLat: lat, pickupLng: lng }))}
+                    placeholder="Ex: Ouakam, Dakar..."
+                    iconColor="text-[#E04A1F]"
+                    countryCode={deliveryCountry}
+                    showCountrySelect={true}
+                    onCountryChange={setDeliveryCountry}
+                  />
+                  {formData.pickupLat && (
+                    <p className="text-xs text-teal-600 flex items-center gap-1 pt-1">
+                      <Check className="w-3 h-3" /> Geolocalisee ({formData.pickupLat.toFixed(4)}, {formData.pickupLng?.toFixed(4)})
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* Dropoff */}
+              <section className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500">
+                      <MapPin className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-900">Livraison</h4>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    formData.dropoffLat
+                      ? 'bg-teal-100 text-teal-700'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {formData.dropoffLat ? 'Validee' : 'A remplir'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-slate-600 px-1">Adresse de destination</Label>
+                  <AddressAutocomplete
+                    value={formData.dropoffAddress}
+                    onChange={(val) => setFormData(prev => ({ ...prev, dropoffAddress: val, dropoffLat: null, dropoffLng: null }))}
+                    onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, dropoffAddress: address, dropoffLat: lat, dropoffLng: lng }))}
+                    placeholder="Ex: Plateau, Dakar..."
+                    iconColor="text-slate-500"
+                    countryCode={deliveryCountry}
+                  />
+                  {formData.dropoffLat && (
+                    <p className="text-xs text-teal-600 flex items-center gap-1 pt-1">
+                      <Check className="w-3 h-3" /> Geolocalisee ({formData.dropoffLat.toFixed(4)}, {formData.dropoffLng?.toFixed(4)})
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-[#ffdbd0]/40 p-5 rounded-2xl flex items-start gap-4">
+                  <div className="shrink-0 w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#E04A1F]">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-orange-900">Optimisation du trajet</p>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Le prix final sera calcule automatiquement selon la distance Google Maps.
+                    </p>
+                  </div>
+                </div>
+              </section>
             </div>
 
-            {/* Dropoff */}
-            <div className="p-4 rounded-xl border border-slate-200 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="font-medium text-slate-700">Livraison</span>
-              </div>
-              <AddressAutocomplete
-                value={formData.dropoffAddress}
-                onChange={(val) => setFormData(prev => ({ ...prev, dropoffAddress: val, dropoffLat: null, dropoffLng: null }))}
-                onSelect={(address, lat, lng) => setFormData(prev => ({ ...prev, dropoffAddress: address, dropoffLat: lat, dropoffLng: lng }))}
-                placeholder="Tapez une adresse (ex: Plateau, Dakar)"
-                iconColor="text-red-500"
-                countryCode={deliveryCountry}
-              />
-              {formData.dropoffLat && (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Adresse confirmee ({formData.dropoffLat.toFixed(4)}, {formData.dropoffLng?.toFixed(4)})
-                </p>
-              )}
-            </div>
+            {/* Estimation du prix — visible dès que les deux adresses sont geolocalisees */}
+            {(formData.pickupLat && formData.dropoffLat) && (
+              <section className="bg-gradient-to-br from-[#E04A1F]/5 via-white to-[#E04A1F]/5 p-6 md:p-8 rounded-[2rem] border-2 border-[#E04A1F]/20">
+                {estimateLoading ? (
+                  <div className="flex items-center justify-center gap-3 py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#E04A1F]" />
+                    <span className="text-sm font-medium text-slate-600">Calcul de l&apos;estimation en cours...</span>
+                  </div>
+                ) : estimate ? (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-[#E04A1F]">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-slate-900">Estimation du prix</h4>
+                          <p className="text-xs text-slate-500">Calculee selon la distance Google Maps</p>
+                        </div>
+                      </div>
+                      <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-700 text-[10px] font-bold uppercase tracking-wider">
+                        Pret
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                      <div className="bg-white rounded-2xl p-4 border border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Distance</p>
+                        <p className="text-lg font-bold text-slate-900">{Number(estimate.distanceKm).toFixed(1)} km</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-4 border border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Tarif au km</p>
+                        <p className="text-lg font-bold text-slate-900">{Number(estimate.deliveryType.prixParKm).toLocaleString()} <span className="text-xs font-medium text-slate-500">FCFA</span></p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-4 border border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Type de livraison</p>
+                        <p className="text-lg font-bold text-slate-900 truncate">{estimate.deliveryType.nom || '—'}</p>
+                      </div>
+                    </div>
+                    {estimate.isTva ? (
+                      <div className="bg-white rounded-2xl p-5 border border-[#E04A1F]/20 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Total HT</span>
+                          <span className="font-medium text-slate-800">{Math.round(Number(estimate.totalHT)).toLocaleString()} FCFA</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">TVA</span>
+                          <span className="font-medium text-slate-800">{Math.round(Number(estimate.tvaAmount)).toLocaleString()} FCFA</span>
+                        </div>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-900">Total TTC</span>
+                          <span className="text-2xl font-extrabold text-[#E04A1F]">{Math.round(Number(estimate.totalTTC)).toLocaleString()} FCFA</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl p-5 border border-[#E04A1F]/20 flex justify-between items-center">
+                        <span className="font-bold text-slate-900">Prix estime</span>
+                        <span className="text-2xl font-extrabold text-[#E04A1F]">{Math.round(Number(estimate.originalPrice)).toLocaleString()} FCFA</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-start gap-3 py-2">
+                    <div className="shrink-0 w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <p className="text-sm text-slate-600">Impossible de calculer l&apos;estimation pour le moment. Vous pouvez continuer, le prix sera calcule a l&apos;etape suivante.</p>
+                  </div>
+                )}
+              </section>
+            )}
           </motion.div>
         )}
 
@@ -657,7 +947,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                               `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
                             );
                             if (isSearchingForSender) {
-                              return <p className="text-sm text-orange-600">Cet employe est deja selectionne comme expediteur</p>;
+                              return <p className="text-sm text-[#E04A1F]">Cet employe est deja selectionne comme expediteur</p>;
                             }
                             return (
                               <>
@@ -802,7 +1092,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               <div className="p-6 rounded-xl border border-slate-200">
                 <p className="text-sm text-slate-500 mb-2">Expediteur</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F] flex items-center justify-center text-white font-semibold">
                     {formData.expediteurNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
@@ -835,12 +1125,12 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
 
             {/* Estimation du prix */}
             {estimateLoading ? (
-              <div className="p-6 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center gap-3">
+              <div className="p-6 rounded-xl bg-[#ffdbd0]/40 border border-orange-200 flex items-center justify-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
                 <span className="text-sm text-slate-600">Calcul du prix en cours...</span>
               </div>
             ) : estimate ? (
-              <div className="p-6 rounded-xl bg-orange-50 border border-orange-200 space-y-3">
+              <div className="p-6 rounded-xl bg-[#ffdbd0]/40 border border-orange-200 space-y-3">
                 <h4 className="font-semibold text-slate-800">Estimation du prix</h4>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-600">Distance (Google Maps)</span>
@@ -862,13 +1152,13 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t border-orange-200">
                       <span className="font-semibold text-slate-800">Total TTC</span>
-                      <span className="text-2xl font-bold text-orange-600">{Math.round(Number(estimate.totalTTC)).toLocaleString()} FCFA</span>
+                      <span className="text-2xl font-bold text-[#E04A1F]">{Math.round(Number(estimate.totalTTC)).toLocaleString()} FCFA</span>
                     </div>
                   </>
                 ) : (
                   <div className="flex justify-between items-center pt-2 border-t border-orange-200">
                     <span className="font-semibold text-slate-800">Total</span>
-                    <span className="text-2xl font-bold text-orange-600">{Math.round(Number(estimate.originalPrice)).toLocaleString()} FCFA</span>
+                    <span className="text-2xl font-bold text-[#E04A1F]">{Math.round(Number(estimate.originalPrice)).toLocaleString()} FCFA</span>
                   </div>
                 )}
               </div>
@@ -883,17 +1173,199 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
         )}
       </AnimatePresence>
 
+      </div>
+
+      {/* Right column: contextual side panel */}
+      <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-24 self-start">
+        {currentStep === 6 ? null : currentStep === 1 ? (
+          <>
+            {/* Delivery Schedule promo */}
+            <div className="bg-[#ffdbd0] rounded-[2rem] p-6 relative overflow-hidden">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#852300] bg-white/50 px-3 py-1 rounded-full">
+                Avantage Business
+              </span>
+              <h4
+                className="text-xl font-extrabold text-[#3a0a00] mt-4 mb-2"
+                style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+              >
+                Livraisons garanties.
+              </h4>
+              <p className="text-sm text-[#852300] mb-4 leading-relaxed">
+                Selection du transporteur optimisee selon le type de colis pour des delais minimaux.
+              </p>
+              <div className="flex items-center gap-2 text-sm font-bold text-[#E04A1F]">
+                <ArrowRight className="w-4 h-4" />
+                <span>Suivi en temps reel</span>
+              </div>
+              <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-[#E04A1F]/10 rounded-full blur-2xl" />
+            </div>
+
+            <div className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                  <span className="font-black text-sm">?</span>
+                </div>
+                <div>
+                  <p className="font-bold text-[#171c1f] text-sm">Besoin d&apos;aide ?</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Notre conciergerie business est disponible 24/7 pour vous assister.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="w-full py-2.5 bg-[#171c1f] text-white text-sm font-bold rounded-xl hover:bg-[#2c3134] transition-colors"
+              >
+                Contacter un gestionnaire
+              </button>
+            </div>
+
+            <div className="rounded-[1.5rem] overflow-hidden relative h-44 group bg-gradient-to-br from-[#171c1f] to-[#2c3134]">
+              {motoPromoImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={motoPromoImage}
+                  alt="Moto livraison"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              ) : (
+                <Truck className="absolute -right-6 -top-6 w-32 h-32 text-white/10" strokeWidth={1.5} />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+              <div className="absolute inset-0 flex items-end p-5">
+                <div>
+                  <p
+                    className="text-white font-bold text-lg leading-tight"
+                    style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                  >
+                    Reseau Premium Subito
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Transporteurs partenaires verifies, assurance incluse.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="bg-[#171c1f] text-white rounded-[2rem] shadow-2xl p-6 relative overflow-hidden">
+            <h3
+              className="text-lg font-bold mb-6 flex items-center gap-2"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              <Package className="w-5 h-5 text-[#E04A1F]" />
+              Resume de la commande
+            </h3>
+
+            <div className="space-y-4 mb-6">
+              {(() => {
+                const sel = deliveryTypes.find(t => t.id === formData.deliveryTypeId);
+                if (!sel) return null;
+                return (
+                  <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+                    <div className="w-10 h-10 rounded-xl bg-[#E04A1F]/20 flex items-center justify-center text-[#E04A1F] shrink-0">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                        Vehicule
+                      </p>
+                      <p className="text-sm font-bold truncate">{sel.nom}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {(formData.deliveryDate || formData.deliveryTime) && (
+                <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F]/20 flex items-center justify-center text-[#E04A1F] shrink-0">
+                    <CalendarIcon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                      Date de ramassage
+                    </p>
+                    <p className="text-sm font-bold">
+                      {formData.deliveryDate
+                        ? format(new Date(formData.deliveryDate), "dd MMM yyyy", { locale: fr })
+                        : "—"}
+                      {formData.deliveryTime ? `, ${formData.deliveryTime}` : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {formData.pickupAddress && (
+                <div className="flex items-start gap-3 pb-3 border-b border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F]/20 flex items-center justify-center text-[#E04A1F] shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                      Expediteur
+                    </p>
+                    <p className="text-sm font-bold truncate">
+                      {formData.expediteurNom || "—"}
+                    </p>
+                    <p className="text-xs text-white/60 truncate">{formData.pickupAddress}</p>
+                  </div>
+                </div>
+              )}
+
+              {formData.dropoffAddress && (
+                <div className="flex items-start gap-3 pb-3 border-b border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F]/20 flex items-center justify-center text-[#E04A1F] shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">
+                      Destinataire
+                    </p>
+                    <p className="text-sm font-bold truncate">
+                      {formData.destinataireNom || "—"}
+                    </p>
+                    <p className="text-xs text-white/60 truncate">{formData.dropoffAddress}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-end justify-between pb-4 border-b border-white/10">
+              <span className="text-sm text-white/60">Frais de prise en charge</span>
+              <span
+                className="text-2xl font-black text-[#E04A1F]"
+                style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+              >
+                {estimate
+                  ? `${Math.round(Number(estimate.totalTTC ?? estimate.originalPrice ?? 0)).toLocaleString()} FCFA`
+                  : "—"}
+              </span>
+            </div>
+
+            <p className="text-[10px] text-center text-white/40 mt-4 uppercase tracking-widest font-bold">
+              Etape {currentStep} sur {steps.length}
+            </p>
+
+            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#E04A1F]/20 rounded-full blur-3xl" />
+          </div>
+        )}
+      </aside>
+      </div>
       {/* Navigation */}
-      <div className="flex items-center justify-between mt-8">
+      <div className="flex items-center justify-between gap-4 mt-8 bg-slate-50 p-4 md:p-6 rounded-2xl">
         {currentStep > 1 ? (
-          <Button variant="ghost" onClick={handleBack} className="gap-2">
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            className="gap-2 text-slate-600 font-bold px-6 py-3 hover:bg-slate-200 rounded-xl transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" /> Retour
           </Button>
         ) : <div />}
 
         {currentStep < 6 ? (
           <Button
-            className="gradient-subito text-white border-0 gap-2"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
             onClick={handleNext}
             disabled={!canNext()}
           >
@@ -901,7 +1373,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
           </Button>
         ) : (
           <Button
-            className="gradient-subito text-white border-0 gap-2"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
             onClick={handleSubmit}
             disabled={createMutation.isPending}
           >
@@ -1051,7 +1523,7 @@ function DeliveriesList() {
                 {filtered.map((d) => {
                   const st = statusLabels[d.status || ''] || { label: d.status || '—', color: 'bg-slate-100 text-slate-700' };
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setSelectedDelivery(d); setDetailOpen(true); }}>
+                    <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <span className="font-mono text-sm font-medium text-subito">{d.reference || `#${d.id}`}</span>
                       </td>
@@ -1077,9 +1549,13 @@ function DeliveriesList() {
                         {d.totalTTC ? `${Math.round(Number(d.totalTTC)).toLocaleString()} FCFA` : d.originalPrice ? `${Math.round(Number(d.originalPrice)).toLocaleString()} FCFA` : '—'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedDelivery(d); setDetailOpen(true); }}>
+                        <Link
+                          href={`/deliveries/${d.id}`}
+                          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 transition-colors"
+                        >
                           <Eye className="w-4 h-4" />
-                        </Button>
+                          Détail
+                        </Link>
                       </td>
                     </tr>
                   );
@@ -1108,206 +1584,395 @@ function DeliveriesList() {
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className="p-2 rounded-lg gradient-subito">
-                <Package className="w-5 h-5 text-white" />
-              </div>
-              Detail de la livraison
-            </DialogTitle>
+        <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto p-0 bg-[#f6fafe]">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Suivi de la livraison</DialogTitle>
           </DialogHeader>
 
           {detailLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-[#E04A1F]" />
             </div>
           ) : deliveryDetail ? (
-            <div className="space-y-4">
-              {/* Reference & Status */}
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-semibold text-subito">{deliveryDetail.reference || `#${deliveryDetail.id}`}</span>
-                <Badge className={`${(statusLabels[deliveryDetail.status || ''] || { color: 'bg-slate-100 text-slate-700' }).color} border-0`}>
-                  {(statusLabels[deliveryDetail.status || ''] || { label: deliveryDetail.status }).label}
-                </Badge>
-              </div>
+            (() => {
+              const statusKey = (deliveryDetail.status || "").toLowerCase();
+              const trackSteps = [
+                { id: "assigned", label: "Assigne", time: "Pris en charge" },
+                { id: "picked_up", label: "Recupere", time: "En main" },
+                { id: "in_transit", label: "En transit", time: "En route" },
+                { id: "delivered", label: "Livre", time: "Termine" },
+              ];
+              const order = ["pending", "confirmed", "assigned", "picked_up", "in_transit", "delivered"];
+              const currentIdx = order.indexOf(statusKey);
+              const stepIdx = (() => {
+                if (statusKey === "delivered") return 3;
+                if (statusKey === "in_transit") return 2;
+                if (statusKey === "picked_up") return 1;
+                if (statusKey === "assigned" || statusKey === "confirmed") return 0;
+                return -1;
+              })();
+              const isCancelled = statusKey === "cancelled";
+              const totalAmount = Number(
+                deliveryDetail.totalTTC || deliveryDetail.originalPrice || 0
+              );
 
-              {/* Addresses */}
-              <div className="p-4 rounded-xl bg-slate-50 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-3 h-3 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500">Prise en charge</p>
-                    <p className="font-medium text-slate-800 text-sm">{deliveryDetail.pickupAddress}</p>
-                  </div>
-                </div>
-                <div className="ml-1.5 border-l-2 border-dashed border-slate-300 h-3" />
-                <div className="flex items-start gap-3">
-                  <div className="w-3 h-3 rounded-full bg-red-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500">Livraison</p>
-                    <p className="font-medium text-slate-800 text-sm">{deliveryDetail.dropoffAddress}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-slate-50">
-                  <p className="text-xs text-slate-500">Date & Heure</p>
-                  <p className="text-sm font-medium text-slate-800">
-                    {deliveryDetail.deliveryDate ? format(new Date(deliveryDetail.deliveryDate), 'dd MMM yyyy', { locale: fr }) : '—'}
-                    {deliveryDetail.deliveryTime ? ` a ${deliveryDetail.deliveryTime}` : ''}
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-slate-50">
-                  <p className="text-xs text-slate-500">Type</p>
-                  <p className="text-sm font-medium text-slate-800">{deliveryDetail.deliveryType?.name || '—'}</p>
-                </div>
-              </div>
-
-              {/* Expediteur */}
-              <div className="p-4 rounded-xl border border-slate-200">
-                <p className="text-xs text-slate-500 mb-2">Expediteur</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold text-sm">
-                    {deliveryDetail.expediteurNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{deliveryDetail.expediteurNom}</p>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      {deliveryDetail.expediteurTelephone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{deliveryDetail.expediteurTelephone}</span>}
-                      {deliveryDetail.expediteurEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{deliveryDetail.expediteurEmail}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Destinataire */}
-              <div className="p-4 rounded-xl border border-slate-200">
-                <p className="text-xs text-slate-500 mb-2">Destinataire</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm">
-                    {deliveryDetail.destinataireNom?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{deliveryDetail.destinataireNom}</p>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      {deliveryDetail.destinataireTelephone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{deliveryDetail.destinataireTelephone}</span>}
-                      {deliveryDetail.destinataireEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{deliveryDetail.destinataireEmail}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Livreur */}
-              {deliveryDetail.livreur && (
-                <div className="p-4 rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 mb-2">Livreur assigne</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm">
-                      <Truck className="w-5 h-5" />
-                    </div>
+              return (
+                <div className="p-6 md:p-8 space-y-6">
+                  {/* Hero header */}
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                      <p className="font-medium text-slate-800">{deliveryDetail.livreur.prenom} {deliveryDetail.livreur.nom}</p>
-                      {deliveryDetail.livreur.telephone && (
-                        <p className="text-xs text-slate-500">{deliveryDetail.livreur.telephone}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E04A1F] mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#E04A1F] animate-pulse" />
+                        Live Tracking
+                      </p>
+                      <h2
+                        className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#171c1f]"
+                        style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                      >
+                        Order {deliveryDetail.reference || `#${deliveryDetail.id}`}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`px-4 py-1.5 ${
+                          (statusLabels[deliveryDetail.status || ""] || { color: "bg-slate-100 text-slate-700" }).color
+                        } rounded-full text-xs font-bold flex items-center gap-2`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                        {(statusLabels[deliveryDetail.status || ""] || { label: deliveryDetail.status }).label}
+                      </span>
+                      {deliveryDetail.deliveryType?.name && (
+                        <span className="px-4 py-1.5 bg-[#00acbb]/10 text-[#006972] rounded-full text-xs font-bold whitespace-nowrap">
+                          {deliveryDetail.deliveryType.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tracking stepper */}
+                  {!isCancelled && (
+                    <div className="bg-white rounded-2xl p-6 shadow-sm">
+                      <div className="flex items-center w-full">
+                        {trackSteps.map((step, i) => {
+                          const isDone = stepIdx > i;
+                          const isActive = stepIdx === i;
+                          const isLast = i === trackSteps.length - 1;
+                          return (
+                            <React.Fragment key={step.id}>
+                              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                <div
+                                  className={`rounded-full flex items-center justify-center transition-all ${
+                                    isActive
+                                      ? "w-10 h-10 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0]"
+                                      : isDone
+                                      ? "w-9 h-9 bg-[#E04A1F] text-white"
+                                      : "w-9 h-9 bg-[#dfe3e7] text-slate-400"
+                                  }`}
+                                >
+                                  {isDone || isActive ? (
+                                    <Check className="w-4 h-4" strokeWidth={3} />
+                                  ) : (
+                                    <span className="text-xs font-bold">{i + 1}</span>
+                                  )}
+                                </div>
+                                <p
+                                  className={`text-[10px] font-bold uppercase tracking-wider ${
+                                    isActive
+                                      ? "text-[#E04A1F]"
+                                      : isDone
+                                      ? "text-[#171c1f]"
+                                      : "text-slate-400"
+                                  }`}
+                                >
+                                  {step.label}
+                                </p>
+                              </div>
+                              {!isLast && (
+                                <div className="flex-1 h-1 mx-2 -mt-5 rounded-full overflow-hidden bg-[#dfe3e7]">
+                                  <div
+                                    className={`h-full transition-all duration-500 ${
+                                      isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
+                                    }`}
+                                  />
+                                </div>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Map + Right column */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Map placeholder */}
+                    <div className="lg:col-span-8">
+                      <div className="relative h-[400px] bg-gradient-to-br from-[#171c1f] via-[#1a2030] to-[#0a1428] rounded-3xl overflow-hidden shadow-xl">
+                        {/* Grid texture */}
+                        <div
+                          className="absolute inset-0 opacity-20"
+                          style={{
+                            backgroundImage:
+                              "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+                            backgroundSize: "32px 32px",
+                          }}
+                        />
+                        {/* Animated route line */}
+                        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 800 400" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#00acbb" />
+                              <stop offset="100%" stopColor="#E04A1F" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            d="M 80 320 Q 250 280 380 240 T 720 80"
+                            stroke="url(#routeGrad)"
+                            strokeWidth="3"
+                            fill="none"
+                            strokeDasharray="8 8"
+                          />
+                        </svg>
+                        {/* Pickup marker */}
+                        <div className="absolute left-[8%] bottom-[18%] flex flex-col items-center">
+                          <div className="w-3 h-3 rounded-full bg-[#00acbb] ring-4 ring-[#00acbb]/30" />
+                          <div className="text-[10px] font-bold text-[#00acbb] mt-1 uppercase tracking-widest bg-white/10 backdrop-blur-md px-2 py-0.5 rounded">
+                            Depart
+                          </div>
+                        </div>
+                        {/* Courier marker */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-[#E04A1F]/30 animate-ping rounded-full scale-150" />
+                            <div className="w-12 h-12 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-2xl shadow-[#E04A1F]/50 relative">
+                              <Truck className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                        {/* Dropoff marker */}
+                        <div className="absolute right-[8%] top-[15%] flex flex-col items-center">
+                          <MapPin className="w-8 h-8 text-[#E04A1F] drop-shadow-lg" fill="#E04A1F" />
+                          <div className="text-[10px] font-bold text-white mt-1 uppercase tracking-widest bg-[#E04A1F]/80 backdrop-blur-md px-2 py-0.5 rounded">
+                            Arrivee
+                          </div>
+                        </div>
+                        {/* Map controls */}
+                        <div className="absolute top-4 left-4 flex flex-col gap-1 bg-white/10 backdrop-blur-md rounded-xl p-1">
+                          <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">+</button>
+                          <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">−</button>
+                        </div>
+                        <button className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/10 backdrop-blur-md text-white text-xs font-bold rounded-lg flex items-center gap-1.5 hover:bg-white/20">
+                          <ArrowRight className="w-3 h-3" /> Agrandir
+                        </button>
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="grid grid-cols-3 gap-4 mt-6">
+                        <div className="bg-white p-5 rounded-2xl shadow-sm">
+                          <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] mb-3">
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <p
+                            className="text-2xl font-black text-[#171c1f]"
+                            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                          >
+                            {deliveryDetail.distanceKm || deliveryDetail.distance
+                              ? Number(deliveryDetail.distanceKm || deliveryDetail.distance).toFixed(1)
+                              : "—"}{" "}
+                            <span className="text-sm text-slate-400">km</span>
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium mt-1">Distance totale</p>
+                        </div>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm">
+                          <div className="w-9 h-9 rounded-xl bg-[#dde2f3] flex items-center justify-center text-[#414754] mb-3">
+                            <CalendarIcon className="w-4 h-4" />
+                          </div>
+                          <p
+                            className="text-2xl font-black text-[#171c1f]"
+                            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                          >
+                            {deliveryDetail.deliveryTime || "—"}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium mt-1">Heure prevue</p>
+                        </div>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm">
+                          <div className="w-9 h-9 rounded-xl bg-[#00acbb]/10 flex items-center justify-center text-[#006972] mb-3">
+                            <CreditCard className="w-4 h-4" />
+                          </div>
+                          <p
+                            className="text-2xl font-black text-[#171c1f]"
+                            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                          >
+                            {Math.round(totalAmount).toLocaleString("fr-FR")}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium mt-1">FCFA estimes</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right column */}
+                    <div className="lg:col-span-4 space-y-4">
+                      {/* Courier card */}
+                      {deliveryDetail.livreur ? (
+                        <div className="bg-white rounded-2xl p-5 shadow-sm">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E04A1F] to-[#ff7043] flex items-center justify-center text-white font-bold">
+                              {deliveryDetail.livreur.prenom?.[0]}
+                              {deliveryDetail.livreur.nom?.[0]}
+                            </div>
+                            <div>
+                              <p className="font-bold text-[#171c1f]">
+                                {deliveryDetail.livreur.prenom} {deliveryDetail.livreur.nom}
+                              </p>
+                              <div className="flex items-center gap-1 text-xs">
+                                <span className="text-[#E04A1F]">★</span>
+                                <span className="font-bold text-[#171c1f]">4.9</span>
+                                <span className="text-slate-400">livreur</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 mb-4">
+                            <div className="bg-[#f0f4f8] p-2.5 rounded-xl">
+                              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                Vehicule
+                              </p>
+                              <p className="text-xs font-bold text-[#171c1f] truncate flex items-center gap-1 mt-1">
+                                <Truck className="w-3 h-3" />
+                                {deliveryDetail.deliveryType?.name || "—"}
+                              </p>
+                            </div>
+                            <div className="bg-[#f0f4f8] p-2.5 rounded-xl">
+                              <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                ETA
+                              </p>
+                              <p className="text-xs font-bold text-[#171c1f] mt-1">
+                                {deliveryDetail.deliveryTime || "—"}
+                              </p>
+                            </div>
+                          </div>
+                          {deliveryDetail.livreur.telephone && (
+                            <a
+                              href={`tel:${deliveryDetail.livreur.telephone}`}
+                              className="block w-full py-3 bg-[#E04A1F] text-white text-sm font-bold rounded-xl text-center hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                            >
+                              <Phone className="w-4 h-4" />
+                              Appeler le livreur
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-[#171c1f] text-white rounded-2xl p-5">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Loader2 className="w-5 h-5 animate-spin text-[#E04A1F]" />
+                            <p className="font-bold">Recherche d&apos;un livreur</p>
+                          </div>
+                          <p className="text-xs text-white/60">
+                            Notre algorithme selectionne le meilleur courier disponible pour votre colis.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Delivery details */}
+                      <div className="bg-white rounded-2xl p-5 shadow-sm">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
+                          Details de la livraison
+                        </p>
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-[#00acbb]/20 flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="w-2 h-2 rounded-full bg-[#00acbb]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Pick-up
+                              </p>
+                              <p className="text-sm font-bold text-[#171c1f] truncate">
+                                {deliveryDetail.expediteurNom || "—"}
+                              </p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {deliveryDetail.pickupAddress}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="ml-3 border-l-2 border-dashed border-slate-200 h-3" />
+                          <div className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-[#E04A1F]/20 flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="w-2 h-2 rounded-full bg-[#E04A1F]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Delivery
+                              </p>
+                              <p className="text-sm font-bold text-[#171c1f] truncate">
+                                {deliveryDetail.destinataireNom || "—"}
+                              </p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {deliveryDetail.dropoffAddress}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {(deliveryDetail.description || deliveryDetail.notes) && (
+                          <div className="mt-4 pt-4 border-t border-slate-100">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                              Contenu du colis
+                            </p>
+                            <div className="bg-[#f0f4f8] rounded-xl p-3">
+                              <div className="flex items-start gap-2">
+                                <Package className="w-4 h-4 text-[#E04A1F] mt-0.5 shrink-0" />
+                                <p className="text-xs text-slate-700 leading-relaxed">
+                                  {deliveryDetail.description || deliveryDetail.notes}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Share Link */}
+                      <div className="bg-[#E04A1F] rounded-2xl p-5 text-white relative overflow-hidden">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/70 mb-2">
+                          Lien de suivi
+                        </p>
+                        <p className="text-sm font-medium mb-3">
+                          Partagez le suivi avec votre client en temps reel.
+                        </p>
+                        <button
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              const link = `${window.location.origin}/track/${deliveryDetail.reference || deliveryDetail.id}`;
+                              navigator.clipboard.writeText(link);
+                              toast.success("Lien copie");
+                            }
+                          }}
+                          className="w-full py-2 bg-white text-[#E04A1F] text-sm font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90"
+                        >
+                          <Copy className="w-4 h-4" />
+                          Copier le lien
+                        </button>
+                        <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
+                      </div>
+
+                      {deliveryDetail.status?.toLowerCase() === "pending" && (
+                        <Button
+                          variant="destructive"
+                          className="w-full gap-2"
+                          onClick={() => cancelMutation.mutate(deliveryDetail.id)}
+                          disabled={cancelMutation.isPending}
+                        >
+                          {cancelMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Ban className="w-4 h-4" />
+                          )}
+                          Annuler
+                        </Button>
                       )}
                     </div>
                   </div>
                 </div>
-              )}
-
-              {/* Description & Notes */}
-              {(deliveryDetail.description || deliveryDetail.notes) && (
-                <div className="p-4 rounded-xl bg-slate-50 space-y-2">
-                  {deliveryDetail.description && (
-                    <div>
-                      <p className="text-xs text-slate-500">Description</p>
-                      <p className="text-sm text-slate-800">{deliveryDetail.description}</p>
-                    </div>
-                  )}
-                  {deliveryDetail.notes && (
-                    <div>
-                      <p className="text-xs text-slate-500">Notes</p>
-                      <p className="text-sm text-slate-800">{deliveryDetail.notes}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Distance & Price */}
-              {(deliveryDetail.totalTTC || deliveryDetail.originalPrice) && (
-                <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 space-y-2">
-                  {(deliveryDetail.distanceKm || deliveryDetail.distance) && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-600">Distance</span>
-                      <span className="font-medium text-slate-800">{Number(deliveryDetail.distanceKm || deliveryDetail.distance).toFixed(1)} km</span>
-                    </div>
-                  )}
-                  {deliveryDetail.isTva && deliveryDetail.totalHT ? (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-600">Total HT</span>
-                        <span className="text-lg font-semibold text-slate-800">{Math.round(Number(deliveryDetail.totalHT)).toLocaleString()} FCFA</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-600">TVA (18%)</span>
-                        <span className="font-medium text-slate-800">{Math.round(Number(deliveryDetail.tvaAmount || 0)).toLocaleString()} FCFA</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-orange-200">
-                        <span className="font-semibold text-slate-800">Total TTC</span>
-                        <span className="text-2xl font-bold text-orange-600">{Math.round(Number(deliveryDetail.totalTTC)).toLocaleString()} FCFA</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-800">Total</span>
-                      <span className="text-2xl font-bold text-orange-600">{Math.round(Number(deliveryDetail.originalPrice || deliveryDetail.totalTTC)).toLocaleString()} FCFA</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tracking History */}
-              {deliveryDetail.trackingHistory && deliveryDetail.trackingHistory.length > 0 && (
-                <div className="p-4 rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 mb-3">Historique de suivi</p>
-                  <div className="space-y-3">
-                    {deliveryDetail.trackingHistory.map((t, i) => {
-                      const st = statusLabels[t.status] || { label: t.status, color: 'bg-slate-100 text-slate-700' };
-                      return (
-                        <div key={i} className="flex items-start gap-3">
-                          <div className="w-2 h-2 rounded-full bg-orange-400 mt-2 shrink-0" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${st.color} border-0 text-xs`}>{st.label}</Badge>
-                              <span className="text-xs text-slate-400">
-                                {t.timestamp && format(new Date(t.timestamp), 'dd/MM/yyyy HH:mm', { locale: fr })}
-                              </span>
-                            </div>
-                            {t.comment && <p className="text-xs text-slate-600 mt-1">{t.comment}</p>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Cancel button — only for pending */}
-              {deliveryDetail.status?.toLowerCase() === 'pending' && (
-                <Button
-                  variant="destructive"
-                  className="w-full gap-2"
-                  onClick={() => cancelMutation.mutate(deliveryDetail.id)}
-                  disabled={cancelMutation.isPending}
-                >
-                  {cancelMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
-                  Annuler cette livraison
-                </Button>
-              )}
-            </div>
+              );
+            })()
           ) : null}
         </DialogContent>
       </Dialog>

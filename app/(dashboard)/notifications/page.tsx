@@ -1,28 +1,66 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
   BellOff,
-  Filter,
-  Calendar,
   Check,
   CheckCheck,
   Loader2,
   RefreshCw,
   ExternalLink,
+  LayoutDashboard,
+  Car,
+  Truck,
+  Bus,
+  FileText,
+  Receipt,
+  CircleCheck,
+  Headphones,
+  LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { api, CompagnyNotification } from "@/lib/api";
 import { toast } from "sonner";
+
+type CategoryKey = "all" | "bookings" | "validations" | "documents" | "invoices" | "other";
+
+const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon }[] = [
+  { key: "all", label: "Toutes", icon: LayoutDashboard },
+  { key: "bookings", label: "Reservations", icon: Car },
+  { key: "validations", label: "Validations", icon: CircleCheck },
+  { key: "documents", label: "Documents", icon: FileText },
+  { key: "invoices", label: "Facturation", icon: Receipt },
+  { key: "other", label: "Autres", icon: Bell },
+];
+
+function getCategory(notif: CompagnyNotification): CategoryKey {
+  const text = `${notif.type || ''} ${notif.title || ''} ${notif.message || ''}`.toLowerCase();
+  if (text.includes('prise en charge') || text.includes('payment_request') || text.includes('payment-request') || text.includes('validation') || text.includes('paiement')) {
+    return 'validations';
+  }
+  if (text.includes('booking') || text.includes('reservation') || text.includes('course') || text.includes('vtc') || text.includes('navette')) {
+    return 'bookings';
+  }
+  if (text.includes('invoice') || text.includes('facture')) {
+    return 'invoices';
+  }
+  if (text.includes('travel') || text.includes('document') || text.includes('voyage')) {
+    return 'documents';
+  }
+  return 'other';
+}
+
+function getNotifIcon(notif: CompagnyNotification): LucideIcon {
+  const text = `${notif.type || ''} ${notif.title || ''} ${notif.message || ''}`.toLowerCase();
+  if (text.includes('vtc')) return Car;
+  if (text.includes('navette') || text.includes('shuttle')) return Bus;
+  if (text.includes('livraison') || text.includes('delivery') || text.includes('colis')) return Truck;
+  if (text.includes('facture') || text.includes('invoice')) return Receipt;
+  if (text.includes('document') || text.includes('voyage')) return FileText;
+  if (text.includes('validation') || text.includes('prise en charge') || text.includes('paiement')) return CircleCheck;
+  return Bell;
+}
 
 function getNotificationRoute(notif: CompagnyNotification): string | null {
   const type = (notif.type || '').toLowerCase();
@@ -50,15 +88,13 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState<CompagnyNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
-  const [filterRead, setFilterRead] = useState<string>("all");
-  const [filterPeriod, setFilterPeriod] = useState<string>("all");
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>("all");
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.notifications.list();
       const data = response.data;
-      // Handle both { data: [...], meta } and direct array
       const items = Array.isArray(data) ? data : (data?.data || []);
       setNotifications(items);
     } catch (err) {
@@ -99,39 +135,53 @@ export default function Notifications() {
     }
   };
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<CategoryKey, number> = {
+      all: notifications.length,
+      bookings: 0,
+      validations: 0,
+      documents: 0,
+      invoices: 0,
+      other: 0,
+    };
+    notifications.forEach(n => {
+      const c = getCategory(n);
+      counts[c]++;
+    });
+    return counts;
+  }, [notifications]);
+
   const unreadCount = notifications.filter(n => !n.isRead).length;
-  const readCount = notifications.filter(n => n.isRead).length;
-  const todayCount = notifications.filter(n => {
-    const d = new Date(n.createdAt);
+
+  const filteredNotifications = useMemo(() => {
+    if (activeCategory === "all") return notifications;
+    return notifications.filter(n => getCategory(n) === activeCategory);
+  }, [notifications, activeCategory]);
+
+  const groupedNotifications = useMemo(() => {
     const now = new Date();
-    return d.toDateString() === now.toDateString();
-  }).length;
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
-  const filteredNotifications = notifications.filter(n => {
-    // Filtre lu/non lu
-    if (filterRead === "unread" && n.isRead) return false;
-    if (filterRead === "read" && !n.isRead) return false;
+    const unread: CompagnyNotification[] = [];
+    const today: CompagnyNotification[] = [];
+    const yesterday: CompagnyNotification[] = [];
+    const earlier: CompagnyNotification[] = [];
 
-    // Filtre par période
-    if (filterPeriod !== "all") {
-      const notifDate = new Date(n.createdAt);
-      const now = new Date();
-
-      if (filterPeriod === "today") {
-        if (notifDate.toDateString() !== now.toDateString()) return false;
-      } else if (filterPeriod === "week") {
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        if (notifDate < weekAgo) return false;
-      } else if (filterPeriod === "month") {
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        if (notifDate < monthAgo) return false;
+    filteredNotifications.forEach(n => {
+      if (!n.isRead) {
+        unread.push(n);
+        return;
       }
-    }
+      const d = new Date(n.createdAt);
+      if (d >= startOfToday) today.push(n);
+      else if (d >= startOfYesterday) yesterday.push(n);
+      else earlier.push(n);
+    });
 
-    return true;
-  });
+    return { unread, today, yesterday, earlier };
+  }, [filteredNotifications]);
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -139,44 +189,130 @@ export default function Notifications() {
     const diffMs = now.getTime() - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return "A l'instant";
-    if (diffMin < 60) return `Il y a ${diffMin}min`;
+    if (diffMin < 60) return `Il y a ${diffMin} min`;
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `Il y a ${diffH}h`;
+    if (diffH < 24) return `Il y a ${diffH} h`;
     const diffD = Math.floor(diffH / 24);
-    if (diffD < 7) return `Il y a ${diffD}j`;
+    if (diffD < 7) return `Il y a ${diffD} j`;
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  };
+
+  const formatClockTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleClick = (notif: CompagnyNotification) => {
+    if (!notif.isRead) handleMarkAsRead(notif.id);
+    const route = getNotificationRoute(notif);
+    if (route) router.push(route);
+  };
+
+  const renderUnread = (notif: CompagnyNotification) => {
+    const Icon = getNotifIcon(notif);
+    const route = getNotificationRoute(notif);
+    return (
+      <div
+        key={notif.id}
+        onClick={() => handleClick(notif)}
+        className="group bg-orange-100/60 border-l-4 border-orange-600 p-5 rounded-2xl flex gap-5 transition-all hover:shadow-md hover:bg-orange-100 cursor-pointer"
+      >
+        <div className="flex-shrink-0 w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-orange-600">
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start gap-3 mb-1">
+            <h4 className="font-bold text-slate-900 group-hover:text-orange-600 transition-colors truncate">
+              {notif.title}
+            </h4>
+            <span className="text-[11px] font-bold text-orange-600 uppercase bg-white px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+              {formatTime(notif.createdAt)}
+            </span>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed mb-3">
+            {notif.message}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {route && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleClick(notif); }}
+                className="text-xs font-bold bg-white text-slate-900 px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Voir le detail
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
+              className="text-xs font-bold text-slate-500 px-4 py-2 hover:text-slate-800 transition-colors"
+            >
+              Marquer comme lu
+            </button>
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          <div className="w-2.5 h-2.5 bg-orange-600 rounded-full" />
+        </div>
+      </div>
+    );
+  };
+
+  const renderRead = (notif: CompagnyNotification) => {
+    const Icon = getNotifIcon(notif);
+    const route = getNotificationRoute(notif);
+    return (
+      <div
+        key={notif.id}
+        onClick={() => handleClick(notif)}
+        className={`group bg-white p-5 rounded-2xl flex gap-5 transition-all hover:bg-slate-50 border border-transparent hover:border-slate-100 ${route ? 'cursor-pointer' : ''}`}
+      >
+        <div className="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+          <Icon className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start gap-3 mb-1">
+            <h4 className="font-bold text-slate-900 group-hover:text-orange-600 transition-colors truncate">
+              {notif.title}
+            </h4>
+            <span className="text-[11px] font-bold text-slate-400 uppercase whitespace-nowrap">
+              {formatClockTime(notif.createdAt)}
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            {notif.message}
+          </p>
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl gradient-subito">
-            <Bell className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Notifications</h1>
-            <p className="text-slate-500">
-              {unreadCount} non lue{unreadCount > 1 ? 's' : ''} sur {notifications.length}
-            </p>
-          </div>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <span>Portail</span>
+            <span>/</span>
+            <span className="text-orange-600">Notifications</span>
+          </nav>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Notifications</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {unreadCount} non lue{unreadCount > 1 ? 's' : ''} sur {notifications.length}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
+          <button
             onClick={fetchNotifications}
             disabled={loading}
-            className="gap-2"
+            className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualiser
-          </Button>
-          <Button
-            variant="outline"
+          </button>
+          <button
             onClick={handleMarkAllAsRead}
             disabled={markingAll || unreadCount === 0}
-            className="gap-2"
+            className="flex items-center gap-2 text-sm font-bold text-orange-600 hover:bg-orange-100 px-4 py-2 rounded-xl transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
           >
             {markingAll ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -184,141 +320,125 @@ export default function Notifications() {
               <CheckCheck className="w-4 h-4" />
             )}
             Tout marquer comme lu
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <p className="text-sm text-slate-600 mb-1">Total</p>
-          <p className="text-2xl font-bold text-slate-800">{notifications.length}</p>
-        </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
-          <p className="text-sm text-amber-700 mb-1">Non lues</p>
-          <p className="text-2xl font-bold text-amber-800">{unreadCount}</p>
-        </div>
-        <div className="bg-green-50 rounded-xl border border-green-200 p-4">
-          <p className="text-sm text-green-700 mb-1">Lues</p>
-          <p className="text-2xl font-bold text-green-800">{readCount}</p>
-        </div>
-        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-          <p className="text-sm text-blue-700 mb-1">Aujourd&apos;hui</p>
-          <p className="text-2xl font-bold text-blue-800">{todayCount}</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <Select value={filterRead} onValueChange={setFilterRead}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes</SelectItem>
-                <SelectItem value="unread">Non lues</SelectItem>
-                <SelectItem value="read">Lues</SelectItem>
-              </SelectContent>
-            </Select>
-            <Calendar className="w-4 h-4 text-slate-400 ml-2" />
-            <Select value={filterPeriod} onValueChange={setFilterPeriod}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="Periode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les dates</SelectItem>
-                <SelectItem value="today">Aujourd&apos;hui</SelectItem>
-                <SelectItem value="week">Cette semaine</SelectItem>
-                <SelectItem value="month">Ce mois</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      {/* Notification list */}
-      {loading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <Loader2 className="w-8 h-8 text-slate-400 mx-auto animate-spin mb-3" />
-          <p className="text-slate-500">Chargement des notifications...</p>
-        </div>
-      ) : filteredNotifications.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <BellOff className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">Aucune notification</p>
-          <p className="text-sm text-slate-400 mt-1">
-            {filterRead !== "all"
-              ? "Aucune notification avec ce filtre"
-              : "Vous n'avez pas encore de notifications"}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {filteredNotifications.map((notif) => {
-            const route = getNotificationRoute(notif);
-            return (
-            <div
-              key={notif.id}
-              onClick={() => {
-                if (!notif.isRead) handleMarkAsRead(notif.id);
-                if (route) router.push(route);
-              }}
-              className={`p-5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors ${
-                route ? 'cursor-pointer' : ''
-              } ${!notif.isRead ? 'bg-orange-50/30' : ''}`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${
-                  notif.isRead ? 'bg-slate-300' : 'bg-orange-500'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className={`text-sm ${notif.isRead ? 'text-slate-600' : 'text-slate-800 font-semibold'}`}>
-                        {notif.title}
-                      </p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {notif.message}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {notif.type && (
-                          <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                            {notif.type}
-                          </span>
-                        )}
-                        {route && (
-                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
-                            <ExternalLink className="w-3 h-3" />
-                            Voir
-                          </span>
-                        )}
-                      </div>
+      {/* Bento layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+        {/* Filters sidebar */}
+        <aside className="lg:col-span-3 space-y-6">
+          <div className="bg-slate-50 p-6 rounded-2xl">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Categories</h3>
+            <div className="space-y-2">
+              {CATEGORIES.map(cat => {
+                const Icon = cat.icon;
+                const isActive = activeCategory === cat.key;
+                const count = categoryCounts[cat.key];
+                return (
+                  <button
+                    key={cat.key}
+                    onClick={() => setActiveCategory(cat.key)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-colors ${
+                      isActive
+                        ? 'bg-white shadow-sm text-orange-600 font-bold'
+                        : 'text-slate-600 hover:bg-white/60 font-semibold'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4" />
+                      <span>{cat.label}</span>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-slate-400 whitespace-nowrap">
-                        {formatTime(notif.createdAt)}
-                      </span>
-                      {!notif.isRead && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
-                          className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Marquer comme lu"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs ${
+                      isActive ? 'bg-orange-100 text-orange-600' : 'text-slate-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          );
-          })}
-        </div>
-      )}
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h4 className="font-bold text-lg mb-2 leading-tight">Besoin d&apos;aide urgente ?</h4>
+              <p className="text-slate-400 text-xs mb-4">
+                Notre equipe support est disponible 24/7 pour tout probleme operationnel.
+              </p>
+              <button
+                onClick={() => router.push('/support')}
+                className="bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors"
+              >
+                Contacter le support
+              </button>
+            </div>
+            <Headphones className="absolute -right-4 -bottom-4 w-28 h-28 text-white/5" />
+          </div>
+        </aside>
+
+        {/* Notifications list */}
+        <section className="lg:col-span-9 space-y-4">
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+              <Loader2 className="w-8 h-8 text-slate-400 mx-auto animate-spin mb-3" />
+              <p className="text-slate-500">Chargement des notifications...</p>
+            </div>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center bg-white rounded-2xl border border-slate-100">
+              <div className="w-32 h-32 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                <BellOff className="w-14 h-14 text-slate-300" />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 mb-2">Tout est a jour !</h3>
+              <p className="text-slate-500 max-w-xs">
+                {activeCategory !== "all"
+                  ? "Aucune notification dans cette categorie."
+                  : "Vous n'avez aucune notification pour le moment."}
+              </p>
+            </div>
+          ) : (
+            <>
+              {groupedNotifications.unread.map(renderUnread)}
+
+              {groupedNotifications.today.length > 0 && (
+                <>
+                  <div className="py-4 flex items-center gap-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">
+                      Aujourd&apos;hui
+                    </span>
+                    <div className="h-px w-full bg-slate-200" />
+                  </div>
+                  {groupedNotifications.today.map(renderRead)}
+                </>
+              )}
+
+              {groupedNotifications.yesterday.length > 0 && (
+                <>
+                  <div className="py-4 flex items-center gap-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">
+                      Hier
+                    </span>
+                    <div className="h-px w-full bg-slate-200" />
+                  </div>
+                  {groupedNotifications.yesterday.map(renderRead)}
+                </>
+              )}
+
+              {groupedNotifications.earlier.length > 0 && (
+                <>
+                  <div className="py-4 flex items-center gap-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">
+                      Plus anciennes
+                    </span>
+                    <div className="h-px w-full bg-slate-200" />
+                  </div>
+                  {groupedNotifications.earlier.map(renderRead)}
+                </>
+              )}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

@@ -13,10 +13,14 @@ import {
   Globe,
   User,
   Plane,
+  PlaneTakeoff,
+  PlaneLanding,
+  Hotel,
   FileText,
   Check,
   CheckCircle2,
   ChevronRight,
+  ArrowRight,
   Calendar,
   Sparkles,
   ArrowLeft,
@@ -27,6 +31,19 @@ import {
   Users,
   Search,
   UserPlus,
+  ShieldCheck,
+  Lightbulb,
+  Send,
+  Building2,
+  Headphones,
+  Lock,
+  MapPin,
+  Briefcase,
+  GraduationCap,
+  Heart,
+  MoreHorizontal,
+  Info,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,6 +218,7 @@ export default function TravelDocuments() {
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Fetch payment options from API
   const { data: paymentOptionsResponse } = useQuery({
@@ -301,6 +319,13 @@ export default function TravelDocuments() {
     }));
   };
 
+  const selectBundle = () => {
+    setFormData(prev => ({
+      ...prev,
+      selectedServices: services.map(s => s.id),
+    }));
+  };
+
   const selectedDepartureCountry = departureCountries.find(c => c.code === formData.departureCountry);
   const selectedCountry = countries.find(c => c.code === formData.country);
   const hasHotel = formData.selectedServices.includes('hotel');
@@ -343,9 +368,9 @@ export default function TravelDocuments() {
         }
         return baseValid;
       case 4:
-        return true;
+        return !!formData.paymentMethod;
       case 5:
-        return true;
+        return termsAccepted;
       default:
         return false;
     }
@@ -498,53 +523,59 @@ export default function TravelDocuments() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 rounded-xl gradient-subito">
-          <Globe className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Documents de Voyage</h1>
-          <p className="text-slate-500">Attestations necessaires pour un dossier de demande de visa</p>
-        </div>
+    <div className="max-w-6xl mx-auto">
+      {/* Editorial header */}
+      <div className="mb-8">
+        <p className="text-orange-600 font-bold tracking-widest text-xs uppercase mb-2">
+          Etape {currentStep} sur {steps.length}
+        </p>
+        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
+          {currentStep === 1 && 'Choisissez vos services'}
+          {currentStep === 2 && 'Informations personnelles'}
+          {currentStep === 3 && 'Details du voyage'}
+          {currentStep === 4 && 'Mode de paiement'}
+          {currentStep === 5 && 'Verifiez votre demande'}
+        </h1>
+        <p className="text-slate-500 text-base max-w-2xl">
+          {currentStep === 1 && 'Selectionnez les attestations necessaires pour votre demande de visa ou voyage business.'}
+          {currentStep === 2 && 'Renseignez les informations du voyageur conformes a son passeport.'}
+          {currentStep === 3 && 'Indiquez les details de votre prochain voyage. Des informations exactes accelerent le traitement.'}
+          {currentStep === 4 && 'Choisissez votre mode de facturation pour cette demande.'}
+          {currentStep === 5 && 'Verifiez tous les details avant d&apos;envoyer votre demande.'}
+        </p>
       </div>
 
-      {/* Progress */}
-      <div className="flex items-center justify-between mb-8">
-        {steps.map((step, index) => (
-          <React.Fragment key={step.id}>
-            <div className="flex items-center gap-2">
-              <div className={`
-                w-10 h-10 rounded-xl flex items-center justify-center transition-all
-                ${currentStep >= step.id
-                  ? 'gradient-subito text-white'
-                  : 'bg-slate-200 text-slate-400'
-                }
-              `}>
-                {currentStep > step.id ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <step.icon className="w-5 h-5" />
+      {/* Progress bars */}
+      <div className="grid grid-cols-5 gap-4 mb-12">
+        {steps.map((step) => {
+          const isDone = currentStep > step.id;
+          const isActive = currentStep === step.id;
+          return (
+            <div key={step.id} className="relative">
+              {isActive && (
+                <div className="absolute -top-6 left-0 text-[10px] font-bold text-orange-600 uppercase tracking-widest">
+                  En cours
+                </div>
+              )}
+              <div className={`h-1.5 rounded-full ${
+                isDone ? 'bg-orange-600' : isActive ? 'bg-orange-600' : 'bg-slate-200'
+              }`}>
+                {isActive && !isDone && (
+                  <div className="h-full w-1/2 bg-orange-600 rounded-full" />
                 )}
               </div>
-              <span className={`font-medium text-sm hidden sm:block ${
-                currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
+              <div className={`mt-3 text-xs font-bold uppercase tracking-wider ${
+                isActive ? 'text-orange-600' : isDone ? 'text-slate-700' : 'text-slate-400'
               }`}>
                 {step.title}
-              </span>
+              </div>
             </div>
-            {index < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 rounded ${
-                currentStep > step.id ? 'bg-orange-400' : 'bg-slate-200'
-              }`} />
-            )}
-          </React.Fragment>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      {/* Form content */}
+      <div>
         <AnimatePresence mode="wait">
           {/* Step 1: Services */}
           {currentStep === 1 && (
@@ -553,53 +584,116 @@ export default function TravelDocuments() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {formData.selectedServices.length > 0 && (
-                <div className="flex justify-center mb-4">
-                  <div className="px-4 py-2 rounded-full text-white font-medium flex items-center gap-2 gradient-subito">
-                    <Sparkles className="w-4 h-4" />
-                    {formData.selectedServices.length} service(s) selectionne(s)
+              {services.map((service) => {
+                const isSelected = formData.selectedServices.includes(service.id);
+                const tarif = findTarif(service.id);
+                const isFlight = service.id === 'flight';
+                const accent = isFlight ? 'orange' : 'teal';
+                return (
+                  <motion.div
+                    key={service.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => toggleService(service.id)}
+                    className={`group relative flex flex-col bg-white p-8 rounded-3xl transition-all duration-300 cursor-pointer ring-1 ${
+                      isSelected
+                        ? 'ring-2 ring-orange-600 shadow-[0_24px_48px_-12px_rgba(172,53,9,0.15)]'
+                        : 'ring-black/5 hover:shadow-[0_24px_48px_-12px_rgba(172,53,9,0.08)]'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                        isFlight ? 'bg-orange-100 text-orange-600' : 'bg-teal-50 text-teal-600'
+                      }`}>
+                        {isFlight ? <PlaneTakeoff className="w-7 h-7" /> : <Hotel className="w-7 h-7" />}
+                      </div>
+                      <div className="text-right">
+                        <span className={`block text-2xl font-extrabold ${isFlight ? 'text-orange-600' : 'text-teal-600'}`}>
+                          {tarif ? `${Number(tarif.price).toLocaleString()} FCFA` : '—'}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Par voyageur</span>
+                      </div>
+                    </div>
+                    <h3 className="text-2xl font-extrabold mb-3 text-slate-900">
+                      {service.label}
+                    </h3>
+                    <p className="text-slate-500 mb-8 line-clamp-3">
+                      {isFlight
+                        ? 'Une attestation de reservation de vol certifiee pour votre dossier visa, valide pour toutes les compagnies aeriennes et consulats.'
+                        : 'Confirmation de reservation hoteliere ou justificatif de logement requis pour les visas Schengen et internationaux.'}
+                    </p>
+                    <div className="mt-auto flex items-center justify-between">
+                      <ul className="space-y-2 text-sm text-slate-500">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                          {isFlight ? 'Livraison PDF instantanee' : 'Verification 24h'}
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                          {isFlight ? 'Verifie par les consulats' : 'Couverture mondiale'}
+                        </li>
+                      </ul>
+                      <button
+                        type="button"
+                        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-active:scale-95 shrink-0 ${
+                          isSelected
+                            ? isFlight
+                              ? 'bg-orange-600 border-orange-600 text-white'
+                              : 'bg-teal-600 border-teal-600 text-white'
+                            : isFlight
+                              ? 'border-orange-200 text-orange-600 hover:bg-orange-600 hover:text-white'
+                              : 'border-teal-200 text-teal-600 hover:bg-teal-600 hover:text-white'
+                        }`}
+                        aria-label={isSelected ? 'Retirer' : 'Ajouter'}
+                      >
+                        {isSelected ? <Check className="w-5 h-5" /> : <span className="text-2xl leading-none">+</span>}
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              {/* Bundle card spanning 2 columns */}
+              <motion.div
+                whileTap={{ scale: 0.99 }}
+                onClick={selectBundle}
+                className="md:col-span-2 relative overflow-hidden bg-gradient-to-br from-orange-600 to-orange-400 rounded-[2rem] p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 md:gap-10 shadow-xl cursor-pointer"
+              >
+                <div className="flex-1 z-10 text-white">
+                  <div className="inline-block px-4 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-widest mb-4">
+                    Choix populaire
+                  </div>
+                  <h3 className="text-3xl font-extrabold mb-4">Pack Voyage Complet</h3>
+                  <p className="text-white/80 text-lg mb-6 max-w-xl">
+                    Obtenez les attestations vol et hotel ensemble pour un traitement prioritaire. Ideal pour les demandes de visa urgentes.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-4xl font-black">
+                      {(() => {
+                        const total = services.reduce((sum, s) => {
+                          const t = findTarif(s.id);
+                          return sum + (t ? Number(t.price) : 0);
+                        }, 0);
+                        const discounted = Math.round(total * 0.9);
+                        return `${discounted.toLocaleString()} FCFA`;
+                      })()}
+                    </span>
+                    <span className="text-sm bg-white/95 text-orange-600 px-3 py-1 rounded-lg font-bold">-10%</span>
                   </div>
                 </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {services.map((service) => {
-                  const isSelected = formData.selectedServices.includes(service.id);
-                  const tarif = findTarif(service.id);
-                  return (
-                    <motion.div
-                      key={service.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => toggleService(service.id)}
-                      className={`
-                        relative p-6 rounded-2xl border-2 cursor-pointer transition-all
-                        ${isSelected
-                          ? 'border-orange-400 bg-orange-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      {isSelected && (
-                        <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center">
-                          <Check className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 mb-2">
-                        {service.id === 'flight' ? <Plane className="w-8 h-8 text-blue-500" /> :
-                         <Globe className="w-8 h-8 text-green-500" />}
-                        <h3 className="font-semibold text-slate-800">{service.label}</h3>
-                      </div>
-                      <p className="text-sm text-slate-500 mb-2">{service.description}</p>
-                      {tarif && (
-                        <p className="text-lg font-bold text-subito">{Number(tarif.price).toLocaleString()} FCFA</p>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
+                <div className="flex-shrink-0 z-10">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); selectBundle(); }}
+                    className="bg-white text-orange-600 px-8 md:px-10 py-4 md:py-5 rounded-2xl font-extrabold text-base md:text-lg hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-3"
+                  >
+                    Selectionner le pack
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+              </motion.div>
             </motion.div>
           )}
 
@@ -610,234 +704,268 @@ export default function TravelDocuments() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-4"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              {/* Employee selector with search */}
-              <div className="space-y-2">
-                <Label>Voyageur (employe)</Label>
-                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={employeePopoverOpen}
-                      className="w-full justify-between font-normal h-10"
-                    >
-                      <span className="flex items-center gap-2 truncate">
-                        <Users className="w-4 h-4 shrink-0" />
-                        {formData.employeeId
-                          ? (() => {
-                              const emp = employees.find(e => e.id === formData.employeeId);
-                              return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
-                            })()
-                          : 'Selectionner un employe'}
+              {/* LEFT col-4: Instructional editorial card */}
+              <aside className="lg:col-span-4">
+                <div className="bg-slate-50 p-8 rounded-3xl space-y-4 sticky top-6">
+                  <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600">
+                    <ShieldCheck className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-xl font-extrabold leading-tight text-slate-900">L&apos;integrite des donnees est essentielle</h3>
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Assurez-vous que toutes les informations correspondent exactement a votre passeport.
+                    Les divergences peuvent entrainer un rejet du dossier ou des retards de voyage.
+                  </p>
+                  <div className="pt-4 relative overflow-hidden rounded-2xl aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-900">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                      <BadgeCheck className="w-32 h-32 text-white" />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent p-6 flex flex-col justify-end">
+                      <span className="bg-orange-600 text-[10px] font-bold text-white px-3 py-1 rounded-full w-fit mb-2 uppercase tracking-wider">
+                        Securite
                       </span>
-                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Rechercher un employe..."
-                        value={employeeSearch}
-                        onValueChange={setEmployeeSearch}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="gap-1"
-                            onClick={() => {
-                              setShowAddEmployee(true);
-                              setEmployeePopoverOpen(false);
-                            }}
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            Ajouter &quot;{employeeSearch}&quot;
-                          </Button>
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {employees.map(emp => {
-                            const deptName = emp.departement
-                              ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
-                              : '';
-                            return (
-                              <CommandItem
-                                key={emp.id}
-                                value={`${emp.prenom} ${emp.nom}`}
-                                onSelect={() => {
-                                  handleChange('employeeId', emp.id);
-                                  handleChange('firstName', emp.prenom);
-                                  handleChange('lastName', emp.nom);
-                                  if (emp.email) handleChange('email', emp.email);
-                                  if (emp.telephone) handleChange('phone', emp.telephone);
-                                  setEmployeeSearch("");
+                      <p className="text-white text-sm font-bold leading-tight">Vos donnees sont chiffrees et confidentielles.</p>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+
+              {/* RIGHT col-8: Form */}
+              <div className="lg:col-span-8">
+                <div className="bg-white p-6 md:p-10 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+                  {/* Employee selector */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Voyageur (employe)</Label>
+                    <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={employeePopoverOpen}
+                          className="w-full justify-between font-normal h-12 bg-slate-50 border-0 rounded-xl px-4"
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <Users className="w-4 h-4 shrink-0 text-slate-400" />
+                            {formData.employeeId
+                              ? (() => {
+                                  const emp = employees.find(e => e.id === formData.employeeId);
+                                  return emp ? `${emp.prenom} ${emp.nom}` : 'Selectionner un employe';
+                                })()
+                              : <span className="text-slate-500">Selectionner un employe</span>}
+                          </span>
+                          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Rechercher un employe..."
+                            value={employeeSearch}
+                            onValueChange={setEmployeeSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                onClick={() => {
+                                  setShowAddEmployee(true);
                                   setEmployeePopoverOpen(false);
                                 }}
-                                className="cursor-pointer"
                               >
-                                <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
-                                  {emp.prenom?.[0]}{emp.nom?.[0]}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
-                                  {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
-                                </div>
-                                {formData.employeeId === emp.id && (
-                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
-                                )}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
+                                <UserPlus className="w-3.5 h-3.5" />
+                                Ajouter &quot;{employeeSearch}&quot;
+                              </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {employees.map(emp => {
+                                const deptName = emp.departement
+                                  ? (typeof emp.departement === 'object' ? emp.departement.nom : emp.departement)
+                                  : '';
+                                return (
+                                  <CommandItem
+                                    key={emp.id}
+                                    value={`${emp.prenom} ${emp.nom}`}
+                                    onSelect={() => {
+                                      handleChange('employeeId', emp.id);
+                                      handleChange('firstName', emp.prenom);
+                                      handleChange('lastName', emp.nom);
+                                      if (emp.email) handleChange('email', emp.email);
+                                      if (emp.telephone) handleChange('phone', emp.telephone);
+                                      setEmployeeSearch("");
+                                      setEmployeePopoverOpen(false);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                                      {emp.prenom?.[0]}{emp.nom?.[0]}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                                      {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
+                                    </div>
+                                    {formData.employeeId === emp.id && (
+                                      <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                    )}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-              {/* Add employee dialog */}
-              <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Ajouter un employe</DialogTitle>
-                  </DialogHeader>
-                  <EmployeeForm
-                    departments={departments}
-                    onSubmit={(data) => createEmployee.mutate(data)}
-                    onCancel={() => setShowAddEmployee(false)}
-                    isSubmitting={createEmployee.isPending}
-                  />
-                </DialogContent>
-              </Dialog>
+                  <Dialog open={showAddEmployee} onOpenChange={setShowAddEmployee}>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Ajouter un employe</DialogTitle>
+                      </DialogHeader>
+                      <EmployeeForm
+                        departments={departments}
+                        onSubmit={(data) => createEmployee.mutate(data)}
+                        onCancel={() => setShowAddEmployee(false)}
+                        isSubmitting={createEmployee.isPending}
+                      />
+                    </DialogContent>
+                  </Dialog>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Prenom(s) *</Label>
-                  <Input
-                    value={formData.firstName}
-                    onChange={(e) => handleChange('firstName', e.target.value)}
-                    placeholder="Prenom(s)"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nom *</Label>
-                  <Input
-                    value={formData.lastName}
-                    onChange={(e) => handleChange('lastName', e.target.value)}
-                    placeholder="Nom"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                    {/* First name */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Prenom(s)</Label>
+                      <Input
+                        value={formData.firstName}
+                        onChange={(e) => handleChange('firstName', e.target.value)}
+                        placeholder="Prenom(s)"
+                        className="bg-slate-50 border-0 rounded-xl h-12 px-4"
+                      />
+                    </div>
+                    {/* Last name */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Nom</Label>
+                      <Input
+                        value={formData.lastName}
+                        onChange={(e) => handleChange('lastName', e.target.value)}
+                        placeholder="Nom"
+                        className="bg-slate-50 border-0 rounded-xl h-12 px-4"
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label>N Passeport *</Label>
-                <Input
-                  value={formData.passport}
-                  onChange={(e) => handleChange('passport', e.target.value)}
-                  placeholder="N de passeport"
-                  className="font-mono"
-                />
-              </div>
+                    {/* Passport */}
+                    <div className="flex flex-col gap-2 md:col-span-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Numero de passeport</Label>
+                      <Input
+                        value={formData.passport}
+                        onChange={(e) => handleChange('passport', e.target.value)}
+                        placeholder="ex: L89012345"
+                        className="bg-slate-50 border-0 rounded-xl h-12 px-4 font-mono uppercase"
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Nationalité *</Label>
-                <Select
-                  value={formData.nationality}
-                  onValueChange={(v) => handleChange('nationality', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      "Sénégalaise", "Ivoirienne", "Malienne", "Guinéenne", "Burkinabè",
-                      "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Gabonaise",
-                      "Congolaise", "Tchadienne", "Mauritanienne", "Gambienne", "Bissau-Guinéenne",
-                      "Cap-Verdienne", "Libérienne", "Sierra-Léonaise", "Ghanéenne", "Nigériane",
-                      "Centrafricaine", "Équato-Guinéenne", "Comorienne", "Malgache", "Djiboutienne",
-                      "Française", "Américaine", "Canadienne", "Autre",
-                    ].map((nat) => (
-                      <SelectItem key={nat} value={nat}>{nat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    {/* Nationality */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Nationalite</Label>
+                      <Select
+                        value={formData.nationality}
+                        onValueChange={(v) => handleChange('nationality', v)}
+                      >
+                        <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Selectionner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            "Sénégalaise", "Ivoirienne", "Malienne", "Guinéenne", "Burkinabè",
+                            "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Gabonaise",
+                            "Congolaise", "Tchadienne", "Mauritanienne", "Gambienne", "Bissau-Guinéenne",
+                            "Cap-Verdienne", "Libérienne", "Sierra-Léonaise", "Ghanéenne", "Nigériane",
+                            "Centrafricaine", "Équato-Guinéenne", "Comorienne", "Malgache", "Djiboutienne",
+                            "Française", "Américaine", "Canadienne", "Autre",
+                          ].map((nat) => (
+                            <SelectItem key={nat} value={nat}>{nat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Date de naissance *</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Select
-                    value={formData.birthDate ? String(formData.birthDate.getDate()) : ""}
-                    onValueChange={(day) => {
-                      const current = formData.birthDate || new Date(2000, 0, 1);
-                      handleChange('birthDate', new Date(current.getFullYear(), current.getMonth(), Number(day)));
-                    }}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Jour" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 31 }, (_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>{String(i + 1).padStart(2, '0')}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={formData.birthDate ? String(formData.birthDate.getMonth()) : ""}
-                    onValueChange={(month) => {
-                      const current = formData.birthDate || new Date(2000, 0, 1);
-                      handleChange('birthDate', new Date(current.getFullYear(), Number(month), current.getDate()));
-                    }}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Mois" /></SelectTrigger>
-                    <SelectContent>
-                      {["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"].map((m, i) => (
-                        <SelectItem key={i} value={String(i)}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={formData.birthDate ? String(formData.birthDate.getFullYear()) : ""}
-                    onValueChange={(year) => {
-                      const current = formData.birthDate || new Date(2000, 0, 1);
-                      handleChange('birthDate', new Date(Number(year), current.getMonth(), current.getDate()));
-                    }}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Année" /></SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                    {/* Birthdate (3-select) */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Date de naissance</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Select
+                          value={formData.birthDate ? String(formData.birthDate.getDate()) : ""}
+                          onValueChange={(day) => {
+                            const current = formData.birthDate || new Date(2000, 0, 1);
+                            handleChange('birthDate', new Date(current.getFullYear(), current.getMonth(), Number(day)));
+                          }}
+                        >
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-3"><SelectValue placeholder="Jour" /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 31 }, (_, i) => (
+                              <SelectItem key={i + 1} value={String(i + 1)}>{String(i + 1).padStart(2, '0')}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={formData.birthDate ? String(formData.birthDate.getMonth()) : ""}
+                          onValueChange={(month) => {
+                            const current = formData.birthDate || new Date(2000, 0, 1);
+                            handleChange('birthDate', new Date(current.getFullYear(), Number(month), current.getDate()));
+                          }}
+                        >
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-3"><SelectValue placeholder="Mois" /></SelectTrigger>
+                          <SelectContent>
+                            {["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"].map((m, i) => (
+                              <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={formData.birthDate ? String(formData.birthDate.getFullYear()) : ""}
+                          onValueChange={(year) => {
+                            const current = formData.birthDate || new Date(2000, 0, 1);
+                            handleChange('birthDate', new Date(Number(year), current.getMonth(), current.getDate()));
+                          }}
+                        >
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-3"><SelectValue placeholder="Annee" /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    Telephone *
-                  </Label>
-                  <PhoneInput
-                    value={formData.phone}
-                    onChange={(v) => handleChange('phone', v)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    Email *
-                  </Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleChange('email', e.target.value)}
-                    placeholder="votre@email.com"
-                  />
+                    {/* Phone */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Telephone</Label>
+                      <div className="bg-slate-50 rounded-xl h-12 flex items-center px-2">
+                        <PhoneInput
+                          value={formData.phone}
+                          onChange={(v) => handleChange('phone', v)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email</Label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleChange('email', e.target.value)}
+                        placeholder="votre@email.com"
+                        className="bg-slate-50 border-0 rounded-xl h-12 px-4"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -850,158 +978,174 @@ export default function TravelDocuments() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wide">Depart</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Pays de depart *</Label>
-                  <Select value={formData.departureCountry} onValueChange={(v) => {
-                    handleChange('departureCountry', v);
-                    handleChange('departureCity', '');
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un pays" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departureCountries.map(country => (
-                        <SelectItem key={country.code} value={country.code}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* LEFT col-8: Form */}
+              <div className="lg:col-span-8 bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-100 space-y-10">
+                {/* Route */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Pays de depart</Label>
+                    <Select value={formData.departureCountry} onValueChange={(v) => {
+                      handleChange('departureCountry', v);
+                      handleChange('departureCity', '');
+                    }}>
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Choisir un pays" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departureCountries.map(country => (
+                          <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Ville de depart</Label>
+                    <Select
+                      value={formData.departureCity}
+                      onValueChange={(v) => handleChange('departureCity', v)}
+                      disabled={!formData.departureCountry}
+                    >
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder={formData.departureCountry ? "Ville" : "D'abord pays"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedDepartureCountry?.cities.map(city => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Ville de depart *</Label>
-                  <Select
-                    value={formData.departureCity}
-                    onValueChange={(v) => handleChange('departureCity', v)}
-                    disabled={!formData.departureCountry}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.departureCountry ? "Ville" : "D'abord pays"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedDepartureCountry?.cities.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wide pt-2">Destination</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Pays de destination *</Label>
-                  <Select value={formData.country} onValueChange={(v) => {
-                    handleChange('country', v);
-                    handleChange('city', '');
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choisir un pays" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map(country => (
-                        <SelectItem key={country.code} value={country.code}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Pays de destination</Label>
+                    <Select value={formData.country} onValueChange={(v) => {
+                      handleChange('country', v);
+                      handleChange('city', '');
+                    }}>
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Choisir un pays" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map(country => (
+                          <SelectItem key={country.code} value={country.code}>{country.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Ville de destination</Label>
+                    <Select
+                      value={formData.city}
+                      onValueChange={(v) => handleChange('city', v)}
+                      disabled={!formData.country}
+                    >
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder={formData.country ? "Ville" : "D'abord pays"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedCountry?.cities.map(city => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Ville de destination *</Label>
-                  <Select
-                    value={formData.city}
-                    onValueChange={(v) => handleChange('city', v)}
-                    disabled={!formData.country}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.country ? "Ville" : "D'abord pays"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedCountry?.cities.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Date de depart</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="bg-slate-50 border-0 rounded-xl h-12 px-4 justify-start font-normal hover:bg-slate-100">
+                          <Calendar className="w-4 h-4 mr-2 text-slate-400" />
+                          {formData.departureDate
+                            ? format(formData.departureDate, "dd MMM yyyy", { locale: fr })
+                            : <span className="text-slate-500">Selectionner</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <CalendarComponent
+                          mode="single"
+                          selected={formData.departureDate || undefined}
+                          onSelect={(date) => handleChange('departureDate', date || null)}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Date de retour</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="bg-slate-50 border-0 rounded-xl h-12 px-4 justify-start font-normal hover:bg-slate-100">
+                          <Calendar className="w-4 h-4 mr-2 text-slate-400" />
+                          {formData.returnDate
+                            ? format(formData.returnDate, "dd MMM yyyy", { locale: fr })
+                            : <span className="text-slate-500">Optionnel</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <CalendarComponent
+                          mode="single"
+                          selected={formData.returnDate || undefined}
+                          onSelect={(date) => handleChange('returnDate', date || null)}
+                          disabled={(date) => {
+                            const minDate = formData.departureDate || new Date(new Date().setHours(0, 0, 0, 0));
+                            return date < minDate;
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date de depart *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {formData.departureDate ? format(formData.departureDate, "dd/MM/yy") : "Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <CalendarComponent
-                        mode="single"
-                        selected={formData.departureDate || undefined}
-                        onSelect={(date) => handleChange('departureDate', date || null)}
-                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                {/* Purpose - visual buttons */}
+                <div className="space-y-4">
+                  <Label className="block text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Motif du voyage</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { value: 'tourisme', label: 'Tourisme', icon: Globe },
+                      { value: 'affaires', label: 'Affaires', icon: Briefcase },
+                      { value: 'etudes', label: 'Etudes', icon: GraduationCap },
+                      { value: 'autre', label: 'Autre', icon: MoreHorizontal },
+                    ].map((purpose) => {
+                      const Icon = purpose.icon;
+                      const isSelected = formData.reason === purpose.value;
+                      return (
+                        <button
+                          key={purpose.value}
+                          type="button"
+                          onClick={() => handleChange('reason', purpose.value)}
+                          className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all ring-2 ${
+                            isSelected
+                              ? 'bg-orange-50 ring-orange-600 scale-[1.02]'
+                              : 'bg-slate-50 ring-transparent hover:bg-slate-100 hover:scale-[1.02]'
+                          }`}
+                        >
+                          <Icon className={`w-7 h-7 mb-3 ${isSelected ? 'text-orange-600' : 'text-slate-600'}`} />
+                          <span className={`text-sm font-semibold ${isSelected ? 'text-orange-600' : 'text-slate-800'}`}>
+                            {purpose.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Date de retour *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {formData.returnDate ? format(formData.returnDate, "dd/MM/yy") : "Date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <CalendarComponent
-                        mode="single"
-                        selected={formData.returnDate || undefined}
-                        onSelect={(date) => handleChange('returnDate', date || null)}
-                        disabled={(date) => {
-                          const minDate = formData.departureDate || new Date(new Date().setHours(0, 0, 0, 0));
-                          return date < minDate;
-                        }}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Motif du voyage *</Label>
-                <Select value={formData.reason} onValueChange={(v) => handleChange('reason', v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {travelReasons.map(reason => (
-                      <SelectItem key={reason.value} value={reason.value}>{reason.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Hotel section - conditional */}
-              {hasHotel && (
-                <div className="pt-6 border-t border-slate-200">
-                  <h3 className="font-semibold text-slate-800 mb-4">Details Hebergement</h3>
-
-                  <div className="space-y-4">
+                {/* Hotel section - conditional */}
+                {hasHotel && (
+                  <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <Label className="block text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Details hebergement</Label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Categorie *</Label>
+                      <div className="flex flex-col gap-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Categorie</Label>
                         <Select value={formData.category} onValueChange={(v) => handleChange('category', v)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
                             <SelectValue placeholder="Choisir" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1011,11 +1155,10 @@ export default function TravelDocuments() {
                           </SelectContent>
                         </Select>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label>Personnes *</Label>
+                      <div className="flex flex-col gap-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personnes</Label>
                         <Select value={formData.persons} onValueChange={(v) => handleChange('persons', v)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
                             <SelectValue placeholder="Nombre" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1025,11 +1168,10 @@ export default function TravelDocuments() {
                           </SelectContent>
                         </Select>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label>Type de chambre *</Label>
+                      <div className="flex flex-col gap-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Chambre</Label>
                         <Select value={formData.roomType} onValueChange={(v) => handleChange('roomType', v)}>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
                             <SelectValue placeholder="Choisir" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1040,19 +1182,86 @@ export default function TravelDocuments() {
                         </Select>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label>Precisions (optionnel)</Label>
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Precisions (optionnel)</Label>
                       <Textarea
                         value={formData.notes}
                         onChange={(e) => handleChange('notes', e.target.value)}
                         placeholder="Regime, accessibilite..."
-                        className="min-h-[80px]"
+                        className="bg-slate-50 border-0 rounded-xl px-4 py-3 min-h-[80px]"
                       />
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* RIGHT col-4: Sidebar */}
+              <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-6">
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                  <h3 className="font-extrabold text-lg mb-6 text-slate-900">Resume de la demande</h3>
+                  <div className="space-y-5">
+                    {(() => {
+                      const emp = formData.employeeId ? employees.find(e => e.id === formData.employeeId) : null;
+                      const travelerName = emp ? `${emp.prenom} ${emp.nom}` : (formData.firstName || formData.lastName ? `${formData.firstName} ${formData.lastName}` : '—');
+                      return (
+                        <div className="flex gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                            <User className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Voyageur</p>
+                            <p className="text-sm font-bold text-slate-900 truncate">{travelerName}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                        <FileText className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Services</p>
+                        <p className="text-sm font-bold text-slate-900">
+                          {formData.selectedServices
+                            .map(id => services.find(s => s.id === id)?.label)
+                            .filter(Boolean)
+                            .join(' + ') || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                        <Sparkles className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Traitement</p>
+                        <p className="text-sm font-bold text-slate-900">Express (24-48h)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-slate-200 flex justify-between items-center">
+                    <p className="text-sm font-semibold text-slate-500">Sous-total</p>
+                    <p className="text-xl font-extrabold text-orange-600">
+                      {calculateTotal().toLocaleString()} FCFA
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                <div className="bg-teal-50 rounded-3xl p-6 border border-teal-100">
+                  <div className="flex items-start gap-4">
+                    <Lightbulb className="w-5 h-5 text-teal-700 mt-1 shrink-0" />
+                    <div>
+                      <h4 className="text-sm font-bold text-teal-900 mb-2">Conseil expert</h4>
+                      <p className="text-xs text-teal-800/80 leading-relaxed">
+                        Indiquez des dates precises et un motif clair. Cela accelere le traitement de vos attestations par les consulats.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </motion.div>
           )}
 
@@ -1063,54 +1272,105 @@ export default function TravelDocuments() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Mode de paiement</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {paymentMethods.map((option) => (
-                  <div
-                    key={option.value}
-                    onClick={() => handleChange('paymentMethod', option.value)}
-                    className={`
-                      flex items-center gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all
-                      ${formData.paymentMethod === option.value
-                        ? 'border-orange-400 bg-orange-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <div className="text-3xl">
-                      {option.icon === 'phone' ? <Phone className="w-8 h-8 text-orange-500" /> : <Globe className="w-8 h-8 text-orange-500" />}
+              {/* LEFT col-7: Payment options */}
+              <div className="lg:col-span-7 space-y-6">
+                {paymentMethods.map((option) => {
+                  const isSelected = formData.paymentMethod === option.value;
+                  const isCompany = option.value === 'company_account';
+                  return (
+                    <div
+                      key={option.value}
+                      onClick={() => handleChange('paymentMethod', option.value)}
+                      className={`p-8 rounded-3xl transition-all duration-300 cursor-pointer ${
+                        isSelected
+                          ? 'bg-white shadow-[0_12px_32px_rgba(23,28,31,0.08)] ring-1 ring-black/5'
+                          : 'bg-slate-50 hover:bg-white hover:shadow-[0_8px_24px_rgba(23,28,31,0.04)]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-6">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                          isCompany ? 'bg-orange-100 text-orange-600' : 'bg-teal-50 text-teal-600'
+                        }`}>
+                          {isCompany ? <Building2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1 gap-3">
+                            <h3 className="text-lg font-extrabold text-slate-900">{option.label}</h3>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                              isSelected
+                                ? isCompany ? 'border-orange-600 bg-orange-600' : 'border-teal-600 bg-teal-600'
+                                : 'border-slate-300'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                          </div>
+                          <p className="text-slate-500 text-sm leading-relaxed">{option.desc}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-800">{option.label}</p>
-                      <p className="text-sm text-slate-500">{option.desc}</p>
-                    </div>
-                    {formData.paymentMethod === option.value && (
-                      <Check className="w-5 h-5 text-orange-600" />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
+
+                <div className="flex items-center justify-center gap-3 py-4 text-slate-400">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Chiffrement SSL 256 bits actif</span>
+                </div>
               </div>
 
-              {/* Price summary */}
-              <div className="p-6 rounded-xl bg-slate-50">
-                <h4 className="font-medium text-slate-800 mb-4">Resume</h4>
-                <div className="space-y-2 text-sm">
-                  {formData.selectedServices.map(id => {
-                    const service = services.find(s => s.id === id);
-                    const tarif = findTarif(id);
-                    return service && (
-                      <div key={id} className="flex justify-between">
-                        <span>{service.label}</span>
-                        <span className="font-medium">{tarif ? Number(tarif.price).toLocaleString() : '—'} FCFA</span>
+              {/* RIGHT col-5: Order summary - dark card */}
+              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-6">
+                <div className="relative bg-slate-900 text-white rounded-3xl p-8 overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/30 blur-[60px] rounded-full -mr-16 -mt-16" />
+                  <h3 className="font-extrabold text-xl mb-6 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Resume de la commande
+                  </h3>
+                  <div className="space-y-4 mb-8">
+                    {formData.selectedServices.map(id => {
+                      const service = services.find(s => s.id === id);
+                      const tarif = findTarif(id);
+                      return service ? (
+                        <div key={id} className="flex justify-between items-center text-white/60 text-sm">
+                          <span>{service.label}</span>
+                          <span className="font-mono text-white">{tarif ? Number(tarif.price).toLocaleString() : '—'} FCFA</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                  <div className="pt-6 border-t border-white/10">
+                    <div className="flex justify-between items-end gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">Total a payer</p>
+                        <p className="text-3xl font-extrabold">
+                          {calculateTotal().toLocaleString()}
+                          <span className="text-base font-bold text-white/60 ml-2">FCFA</span>
+                        </p>
                       </div>
-                    );
-                  })}
+                      {user?.isTva && (
+                        <span className="text-[10px] text-orange-300 font-bold uppercase tracking-wider">TVA 18% non incluse</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="pt-3 mt-3 border-t border-slate-300 flex justify-between">
-                  <span className="font-semibold">Total</span>
-                  <span className="font-bold text-subito text-xl">{calculateTotal().toLocaleString()} FCFA</span>
+
+                {/* Traveler card */}
+                <div className="bg-slate-50 rounded-2xl p-6">
+                  <h4 className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-4">Voyageur</h4>
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-4 font-bold">
+                      {(formData.firstName?.[0] || '?')}{(formData.lastName?.[0] || '')}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-slate-900 truncate">
+                        {formData.firstName} {formData.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        Passeport : {formData.passport ? `****${formData.passport.slice(-4).toUpperCase()}` : '—'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1123,117 +1383,270 @@ export default function TravelDocuments() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
             >
-              {/* Services */}
-              <div className="bg-slate-50 rounded-2xl p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Services demandes</h3>
-                <div className="space-y-2">
-                  {formData.selectedServices.map(serviceId => {
-                    const service = services.find(s => s.id === serviceId);
-                    return service && (
-                      <div key={serviceId} className="flex items-center gap-2 text-slate-700">
-                        {service.id === 'flight' ? <Plane className="w-5 h-5" /> :
-                         <Globe className="w-5 h-5" />}
-                        {service.label}
+              {/* LEFT col-8: Data groups */}
+              <div className="lg:col-span-8 space-y-6">
+                {/* Applicant Details */}
+                <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-orange-600" />
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Personal Info */}
-              <div className="bg-slate-50 rounded-2xl p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Informations personnelles</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <span className="text-slate-500">Nom :</span>
-                  <span className="text-slate-800 font-medium">{formData.firstName} {formData.lastName}</span>
-
-                  <span className="text-slate-500">Passeport :</span>
-                  <span className="text-slate-800 font-mono">{formData.passport}</span>
-
-                  <span className="text-slate-500">Telephone :</span>
-                  <span className="text-slate-800">{formData.phone}</span>
-
-                  <span className="text-slate-500">Email :</span>
-                  <span className="text-slate-800">{formData.email}</span>
-                </div>
-              </div>
-
-              {/* Travel Details */}
-              <div className="bg-slate-50 rounded-2xl p-6">
-                <h3 className="font-semibold text-slate-800 mb-4">Details du voyage</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="text-lg font-extrabold text-slate-900">Voyageur</h3>
+                        <p className="text-xs text-slate-400">Informations principales</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(2)}
+                      className="text-orange-600 font-semibold text-sm hover:underline"
+                    >
+                      Modifier
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Depart</p>
-                      <p className="font-bold text-slate-800">{selectedDepartureCountry?.name}</p>
-                      <p className="text-sm text-slate-500">{formData.departureCity}</p>
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Nom complet</p>
+                      <p className="text-sm font-bold text-slate-900">{formData.firstName} {formData.lastName}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Destination</p>
-                      <p className="font-bold text-slate-800">{selectedCountry?.name}</p>
-                      <p className="text-sm text-slate-500">{formData.city}</p>
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Passeport</p>
+                      <p className="text-sm font-bold text-slate-900 font-mono uppercase">{formData.passport}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Nationalite</p>
+                      <p className="text-sm font-bold text-slate-900">{formData.nationality}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Email</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">{formData.email}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Date de depart</p>
-                      <p className="font-medium text-slate-800">
-                        {formData.departureDate && format(formData.departureDate, "dd MMM yyyy", { locale: fr })}
+                </section>
+
+                {/* Trip Configuration */}
+                <section className="bg-slate-50 rounded-3xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-100 rounded-bl-[100px]" />
+                  <div className="flex items-center justify-between mb-6 relative">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0">
+                        <PlaneTakeoff className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-extrabold text-slate-900">Configuration du voyage</h3>
+                        <p className="text-xs text-slate-400">Trajet et periode</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(3)}
+                      className="text-orange-600 font-semibold text-sm hover:underline relative"
+                    >
+                      Modifier
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
+                    <div className="bg-white p-4 rounded-xl">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Destination</p>
+                      <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{selectedCountry?.name || '—'}</span>
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1 ml-5">{formData.city}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date de depart</p>
+                      <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {formData.departureDate ? format(formData.departureDate, "dd MMM yyyy", { locale: fr }) : '—'}
+                        </span>
+                      </p>
+                      {formData.returnDate && (
+                        <p className="text-xs text-slate-500 mt-1 ml-5">
+                          retour {format(formData.returnDate, "dd MMM", { locale: fr })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-white p-4 rounded-xl">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Motif</p>
+                      <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{travelReasons.find(r => r.value === formData.reason)?.label || '—'}</span>
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Date de retour</p>
-                      <p className="font-medium text-slate-800">
-                        {formData.returnDate ? format(formData.returnDate, "dd MMM yyyy", { locale: fr }) : "Non definie"}
-                      </p>
-                    </div>
                   </div>
-                  <p className="text-sm text-slate-600">Motif : {travelReasons.find(r => r.value === formData.reason)?.label}</p>
-                </div>
-              </div>
+                </section>
 
-              {/* Hotel Summary */}
-              {hasHotel && (
-                <div className="bg-slate-50 rounded-2xl p-6">
-                  <h3 className="font-semibold text-slate-800 mb-4">Hebergement</h3>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <span className="text-slate-500">Categorie :</span>
-                    <span className="text-slate-800 font-medium">{categories.find(c => c.value === formData.category)?.label}</span>
-
-                    <span className="text-slate-500">Chambre :</span>
-                    <span className="text-slate-800">{roomTypes.find(r => r.value === formData.roomType)?.label}</span>
-
-                    <span className="text-slate-500">Personnes :</span>
-                    <span className="text-slate-800">{formData.persons}</span>
+                {/* Service Breakdown */}
+                <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-extrabold text-slate-900">Detail des services</h3>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(1)}
+                      className="text-orange-600 font-semibold text-sm hover:underline"
+                    >
+                      Modifier
+                    </button>
                   </div>
-                </div>
-              )}
+                  <div className="space-y-2">
+                    {formData.selectedServices.map(id => {
+                      const service = services.find(s => s.id === id);
+                      const tarif = findTarif(id);
+                      const isFlight = id === 'flight';
+                      return service ? (
+                        <div key={id} className="flex justify-between items-center p-4 hover:bg-slate-50 rounded-xl transition-colors">
+                          <div className="flex items-center gap-4">
+                            {isFlight
+                              ? <PlaneTakeoff className="w-5 h-5 text-teal-600 shrink-0" />
+                              : <Hotel className="w-5 h-5 text-teal-600 shrink-0" />}
+                            <div>
+                              <p className="font-bold text-slate-900">{service.label}</p>
+                              <p className="text-xs text-slate-500">
+                                {isFlight ? 'Attestation PDF livree sous 24h' : 'Confirmation hoteliere certifiee'}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="font-bold text-slate-900 shrink-0 ml-4">
+                            {tarif ? Number(tarif.price).toLocaleString() : '—'} FCFA
+                          </p>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </section>
 
-              {/* Total */}
-              <div className="p-6 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 text-white">
-                {user?.isTva ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-300">Total HT</span>
-                      <span className="text-lg font-semibold">{calculateTotal().toLocaleString()} FCFA</span>
+                {/* Hotel preferences if applicable */}
+                {hasHotel && (
+                  <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+                          <Hotel className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-extrabold text-slate-900">Hebergement</h3>
+                          <p className="text-xs text-slate-400">Preferences</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(3)}
+                        className="text-orange-600 font-semibold text-sm hover:underline"
+                      >
+                        Modifier
+                      </button>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-300">TVA (18%)</span>
-                      <span>{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Categorie</p>
+                        <p className="text-sm font-bold text-slate-900">
+                          {categories.find(c => c.value === formData.category)?.label || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Chambre</p>
+                        <p className="text-sm font-bold text-slate-900">
+                          {roomTypes.find(r => r.value === formData.roomType)?.label || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Personnes</p>
+                        <p className="text-sm font-bold text-slate-900">{formData.persons || '—'}</p>
+                      </div>
                     </div>
-                    <div className="border-t border-white/20 pt-2 flex items-center justify-between">
-                      <span className="text-lg font-semibold">Total TTC</span>
-                      <span className="text-3xl font-bold text-red-400">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-semibold">Total a payer</span>
-                    <span className="text-3xl font-bold text-red-400">{calculateTotal().toLocaleString()} FCFA</span>
-                  </div>
+                  </section>
                 )}
+              </div>
+
+              {/* RIGHT col-4: Payment & Action */}
+              <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6">
+                {/* Payment Preview */}
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                  <h3 className="text-lg font-extrabold text-slate-900 mb-6">Paiement</h3>
+                  <div className="flex items-center gap-4 p-4 bg-white rounded-xl mb-6 shadow-sm">
+                    <div className="w-12 h-8 bg-slate-900 rounded flex items-center justify-center shrink-0">
+                      {formData.paymentMethod === 'company_account'
+                        ? <Building2 className="w-4 h-4 text-white" />
+                        : <User className="w-4 h-4 text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {paymentMethods.find(p => p.value === formData.paymentMethod)?.label || '—'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {paymentMethods.find(p => p.value === formData.paymentMethod)?.desc}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(4)}
+                      className="text-orange-600 shrink-0"
+                      aria-label="Modifier le paiement"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-3 px-2">
+                    {user?.isTva ? (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Sous-total HT</span>
+                          <span className="font-medium text-slate-900">{calculateTotal().toLocaleString()} FCFA</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">TVA (18%)</span>
+                          <span className="font-medium text-slate-900">
+                            {Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA
+                          </span>
+                        </div>
+                        <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-end">
+                          <span className="text-slate-900 font-bold">Total TTC</span>
+                          <span className="text-xl font-extrabold text-orange-600">
+                            {Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="pt-3 mt-3 border-t border-slate-200 flex justify-between items-end">
+                        <span className="text-slate-900 font-bold">Total a payer</span>
+                        <span className="text-xl font-extrabold text-orange-600">
+                          {calculateTotal().toLocaleString()} FCFA
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Visual confirmation */}
+                <div className="relative h-40 rounded-3xl overflow-hidden bg-gradient-to-br from-orange-500 to-orange-600">
+                  <div className="absolute inset-0 opacity-20 flex items-center justify-center">
+                    <PlaneTakeoff className="w-32 h-32 text-white" />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
+                    <p className="text-white text-xs font-medium leading-snug">
+                      Pret au decollage. Vos documents seront traites des reception.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="w-5 h-5 mt-0.5 rounded-md border-slate-300 text-orange-600 focus:ring-orange-200 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-600 leading-relaxed group-hover:text-slate-900">
+                    Je certifie que toutes les informations sont exactes et j&apos;accepte les{' '}
+                    <a className="text-orange-600 underline" href="#">conditions generales</a> et les delais de traitement.
+                  </span>
+                </label>
               </div>
             </motion.div>
           )}

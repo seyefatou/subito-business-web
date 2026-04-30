@@ -146,7 +146,7 @@ export default function FuelConsumptionByDepartment({ fuelRequests, departments,
               }}
             />
             <Legend />
-            <Bar dataKey="cost" fill="#FF6B35" name="Cout" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="cost" fill="#E04A1F" name="Cout" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

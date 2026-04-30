@@ -23,7 +23,6 @@ import {
   Wallet,
   Smartphone,
   Search,
-  Plus,
   Loader2,
   CalendarDays,
   Car,
@@ -33,6 +32,8 @@ import {
   Building2,
   Copy,
   Check,
+  TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -784,163 +785,372 @@ export default function Billing() {
     { id: 'bictorys', label: 'Payer en ligne', icon: CreditCard, desc: 'Wave, Orange Money, carte bancaire…' },
   ];
 
+  // Editorial visualisations
+  const totalServiceAmount = Object.values(byCategory).reduce((s, v) => s + v, 0);
+  const sortedServices = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+  const topServices = sortedServices.slice(0, 5);
+  const maxService = topServices[0]?.[1] || 1;
+
+  const donutColors = ['#E04A1F', '#006972', '#585e6c', '#E04A1F', '#8ef2ff'];
+  const donutSegments: { label: string; pct: number; color: string }[] = [];
+  {
+    let cum = 0;
+    sortedServices.slice(0, 3).forEach(([label, value], i) => {
+      const pct = totalServiceAmount > 0 ? (value / totalServiceAmount) * 100 : 0;
+      donutSegments.push({ label, pct, color: donutColors[i] });
+      cum += pct;
+    });
+    if (donutSegments.length === 0) {
+      donutSegments.push({ label: 'Aucune donnee', pct: 100, color: '#dfe3e7' });
+    }
+  }
+  const conicGradient = (() => {
+    let cum = 0;
+    const stops = donutSegments.map((s) => {
+      const start = cum;
+      cum += s.pct;
+      return `${s.color} ${start.toFixed(2)}% ${cum.toFixed(2)}%`;
+    });
+    return `conic-gradient(${stops.join(', ')})`;
+  })();
+
+  const totalGlobal = totalPaid + totalPending;
+  const recoveryRate = totalGlobal > 0 ? Math.round((totalPaid / totalGlobal) * 100) : 0;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div className="space-y-8 -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Facturation</h1>
-          <p className="text-slate-500 mt-1">Gerez vos factures et paiements</p>
+          <h1
+            className="text-4xl font-extrabold tracking-tight text-[#171c1f] mb-2"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+          >
+            Facturation et reporting
+          </h1>
+          <p className="text-[#585e6c] font-medium">
+            Vue financiere detaillee pour {format(now, 'MMMM yyyy', { locale: fr })}.
+          </p>
         </div>
-        <Button
-          onClick={() => setShowRequestDialog(true)}
-          className="gradient-subito text-white border-0 gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Demander une facture
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setShowRequestDialog(true)}
+            className="px-6 py-2.5 bg-[#dfe3e7] text-[#171c1f] font-bold rounded-xl flex items-center gap-2 hover:bg-[#e4e9ed] transition-colors"
+          >
+            <CalendarDays className="w-4 h-4" />
+            Demander une facture
+          </button>
+          <Button
+            onClick={() => {
+              const inv = filteredInvoices[0];
+              if (inv) handleDownloadPDF(inv);
+              else toast.info('Aucune facture a exporter');
+            }}
+            className="px-6 py-2.5 bg-[#E04A1F] text-white font-bold rounded-xl shadow-lg shadow-[#E04A1F]/20 flex items-center gap-2 hover:opacity-90 transition-opacity"
+          >
+            <Download className="w-4 h-4" />
+            Exporter
+          </Button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Bento Grid */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Current Month Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
+          className="col-span-12 lg:col-span-4 bg-white p-8 rounded-[2rem] shadow-[0_8px_24px_rgba(23,28,31,0.04)] flex flex-col justify-between"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-xl bg-orange-100">
-              <Wallet className="w-4 h-4 text-subito" />
+          <div>
+            <div className="flex items-center justify-between mb-8">
+              <span className="bg-[#E04A1F]/10 text-[#E04A1F] px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                Mois en cours
+              </span>
+              <Wallet className="w-5 h-5 text-[#E04A1F]" />
             </div>
-            <span className="text-slate-600 text-xs sm:text-sm">Mois en cours</span>
+            <h3 className="text-[#585e6c] font-semibold mb-2">Depenses totales</h3>
+            <p
+              className="text-5xl font-black text-[#171c1f] mb-4"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {currentMonthTotal.toLocaleString()} <span className="text-2xl text-slate-500">FCFA</span>
+            </p>
+            <div className="flex items-center gap-2 text-[#006972] font-bold text-sm">
+              <TrendingUp className="w-4 h-4" />
+              <span>{currentMonthCount} reservation{currentMonthCount > 1 ? 's' : ''} ce mois</span>
+            </div>
           </div>
-          <p className="text-base sm:text-lg font-bold text-slate-800">{currentMonthTotal.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
-          <p className="text-xs text-slate-500 mt-1">{currentMonthCount} réservation{currentMonthCount > 1 ? 's' : ''} ce mois</p>
+          <div className="mt-8 pt-8 border-t border-[#eaeef2]">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-[#585e6c] font-medium">Taux de recouvrement</span>
+              <span className="text-[#171c1f] font-bold">{recoveryRate}%</span>
+            </div>
+            <div className="w-full bg-[#eaeef2] h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-[#E04A1F] h-full rounded-full transition-all"
+                style={{ width: `${recoveryRate}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs mt-2 text-[#585e6c]">
+              <span>Paye : {totalPaid.toLocaleString()} FCFA</span>
+              <span>En attente : {totalPending.toLocaleString()} FCFA</span>
+            </div>
+          </div>
         </motion.div>
 
+        {/* Spending by Service - Bar Chart */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
+          className="col-span-12 lg:col-span-8 bg-white p-8 rounded-[2rem] shadow-[0_8px_24px_rgba(23,28,31,0.04)]"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-xl bg-amber-100">
-              <Clock className="w-4 h-4 text-amber-600" />
+          <div className="flex items-center justify-between mb-8">
+            <h3
+              className="font-bold text-xl text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              Tendance par service
+            </h3>
+            <div className="flex bg-[#eaeef2] p-1 rounded-lg">
+              <button className="px-4 py-1.5 rounded-md bg-white text-[#171c1f] shadow-sm font-bold text-xs">
+                Top 5
+              </button>
+              <button className="px-4 py-1.5 rounded-md text-[#585e6c] font-bold text-xs">
+                Tout
+              </button>
             </div>
-            <span className="text-slate-600 text-xs sm:text-sm">En attente</span>
           </div>
-          <p className="text-base sm:text-lg font-bold text-slate-800">{totalPending.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
-          <p className="text-xs text-slate-500 mt-1">
-            {invoices.filter(i => i.status === 'pending').length} facture(s)
-          </p>
+          {topServices.length === 0 ? (
+            <div className="h-64 flex items-center justify-center text-slate-400 italic">
+              Aucune depense ce mois
+            </div>
+          ) : (
+            <div className="h-64 flex items-end justify-between gap-3 px-2">
+              {topServices.map(([label, value], i) => {
+                const heightPct = Math.max(8, Math.round((value / maxService) * 100));
+                const isTop = i === 0;
+                return (
+                  <div key={label} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                    <div
+                      className={`w-full rounded-t-xl group relative transition-colors ${
+                        isTop
+                          ? 'bg-[#E04A1F] shadow-lg shadow-[#E04A1F]/20'
+                          : 'bg-[#f0f4f8] hover:bg-[#ffdbd0]/60'
+                      }`}
+                      style={{ height: `${heightPct}%` }}
+                    >
+                      <div
+                        className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-[#171c1f] text-white text-[10px] px-2 py-1 rounded transition-opacity ${
+                          isTop ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        } whitespace-nowrap`}
+                      >
+                        {Math.round(value).toLocaleString()} F
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold uppercase truncate w-full text-center ${
+                        isTop ? 'text-[#E04A1F]' : 'text-[#585e6c]'
+                      }`}
+                      title={label}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
 
+        {/* Service Distribution - Donut */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
+          className="col-span-12 lg:col-span-5 bg-white p-8 rounded-[2rem] shadow-[0_8px_24px_rgba(23,28,31,0.04)]"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-xl bg-green-100">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
+          <h3
+            className="font-bold text-xl text-[#171c1f] mb-8"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+          >
+            Repartition par service
+          </h3>
+          <div className="flex items-center gap-8">
+            <div className="relative w-40 h-40 flex-shrink-0">
+              <div
+                className="w-full h-full rounded-full"
+                style={{ background: conicGradient }}
+              />
+              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center text-center">
+                <span
+                  className="text-[#171c1f] font-black text-base"
+                  style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                >
+                  {format(now, 'MMM', { locale: fr })}
+                </span>
+                <span className="text-[10px] text-[#585e6c] font-medium">
+                  {format(now, 'yyyy', { locale: fr })}
+                </span>
+              </div>
             </div>
-            <span className="text-slate-600 text-xs sm:text-sm">Total paye</span>
+            <div className="flex-1 space-y-4">
+              {donutSegments.map((s) => (
+                <div key={s.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    <span className="text-sm font-medium text-[#585e6c] truncate">
+                      {s.label}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold ml-2 shrink-0">
+                    {Math.round(s.pct)}%
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-base sm:text-lg font-bold text-slate-800">{totalPaid.toLocaleString()} <span className="text-xs sm:text-sm font-semibold text-slate-500">FCFA</span></p>
-          <p className="text-xs text-slate-500 mt-1">
-            {invoices.filter(i => i.status === 'paid').length} facture(s)
-          </p>
         </motion.div>
 
+        {/* Recent Invoices Archive */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5"
+          className="col-span-12 lg:col-span-7 bg-white p-8 rounded-[2rem] shadow-[0_8px_24px_rgba(23,28,31,0.04)]"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-xl bg-blue-100">
-              <FileText className="w-4 h-4 text-blue-600" />
-            </div>
-            <span className="text-slate-600 text-xs sm:text-sm">Total factures</span>
+          <div className="flex items-center justify-between mb-6">
+            <h3
+              className="font-bold text-xl text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              Factures recentes
+            </h3>
+            <a href="#invoices-history" className="text-[#E04A1F] font-bold text-sm hover:underline">
+              Voir tout
+            </a>
           </div>
-          <p className="text-base sm:text-lg font-bold text-slate-800">{Number(summaryRaw?.totalInvoices ?? invoicesMeta?.total ?? invoices.length)}</p>
-          <p className="text-xs text-slate-500 mt-1">
-            {currentMonthCount} réservation{currentMonthCount > 1 ? 's' : ''} ce mois
-          </p>
+          <div className="space-y-3">
+            {filteredInvoices.length === 0 ? (
+              <p className="text-slate-400 italic text-center py-4">
+                Aucune facture pour le moment
+              </p>
+            ) : (
+              filteredInvoices.slice(0, 3).map((invoice) => {
+                const status = statusConfig[invoice.status] || statusConfig.pending;
+                const statusLabel = invoice.status === 'paid' ? 'Payee' : invoice.status === 'overdue' ? 'En retard' : 'En attente';
+                const statusColors = invoice.status === 'paid'
+                  ? 'bg-[#ffdbd0] text-[#3a0a00]'
+                  : invoice.status === 'overdue'
+                  ? 'bg-[#ffdad6] text-[#93000a]'
+                  : 'bg-[#dde2f3] text-[#414754]';
+                return (
+                  <div
+                    key={invoice.id}
+                    onClick={() => setSelectedInvoiceId(invoice.id)}
+                    className="flex items-center justify-between p-4 bg-[#f0f4f8] rounded-2xl hover:bg-[#e4e9ed] transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#E04A1F] shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-[#171c1f] truncate">
+                          {invoice.invoice_number || `Facture #${invoice.id}`}
+                        </h4>
+                        <p className="text-xs text-[#585e6c] font-medium">
+                          {invoice.created_date
+                            ? format(new Date(invoice.created_date), 'dd MMM yyyy', { locale: fr })
+                            : '—'}
+                          {' '}•{' '}
+                          {(invoice.total_amount || 0).toLocaleString()} FCFA
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-3 py-1 ${statusColors} text-[10px] font-black uppercase rounded-full`}>
+                        {statusLabel}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadPDF(invoice);
+                        }}
+                        className="p-2 text-[#585e6c] hover:text-[#E04A1F] transition-colors"
+                        title="Telecharger PDF"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </motion.div>
+
+        {/* Automated Billing CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="col-span-12 bg-[#eaeef2] p-1 rounded-[2.5rem]"
+        >
+          <div className="bg-white rounded-[2.4rem] p-8 flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-shrink-0 w-24 h-24 bg-[#00acbb]/10 rounded-3xl flex items-center justify-center">
+              <ShieldCheck className="w-10 h-10 text-[#006972]" />
+            </div>
+            <div className="flex-1">
+              <h3
+                className="font-bold text-2xl text-[#171c1f] mb-2"
+                style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+              >
+                Facture previsionnelle — {format(now, 'MMMM yyyy', { locale: fr })}
+              </h3>
+              <p className="text-[#585e6c] font-medium max-w-2xl">
+                {prevCount} reservation{prevCount > 1 ? 's' : ''} non facturee{prevCount > 1 ? 's' : ''} pour un total previsionnel de{' '}
+                <strong className="text-[#171c1f]">{prevTotal.toLocaleString()} FCFA</strong>. La facture consolidee sera generee le{' '}
+                {format(monthEnd, 'dd MMMM yyyy', { locale: fr })}.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 w-full md:w-auto">
+              <button
+                onClick={() => setShowRequestDialog(true)}
+                className="px-8 py-3 bg-[#171c1f] text-white font-bold rounded-2xl hover:bg-[#2c3134] transition-colors"
+              >
+                Generer maintenant
+              </button>
+              <a
+                href="#invoices-history"
+                className="px-8 py-3 text-[#585e6c] font-bold hover:text-[#171c1f] transition-colors text-center"
+              >
+                Voir l&apos;historique
+              </a>
+            </div>
+          </div>
         </motion.div>
       </div>
 
       {/* Main content */}
-      <Tabs defaultValue="invoices" className="space-y-6">
-        <TabsList className="bg-slate-100">
-          <TabsTrigger value="current">Mois en cours</TabsTrigger>
-          <TabsTrigger value="invoices">Historique factures</TabsTrigger>
-          <TabsTrigger value="payment">Moyens de paiement</TabsTrigger>
+      <Tabs id="invoices-history" defaultValue="invoices" className="space-y-6">
+        <TabsList className="bg-[#f0f4f8] p-1.5 rounded-xl">
+          <TabsTrigger
+            value="invoices"
+            className="data-[state=active]:bg-white data-[state=active]:text-[#E04A1F] data-[state=active]:font-bold rounded-lg px-5"
+          >
+            Historique factures
+          </TabsTrigger>
+          <TabsTrigger
+            value="payment"
+            className="data-[state=active]:bg-white data-[state=active]:text-[#E04A1F] data-[state=active]:font-bold rounded-lg px-5"
+          >
+            Moyens de paiement
+          </TabsTrigger>
         </TabsList>
-
-        {/* Current month breakdown */}
-        <TabsContent value="current" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* By service */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-slate-200 p-6"
-            >
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Par service</h3>
-              <div className="space-y-3">
-                {Object.entries(byCategory).map(([cat, amount]) => (
-                  <div key={cat} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-600 capitalize text-sm truncate">{cat}</span>
-                    <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">{amount.toLocaleString()} FCFA</span>
-                  </div>
-                ))}
-                {Object.keys(byCategory).length === 0 && (
-                  <p className="text-slate-400 text-center py-4">Aucune depense ce mois</p>
-                )}
-              </div>
-            </motion.div>
-
-            {/* By department */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-2xl border border-slate-200 p-6"
-            >
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Par departement</h3>
-              <div className="space-y-3">
-                {Object.entries(byDepartment).map(([dept, amount]) => (
-                  <div key={dept} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0">
-                    <span className="text-slate-600 text-sm truncate">{dept}</span>
-                    <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">{amount.toLocaleString()} FCFA</span>
-                  </div>
-                ))}
-                {Object.keys(byDepartment).length === 0 && (
-                  <p className="text-slate-400 text-center py-4">Aucune depense ce mois</p>
-                )}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Preview invoice */}
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 sm:p-6 text-white">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <p className="text-slate-400 text-xs sm:text-sm">Facture previsionnelle - {format(now, 'MMMM yyyy', { locale: fr })}</p>
-                <p className="text-lg sm:text-xl font-bold mt-2">{prevTotal.toLocaleString()} <span className="text-sm font-semibold text-slate-400">FCFA</span></p>
-                <p className="text-slate-400 text-xs sm:text-sm mt-1">{prevCount} reservation{prevCount > 1 ? 's' : ''} non facturee{prevCount > 1 ? 's' : ''}</p>
-              </div>
-              <div className="sm:text-right">
-                <p className="text-slate-400 text-xs sm:text-sm">Date de facturation</p>
-                <p className="font-medium mt-1 text-sm sm:text-base">{format(monthEnd, 'dd MMMM yyyy', { locale: fr })}</p>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
 
         {/* Invoices history */}
         <TabsContent value="invoices" className="space-y-4">

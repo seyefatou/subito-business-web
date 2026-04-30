@@ -1,29 +1,30 @@
 'use client';
 
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, DashboardData, TravelDocumentResponse, ServiceReservationResponse } from "@/lib/api";
+import { api, TravelDocumentResponse, ServiceReservationResponse } from "@/lib/api";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ShoppingCart,
   Wallet,
-  ArrowRight,
-  Sparkles,
   Download,
+  ShoppingCart,
+  Activity,
+  Loader2,
+  TrendingUp,
   Zap,
   Plane,
-  TrendingUp,
-  TrendingDown,
-  Loader2,
-  Activity,
+  Car,
+  Package,
+  ChevronRight,
+  Clock,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
-import KPICard from "@/components/dashboard/KPICard";
-import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import LiveMap from "@/components/dashboard/LiveMap";
 import ServiceUsageChart from "@/components/dashboard/ServiceUsageChart";
+import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 
 const SERVICE_LABELS: Record<string, string> = {
   airport_shuttle: 'Navette Aéroport',
@@ -39,7 +40,6 @@ const SERVICE_LABELS: Record<string, string> = {
   FLOTTE: 'Location véhicule',
 };
 
-// Both dashboard endpoints return the same structure
 interface RealDashboardData {
   summary?: {
     monthlyOrders?: number;
@@ -59,31 +59,28 @@ interface RealDashboardData {
 }
 
 export default function Dashboard() {
-  // 1. Booking dashboard
+  const [period, setPeriod] = useState<"today" | "7d" | "30d">("30d");
+
   const { data: bookingDashRaw, isLoading: loadingBookings } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api.bookings.dashboard(),
   });
+  const bookingDash: RealDashboardData | undefined =
+    (bookingDashRaw?.data as unknown as RealDashboardData) || undefined;
 
-  // API returns { message, status, data: { summary, kpis, servicesDistribution } }
-  const bookingDash: RealDashboardData | undefined = (bookingDashRaw?.data as unknown as RealDashboardData) || undefined;
-
-  // 2. Travel docs dashboard
   const { data: travelDashRaw, isLoading: loadingTravel } = useQuery({
     queryKey: ['travel-docs-dashboard'],
     queryFn: () => api.travelDocuments.dashboard(),
   });
+  const travelDash: RealDashboardData | undefined =
+    (travelDashRaw?.data as unknown as RealDashboardData) || undefined;
 
-  const travelDash: RealDashboardData | undefined = (travelDashRaw?.data as unknown as RealDashboardData) || undefined;
-
-  // 3. Recent bookings
   const { data: bookingsResponse } = useQuery({
     queryKey: ['bookings-recent'],
     queryFn: () => api.bookings.list(1, 10),
   });
   const recentBookings = bookingsResponse?.data?.items || [];
 
-  // 4. Recent travel documents
   const { data: travelDocsResponse } = useQuery({
     queryKey: ['travel-docs-recent'],
     queryFn: () => api.travelDocuments.list({ page: 1, limit: 10 }),
@@ -96,7 +93,6 @@ export default function Dashboard() {
       || (travelDocsData as Record<string, unknown>)?.list as TravelDocumentResponse[]
       || [];
 
-  // 5. Recent service reservations (logement, activite, flotte)
   const { data: serviceResResponse, isLoading: loadingServiceRes } = useQuery({
     queryKey: ['service-reservations-recent'],
     queryFn: () => api.serviceReservations.list(1, 10),
@@ -113,25 +109,20 @@ export default function Dashboard() {
   const isLoading = loadingBookings || loadingTravel || loadingServiceRes;
 
   // ==================== COMPUTED DATA ====================
-
-  // Bookings KPIs (from { summary, kpis, servicesDistribution })
   const bkOrders = bookingDash?.kpis?.monthlyOrders || bookingDash?.summary?.monthlyOrders || 0;
   const bkExpenses = bookingDash?.kpis?.monthlyExpenses || 0;
   const bkInProgress = bookingDash?.summary?.ordersInProgress || bookingDash?.summary?.activeOperations || 0;
   const bkExpensesChange = bookingDash?.kpis?.expensesChange;
   const bkTopService = bookingDash?.kpis?.topService;
 
-  // Travel docs KPIs (same structure)
   const tdOrders = travelDash?.kpis?.monthlyOrders || travelDash?.summary?.monthlyOrders || 0;
   const tdExpenses = travelDash?.kpis?.monthlyExpenses || 0;
   const tdInProgress = travelDash?.summary?.ordersInProgress || travelDash?.summary?.activeOperations || 0;
 
-  // Combined totals
   const grandTotalOrders = bkOrders + tdOrders;
   const grandTotalSpent = bkExpenses + tdExpenses;
   const grandActiveOps = bkInProgress + tdInProgress;
 
-  // Merge servicesDistribution from both
   const serviceMap: Record<string, { count: number; total: number }> = {};
   for (const item of bookingDash?.servicesDistribution || []) {
     const key = item.service;
@@ -145,7 +136,6 @@ export default function Dashboard() {
     serviceMap[key].count += item.count;
     serviceMap[key].total += item.total;
   }
-  // Add service reservations (logement, activite, flotte) to serviceMap
   for (const sr of recentServiceRes) {
     const key = sr.serviceType || 'ACTIVITE';
     if (!serviceMap[key]) serviceMap[key] = { count: 0, total: 0 };
@@ -153,7 +143,6 @@ export default function Dashboard() {
     serviceMap[key].total += Number(sr.totalPrice || 0);
   }
 
-  // Most used service (by count)
   const topServiceEntry = Object.entries(serviceMap).sort((a, b) => b[1].count - a[1].count)[0];
   const topServiceLabel = topServiceEntry
     ? SERVICE_LABELS[topServiceEntry[0]] || topServiceEntry[0].replace(/_/g, ' ')
@@ -162,7 +151,6 @@ export default function Dashboard() {
     : '—';
   const topServiceCount = topServiceEntry?.[1]?.count || bkTopService?.count || 0;
 
-  // Build orders for ActivityTimeline, LiveMap, ServiceUsageChart
   const bookingOrders = recentBookings.map(b => ({
     id: String(b.id),
     created_date: b.createdAt || '',
@@ -222,156 +210,315 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-orange-500 mx-auto mb-4" />
+          <Loader2 className="w-10 h-10 animate-spin text-[#E04A1F] mx-auto mb-4" />
           <p className="text-slate-500">Chargement du tableau de bord...</p>
         </div>
       </div>
     );
   }
 
+  const statCards = [
+    {
+      label: "Depenses ce mois",
+      value: `${grandTotalSpent.toLocaleString("fr-FR")} FCFA`,
+      icon: Wallet,
+      iconBg: "bg-orange-50",
+      iconColor: "text-[#E04A1F]",
+      trend:
+        bkExpensesChange != null
+          ? {
+              value: `${bkExpensesChange >= 0 ? "+" : ""}${bkExpensesChange.toFixed(1)}%`,
+              up: bkExpensesChange >= 0,
+            }
+          : null,
+    },
+    {
+      label: "Commandes ce mois",
+      value: grandTotalOrders.toString(),
+      icon: ShoppingCart,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      trend: { value: "En cours", up: true, neutral: true },
+    },
+    {
+      label: "Operations actives",
+      value: grandActiveOps.toString(),
+      icon: Activity,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      trend: null,
+    },
+    {
+      label: "Service principal",
+      value: topServiceLabel,
+      sub: topServiceCount > 0 ? `${topServiceCount} commandes` : "Aucune donnee",
+      icon: Zap,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-600",
+      trend: null,
+    },
+  ];
+
+  const quickActions = [
+    {
+      label: "Reserver Navette",
+      desc: "Trajet groupe d'entreprise",
+      icon: Plane,
+      iconBg: "bg-orange-50",
+      iconColor: "text-[#E04A1F]",
+      href: "/airport-shuttle",
+    },
+    {
+      label: "Commander VTC",
+      desc: "Service premium individuel",
+      icon: Car,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      href: "/hourly-vtc",
+    },
+    {
+      label: "Envoyer un Colis",
+      desc: "Livraison express locale",
+      icon: Package,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-600",
+      href: "/deliveries",
+    },
+    {
+      label: "Inter-villes",
+      desc: "Trajet longue distance",
+      icon: Car,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      href: "/inter-city",
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div className="space-y-8 -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <motion.h1
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl font-bold text-slate-800"
+            className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
           >
             Tableau de bord
           </motion.h1>
-          <p className="text-slate-500 mt-1">
-            Vue d&apos;ensemble de vos opérations
+          <p className="text-[#585e6c] font-medium mt-1">
+            Aperçu en temps reel de votre activite — {format(new Date(), "MMMM yyyy", { locale: fr })}.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex bg-[#f0f4f8] p-1 rounded-xl">
+            {[
+              { id: "today", label: "Aujourd'hui" },
+              { id: "7d", label: "7 Jours" },
+              { id: "30d", label: "30 Jours" },
+            ].map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPeriod(p.id as typeof period)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                  period === p.id
+                    ? "bg-white shadow-sm text-[#171c1f]"
+                    : "text-[#585e6c] hover:text-[#171c1f]"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
           <Link href="/reports">
-            <Button variant="outline" className="gap-2">
+            <button className="px-5 py-2.5 bg-[#E04A1F] text-white font-bold rounded-xl shadow-lg shadow-[#E04A1F]/20 flex items-center gap-2 hover:opacity-90 transition-opacity">
               <Download className="w-4 h-4" />
               Rapport DG
-            </Button>
+            </button>
           </Link>
         </div>
       </div>
 
-      {/* Smart notification banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6"
-      >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full transform translate-x-20 -translate-y-20" />
-        <div className="relative flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-orange-500/20">
-            <Sparkles className="w-6 h-6 text-orange-400" />
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">
-              {grandTotalOrders} commande{grandTotalOrders > 1 ? 's' : ''} ce mois
-              {topServiceLabel !== '—' && ` — service principal : ${topServiceLabel} (${topServiceCount})`}
-            </p>
-            <p className="text-slate-400 text-sm mt-0.5">
-              {grandActiveOps} opération{grandActiveOps > 1 ? 's' : ''} en cours
-              {grandTotalSpent > 0 && ` • ${grandTotalSpent.toLocaleString()} FCFA de dépenses`}
-            </p>
-          </div>
-          <Link href="/tracking">
-            <Button variant="secondary" size="sm" className="whitespace-nowrap">
-              Voir les détails
-            </Button>
-          </Link>
-        </div>
-      </motion.div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="Dépenses ce mois"
-          value={`${grandTotalSpent.toLocaleString()} FCFA`}
-          subtitle={`${bkExpenses.toLocaleString()} résa + ${tdExpenses.toLocaleString()} docs`}
-          icon={Wallet}
-          gradient
-          delay={0}
-          trend={bkExpensesChange != null ? (bkExpensesChange >= 0 ? 'up' : 'down') : undefined}
-          trendValue={bkExpensesChange != null ? `${Math.abs(bkExpensesChange)}%` : undefined}
-        />
-        <KPICard
-          title="Commandes ce mois"
-          value={grandTotalOrders}
-          subtitle={`${bkOrders} résa + ${tdOrders} docs voyage`}
-          icon={ShoppingCart}
-          delay={0.1}
-        />
-        <KPICard
-          title="Opérations en cours"
-          value={grandActiveOps}
-          subtitle={`${bkInProgress} résa + ${tdInProgress} docs`}
-          icon={Activity}
-          delay={0.2}
-        />
-        <KPICard
-          title="Service principal"
-          value={topServiceLabel}
-          subtitle={topServiceCount > 0 ? `${topServiceCount} commandes` : 'Aucune donnée'}
-          icon={Zap}
-          delay={0.3}
-        />
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((s, i) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="bg-white p-6 rounded-[1.5rem] shadow-[0_8px_24px_rgba(23,28,31,0.02)] flex flex-col justify-between min-h-[160px] group hover:shadow-lg transition-all duration-300"
+          >
+            <div className="flex justify-between items-start">
+              <div className={`p-3 ${s.iconBg} ${s.iconColor} rounded-xl group-hover:scale-110 transition-transform`}>
+                <s.icon className="w-5 h-5" />
+              </div>
+              {s.trend && (
+                <span
+                  className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    s.trend.neutral
+                      ? "text-blue-600 bg-blue-50"
+                      : s.trend.up
+                      ? "text-emerald-600 bg-emerald-50"
+                      : "text-red-600 bg-red-50"
+                  }`}
+                >
+                  {!s.trend.neutral && (
+                    <TrendingUp className="w-3 h-3 inline mr-1" />
+                  )}
+                  {s.trend.value}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#585e6c]">{s.label}</p>
+              <h3
+                className="text-2xl font-extrabold text-[#171c1f] mt-1 truncate"
+                style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                title={s.value}
+              >
+                {s.value}
+              </h3>
+              {s.sub && (
+                <p className="text-xs text-slate-400 mt-0.5 truncate">{s.sub}</p>
+              )}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column - Map */}
-        <div className="lg:col-span-2">
-          <LiveMap orders={orders} />
+      {/* Main Layout Grid */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Left: Map */}
+        <div className="col-span-12 lg:col-span-8 space-y-6">
+          <div className="bg-white rounded-[2rem] overflow-hidden shadow-[0_8px_24px_rgba(23,28,31,0.04)]">
+            <LiveMap orders={orders} />
+          </div>
         </div>
 
-        {/* Right column - Chart */}
-        <div>
+        {/* Right: Quick Actions + Service Distribution */}
+        <div className="col-span-12 lg:col-span-4 space-y-6">
+          <section>
+            <h4 className="text-sm font-bold text-[#585e6c] uppercase tracking-widest mb-4 px-2">
+              Actions rapides
+            </h4>
+            <div className="space-y-3">
+              {quickActions.map((a) => (
+                <Link key={a.label} href={a.href}>
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="w-full flex items-center justify-between p-4 bg-white hover:bg-orange-50 rounded-2xl border border-transparent hover:border-orange-200 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-xl ${a.iconBg} ${a.iconColor} flex items-center justify-center`}>
+                        <a.icon className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-[#171c1f] group-hover:text-[#E04A1F]">
+                          {a.label}
+                        </p>
+                        <p className="text-xs text-[#585e6c]">{a.desc}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#E04A1F] transition-transform group-hover:translate-x-1" />
+                  </motion.button>
+                </Link>
+              ))}
+            </div>
+          </section>
+
           <ServiceUsageChart serviceDistribution={serviceMap} />
         </div>
       </div>
 
-      {/* Bottom section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ActivityTimeline activities={orders.slice(0, 5)} />
-
-        {/* Quick actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-2xl border border-slate-200 p-6"
-        >
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Actions rapides</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Navette Aéroport", icon: "✈️", href: "/airport-shuttle" },
-              { label: "Inter-villes", icon: "🚗", href: "/inter-city" },
-              { label: "VTC Horaire", icon: "🕐", href: "/hourly-vtc" },
-              { label: "Documents Voyage", icon: "📄", href: "/travel-documents" },
-              { label: "Livraison de courrier", icon: "📦", href: "/livraisons-courrier" },
-              { label: "Suivi de commande", icon: "📍", href: "/orders" },
-            ].map((action) => (
-              <Link key={action.label} href={action.href}>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="p-4 rounded-xl border border-slate-200 hover:border-orange-200 hover:bg-orange-50/50 transition-all cursor-pointer group"
+      {/* Recent Activity */}
+      <section className="bg-[#f0f4f8] p-6 md:p-8 rounded-[2rem]">
+        <div className="flex justify-between items-center mb-6">
+          <h3
+            className="text-xl font-bold text-[#171c1f]"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+          >
+            Historique des trajets
+          </h3>
+          <Link
+            href="/tracking"
+            className="text-sm font-bold text-[#E04A1F] hover:underline flex items-center gap-1"
+          >
+            Voir tout
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="space-y-2">
+          {orders.slice(0, 5).length === 0 ? (
+            <p className="text-slate-400 italic text-center py-6">
+              Aucune activite recente
+            </p>
+          ) : (
+            orders.slice(0, 5).map((o) => {
+              const status = (o.status || "").toLowerCase();
+              const statusPill = status.includes("complet") || status === "paid" || status === "termine"
+                ? "bg-[#ffdbd0] text-[#3a0a00]"
+                : status.includes("pend") || status.includes("attente")
+                ? "bg-[#dde2f3] text-[#414754]"
+                : status.includes("cancel") || status.includes("annul")
+                ? "bg-[#ffdad6] text-[#93000a]"
+                : "bg-[#dfe3e7] text-[#171c1f]";
+              const statusLabel = status.includes("complet") || status === "paid" || status === "termine"
+                ? "Termine"
+                : status.includes("pend") || status.includes("attente")
+                ? "En attente"
+                : status.includes("cancel") || status.includes("annul")
+                ? "Annule"
+                : (o.status || "—");
+              const serviceLabel = SERVICE_LABELS[o.service_type] || o.service_type.replace(/_/g, " ") || "Service";
+              return (
+                <div
+                  key={o.id}
+                  className="grid grid-cols-12 items-center p-4 bg-white rounded-2xl hover:bg-orange-50/30 transition-colors group gap-2"
                 >
-                  <span className="text-2xl">{action.icon}</span>
-                  <p className="font-medium text-slate-700 mt-2 group-hover:text-subito transition-colors">
-                    {action.label}
-                  </p>
-                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-subito mt-1 transition-colors" />
-                </motion.div>
-              </Link>
-            ))}
-          </div>
-        </motion.div>
-      </div>
+                  <div className="col-span-2 sm:col-span-1 flex items-center justify-center">
+                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-[#E04A1F] group-hover:bg-white transition-colors">
+                      <Car className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="col-span-10 sm:col-span-4 sm:pl-4 min-w-0">
+                    <p className="font-bold text-[#171c1f] truncate">{serviceLabel}</p>
+                    <p className="text-xs text-[#585e6c] truncate">
+                      ID: {o.id} {o.beneficiary_name && o.beneficiary_name !== "-" && `• ${o.beneficiary_name}`}
+                    </p>
+                  </div>
+                  <div className="col-span-6 sm:col-span-3 min-w-0">
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {o.created_date
+                        ? format(new Date(o.created_date), "dd MMM • HH:mm", { locale: fr })
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="col-span-3 sm:col-span-2 flex justify-start">
+                    <span className={`px-3 py-1 ${statusPill} text-[10px] font-black uppercase tracking-wider rounded-full whitespace-nowrap`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div className="col-span-3 sm:col-span-2 text-right">
+                    <p
+                      className="font-black text-[#171c1f]"
+                      style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                    >
+                      {(o.final_cost || 0).toLocaleString("fr-FR")} FCFA
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* Activity Timeline (compact alt view) */}
+      <ActivityTimeline activities={orders.slice(0, 5)} />
     </div>
   );
 }

@@ -264,6 +264,11 @@ export default function AirportShuttle() {
   // The trajet selected by the user (when they pick a vehicle)
   const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
 
+  // First available vehicle image across navette trajets — used as Premium Velocity card background
+  const premiumVehicleImage: string | undefined = trajets
+    .map(t => (Array.isArray(t.vehicule?.image) ? t.vehicule?.image?.[0] : t.vehicule?.image))
+    .find((img): img is string => typeof img === 'string' && img.length > 0);
+
   // Create booking mutation
   const createBooking = useMutation({
     mutationFn: (data: CreateAirportShuttleBookingDto) => api.bookings.createAirportShuttle(data),
@@ -442,7 +447,7 @@ export default function AirportShuttle() {
         className="max-w-6xl mx-auto space-y-8"
       >
         {/* Hero */}
-        <section className="relative overflow-hidden rounded-[2rem] bg-[#FF6B35] p-10 md:p-14 text-white shadow-xl">
+        <section className="relative overflow-hidden rounded-[2rem] bg-[#E04A1F] p-10 md:p-14 text-white shadow-xl">
           <div className="relative z-10 flex flex-col items-center text-center gap-6">
             <div className="bg-white/20 backdrop-blur-md rounded-full p-4 ring-8 ring-white/10">
               <CheckCircle2 className="w-14 h-14" strokeWidth={2.5} />
@@ -465,7 +470,7 @@ export default function AirportShuttle() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
             <div className="flex items-center gap-4 mb-5">
-              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#FF6B35]">
+              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#E04A1F]">
                 <MapPin className="w-5 h-5" />
               </div>
               <h3 className="font-extrabold text-lg text-slate-900">Trajet</h3>
@@ -478,7 +483,7 @@ export default function AirportShuttle() {
               <div className="flex-1 px-4">
                 <div className="h-[2px] bg-slate-200 relative">
                   <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-2">
-                    <Plane className="w-4 h-4 text-[#FF6B35]" />
+                    <Plane className="w-4 h-4 text-[#E04A1F]" />
                   </div>
                 </div>
               </div>
@@ -505,7 +510,7 @@ export default function AirportShuttle() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Heure</span>
-                <span className="font-semibold text-[#FF6B35]">{formData.departure_time}</span>
+                <span className="font-semibold text-[#E04A1F]">{formData.departure_time}</span>
               </div>
             </div>
           </div>
@@ -518,7 +523,7 @@ export default function AirportShuttle() {
               <h3 className="font-extrabold text-lg text-slate-900">Voyageur</h3>
             </div>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[#FF6B35] text-white flex items-center justify-center font-bold">
+              <div className="w-12 h-12 rounded-full bg-[#E04A1F] text-white flex items-center justify-center font-bold">
                 {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -532,14 +537,14 @@ export default function AirportShuttle() {
 
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
             <div className="flex items-center gap-4 mb-5">
-              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#FF6B35]">
+              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#E04A1F]">
                 <CreditCard className="w-5 h-5" />
               </div>
               <h3 className="font-extrabold text-lg text-slate-900">Total</h3>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black text-slate-900">{totalTtc.toLocaleString()}</span>
-              <span className="text-xl font-bold text-[#FF6B35]">FCFA</span>
+              <span className="text-xl font-bold text-[#E04A1F]">FCFA</span>
             </div>
             <p className="text-xs text-slate-400 mt-2">
               {paymentMethods.find(m => m.id === formData.payment_method)?.label || 'Paiement confirme'} &bull; {bookingRef}
@@ -551,7 +556,7 @@ export default function AirportShuttle() {
         <div className="flex flex-col sm:flex-row gap-4">
           <Button
             onClick={() => router.push("/tracking")}
-            className="flex-1 bg-[#FF6B35] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2"
+            className="flex-1 bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2"
           >
             <Search className="w-5 h-5" />
             Voir dans le suivi
@@ -582,7 +587,7 @@ export default function AirportShuttle() {
             <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
               <span>Reservations</span>
               <span>/</span>
-              <span className="text-[#FF6B35]">Navette</span>
+              <span className="text-[#E04A1F]">Navette</span>
             </nav>
             <h1
               className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
@@ -594,7 +599,7 @@ export default function AirportShuttle() {
               {steps[currentStep - 1]?.title} — etape {currentStep} sur {steps.length}
             </p>
           </div>
-          <span className="text-[#FF6B35] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full uppercase tracking-widest">
+          <span className="text-[#E04A1F] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full uppercase tracking-widest">
             Etape {currentStep}/{steps.length}
           </span>
         </div>
@@ -611,9 +616,9 @@ export default function AirportShuttle() {
                   <div
                     className={`rounded-full flex items-center justify-center transition-all font-bold ${
                       isActive
-                        ? "w-12 h-12 bg-[#FF6B35] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#FF6B35]/20"
+                        ? "w-12 h-12 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#E04A1F]/20"
                         : isDone
-                        ? "w-10 h-10 bg-[#FF6B35] text-white"
+                        ? "w-10 h-10 bg-[#E04A1F] text-white"
                         : "w-10 h-10 bg-[#dfe3e7] text-slate-500"
                     }`}
                   >
@@ -626,7 +631,7 @@ export default function AirportShuttle() {
                   <span
                     className={`text-xs hidden sm:block whitespace-nowrap ${
                       isActive
-                        ? "font-bold text-[#FF6B35]"
+                        ? "font-bold text-[#E04A1F]"
                         : isDone
                         ? "font-semibold text-[#171c1f]"
                         : "font-medium text-slate-400"
@@ -639,7 +644,7 @@ export default function AirportShuttle() {
                   <div className="flex-1 h-1 mx-2 sm:mx-4 -mt-6 rounded-full overflow-hidden bg-[#dfe3e7]">
                     <div
                       className={`h-full transition-all duration-500 ${
-                        isDone ? "bg-[#FF6B35] w-full" : "bg-transparent w-0"
+                        isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
                       }`}
                     />
                   </div>
@@ -690,7 +695,7 @@ export default function AirportShuttle() {
               {/* Sens du trajet — editorial toggle */}
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#FF6B35]">
+                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
                     <ArrowRightLeft className="w-5 h-5" />
                   </div>
                   <h4
@@ -718,7 +723,7 @@ export default function AirportShuttle() {
                         }}
                         className={`flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm transition-all ${
                           active
-                            ? "bg-[#ffdbd0] text-[#FF6B35] shadow-sm"
+                            ? "bg-[#ffdbd0] text-[#E04A1F] shadow-sm"
                             : "text-slate-500 hover:text-slate-700"
                         }`}
                       >
@@ -780,7 +785,7 @@ export default function AirportShuttle() {
                               }
                               {getVilleName(v)}
                               {selectedDepartId === v.id && (
-                                <Check className="ml-auto w-4 h-4 text-[#FF6B35] shrink-0" />
+                                <Check className="ml-auto w-4 h-4 text-[#E04A1F] shrink-0" />
                               )}
                             </CommandItem>
                           ))}
@@ -841,7 +846,7 @@ export default function AirportShuttle() {
                               }
                               {getVilleName(v)}
                               {selectedArriveeId === v.id && (
-                                <Check className="ml-auto w-4 h-4 text-[#FF6B35] shrink-0" />
+                                <Check className="ml-auto w-4 h-4 text-[#E04A1F] shrink-0" />
                               )}
                             </CommandItem>
                           ))}
@@ -870,7 +875,7 @@ export default function AirportShuttle() {
               {/* === ALLER === */}
               <div className="border border-slate-200 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <PlaneTakeoff className="w-5 h-5 text-[#FF6B35]" />
+                  <PlaneTakeoff className="w-5 h-5 text-[#E04A1F]" />
                   <h4 className="font-semibold text-slate-800">Informations Aller</h4>
                 </div>
 
@@ -883,7 +888,7 @@ export default function AirportShuttle() {
                           variant="ghost"
                           className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
                         >
-                          <CalendarIcon className="w-4 h-4 mr-2 text-[#FF6B35]" />
+                          <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
                           {formData.departure_date
                             ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
                             : "Selectionner une date"}
@@ -942,7 +947,7 @@ export default function AirportShuttle() {
                             variant="ghost"
                             className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
                           >
-                            <CalendarIcon className="w-4 h-4 mr-2 text-[#FF6B35]" />
+                            <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
                             {formData.return_date
                               ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
                               : "Selectionner une date"}
@@ -1032,7 +1037,7 @@ export default function AirportShuttle() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              <div className="flex items-center gap-3 border-l-4 border-[#FF6B35] pl-4 mb-2">
+              <div className="flex items-center gap-3 border-l-4 border-[#E04A1F] pl-4 mb-2">
                 <h3
                   className="text-xl font-bold text-[#171c1f]"
                   style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
@@ -1117,7 +1122,7 @@ export default function AirportShuttle() {
                                   {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
                                 </div>
                                 {formData.employeeId === emp.id && (
-                                  <Check className="w-4 h-4 text-[#FF6B35] shrink-0" />
+                                  <Check className="w-4 h-4 text-[#E04A1F] shrink-0" />
                                 )}
                               </CommandItem>
                             );
@@ -1258,7 +1263,7 @@ export default function AirportShuttle() {
                             {vehiculeModel && <p className="text-sm text-slate-500">{vehiculeModel} ou equivalent</p>}
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="font-extrabold text-2xl text-[#FF6B35]">{Number(price).toLocaleString()}</span>
+                            <span className="font-extrabold text-2xl text-[#E04A1F]">{Number(price).toLocaleString()}</span>
                             <span className="text-xs font-bold text-slate-500 ml-1">FCFA</span>
                           </div>
                         </div>
@@ -1318,7 +1323,7 @@ export default function AirportShuttle() {
               {/* Options */}
               <div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#FF6B35]">
+                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
                     <Plus className="w-5 h-5" />
                   </div>
                   <h3
@@ -1400,7 +1405,7 @@ export default function AirportShuttle() {
               {/* Payment method */}
               <div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#FF6B35]">
+                  <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <h3
@@ -1423,7 +1428,7 @@ export default function AirportShuttle() {
                         }
                         className={`relative cursor-pointer p-6 rounded-3xl bg-white text-left transition-all ${
                           selected
-                            ? "ring-2 ring-[#FF6B35] shadow-lg shadow-[#FF6B35]/10"
+                            ? "ring-2 ring-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
                             : "ring-1 ring-slate-200 hover:ring-slate-300 opacity-80 hover:opacity-100"
                         }`}
                       >
@@ -1431,14 +1436,14 @@ export default function AirportShuttle() {
                           <div
                             className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
                               selected
-                                ? "bg-[#ffdbd0] text-[#FF6B35]"
+                                ? "bg-[#ffdbd0] text-[#E04A1F]"
                                 : "bg-[#dfe3e7] text-slate-500"
                             }`}
                           >
                             {isCompany ? <Users className="w-6 h-6" /> : <User className="w-6 h-6" />}
                           </div>
                           {selected && (
-                            <div className="w-6 h-6 rounded-full bg-[#FF6B35] flex items-center justify-center">
+                            <div className="w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
                               <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                             </div>
                           )}
@@ -1499,7 +1504,7 @@ export default function AirportShuttle() {
                   )}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                     <span className="text-lg font-semibold text-slate-800">{user?.isTva ? 'Total HT' : 'Total'}</span>
-                    <span className={`font-bold ${user?.isTva ? 'text-lg text-slate-800' : 'text-2xl text-[#FF6B35]'}`}>{calculateTotal().toLocaleString()} FCFA</span>
+                    <span className={`font-bold ${user?.isTva ? 'text-lg text-slate-800' : 'text-2xl text-[#E04A1F]'}`}>{calculateTotal().toLocaleString()} FCFA</span>
                   </div>
                   {user?.isTva && (
                     <>
@@ -1509,7 +1514,7 @@ export default function AirportShuttle() {
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                         <span className="text-lg font-semibold text-slate-800">Total TTC</span>
-                        <span className="text-2xl font-bold text-[#FF6B35]">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
+                        <span className="text-2xl font-bold text-[#E04A1F]">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
                       </div>
                     </>
                   )}
@@ -1542,7 +1547,7 @@ export default function AirportShuttle() {
                 {/* Aller info */}
                 <div className="p-5 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <PlaneTakeoff className="w-4 h-4 text-[#FF6B35]" />
+                    <PlaneTakeoff className="w-4 h-4 text-[#E04A1F]" />
                     <p className="text-sm font-semibold text-slate-700">Aller</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1603,7 +1608,7 @@ export default function AirportShuttle() {
               <div className="p-6 rounded-xl border border-slate-200">
                 <p className="text-sm text-slate-500 mb-2">Client</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#FF6B35] flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F] flex items-center justify-center text-white font-semibold">
                     {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
@@ -1650,7 +1655,7 @@ export default function AirportShuttle() {
 
       {/* Right column: contextual side panel */}
       <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-24 self-start">
-        {currentStep === 1 ? (
+        {currentStep === 5 ? null : currentStep === 1 ? (
           <>
             {/* Avantage Business promo card */}
             <div className="bg-[#ffdbd0] rounded-[2rem] p-6 relative overflow-hidden">
@@ -1666,17 +1671,17 @@ export default function AirportShuttle() {
               <p className="text-sm text-[#852300] mb-4 leading-relaxed">
                 Enregistrez les informations de vos employes pour des reservations en un clic lors de leurs prochains trajets.
               </p>
-              <div className="flex items-center gap-2 text-sm font-bold text-[#FF6B35]">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#E04A1F]">
                 <ArrowRight className="w-4 h-4" />
                 <span>Reservations express</span>
               </div>
-              <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-[#FF6B35]/10 rounded-full blur-2xl" />
+              <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-[#E04A1F]/10 rounded-full blur-2xl" />
             </div>
 
             {/* Besoin d'aide */}
             <div className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100">
               <div className="flex items-start gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#FF6B35] shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
                   <span className="font-black text-sm">?</span>
                 </div>
                 <div>
@@ -1696,6 +1701,16 @@ export default function AirportShuttle() {
 
             {/* Premium Velocity image card */}
             <div className="rounded-[1.5rem] overflow-hidden relative h-44 group bg-gradient-to-br from-[#171c1f] to-[#2c3134]">
+              {premiumVehicleImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={premiumVehicleImage}
+                  alt="Vehicule premium"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              ) : (
+                <Car className="absolute -right-6 -top-6 w-32 h-32 text-white/10" strokeWidth={1.5} />
+              )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
               <div className="absolute inset-0 flex items-end p-5">
                 <div>
@@ -1710,7 +1725,6 @@ export default function AirportShuttle() {
                   </p>
                 </div>
               </div>
-              <Car className="absolute -right-6 -top-6 w-32 h-32 text-white/10" strokeWidth={1.5} />
             </div>
           </>
         ) : (
@@ -1726,9 +1740,9 @@ export default function AirportShuttle() {
           <div className="space-y-4 mb-8">
             <div className="flex items-start gap-4">
               <div className="flex flex-col items-center pt-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B35]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-[#E04A1F]" />
                 <div className="w-0.5 h-10 bg-[#dfe3e7]" />
-                <div className="w-2.5 h-2.5 rounded-full border-2 border-[#FF6B35]" />
+                <div className="w-2.5 h-2.5 rounded-full border-2 border-[#E04A1F]" />
               </div>
               <div className="space-y-3 flex-1 min-w-0">
                 <div>
@@ -1828,12 +1842,12 @@ export default function AirportShuttle() {
               <span className="font-bold text-lg text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>Total</span>
               <div className="text-right">
                 {formData.payment_method === "company_account" && (
-                  <p className="text-[10px] text-[#FF6B35] font-bold uppercase tracking-widest">
+                  <p className="text-[10px] text-[#E04A1F] font-bold uppercase tracking-widest">
                     Payable par l&apos;entreprise
                   </p>
                 )}
                 <p
-                  className="text-2xl font-black text-[#FF6B35] tracking-tight"
+                  className="text-2xl font-black text-[#E04A1F] tracking-tight"
                   style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
                 >
                   {calculateTotal().toLocaleString()} FCFA
@@ -1870,7 +1884,7 @@ export default function AirportShuttle() {
           <Button
             onClick={handleNext}
             disabled={!canContinue()}
-            className="bg-[#FF6B35] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#FF6B35]/25 hover:shadow-xl active:scale-95 transition-all"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             Continuer
             <ArrowRight className="w-4 h-4" />
@@ -1879,7 +1893,7 @@ export default function AirportShuttle() {
           <Button
             onClick={handleSubmit}
             disabled={createBooking.isPending}
-            className="bg-[#FF6B35] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#FF6B35]/25 hover:shadow-xl active:scale-95 transition-all"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`}
           </Button>

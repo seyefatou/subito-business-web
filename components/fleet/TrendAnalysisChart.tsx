@@ -108,9 +108,9 @@ export default function TrendAnalysisChart({ fuelRequests, maintenanceRecords, p
             <Area
               type="monotone"
               dataKey="total"
-              fill="#FF6B35"
+              fill="#E04A1F"
               fillOpacity={0.1}
-              stroke="#FF6B35"
+              stroke="#E04A1F"
               strokeWidth={2}
               name="Total"
             />
@@ -149,9 +149,9 @@ export default function TrendAnalysisChart({ fuelRequests, maintenanceRecords, p
             <Line
               type="monotone"
               dataKey="litres"
-              stroke="#FF6B35"
+              stroke="#E04A1F"
               strokeWidth={3}
-              dot={{ r: 5, fill: '#FF6B35' }}
+              dot={{ r: 5, fill: '#E04A1F' }}
             />
           </LineChart>
         </ResponsiveContainer>

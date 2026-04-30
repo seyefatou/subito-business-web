@@ -56,10 +56,10 @@ function ResetPasswordForm() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <style>{`
         .gradient-subito {
-          background: linear-gradient(135deg, #FF6B35 0%, #FF7B7B 100%);
+          background-color: #E04A1F;
         }
         .text-subito {
-          color: #FF6B35;
+          color: #E04A1F;
         }
       `}</style>
 

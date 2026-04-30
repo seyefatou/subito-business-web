@@ -78,10 +78,10 @@ export default function FleetCostChart({ fuelRequests, maintenanceRecords }: Fle
           <Line
             type="monotone"
             dataKey="carburant"
-            stroke="#FF6B35"
+            stroke="#E04A1F"
             strokeWidth={2}
             name="Carburant"
-            dot={{ fill: '#FF6B35', r: 4 }}
+            dot={{ fill: '#E04A1F', r: 4 }}
           />
           <Line
             type="monotone"

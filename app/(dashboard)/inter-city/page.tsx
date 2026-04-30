@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   MapPin,
+  Route,
   ArrowRightLeft,
   Calendar as CalendarIcon,
   Car,
@@ -32,6 +33,7 @@ import {
   Home,
   Search,
   UserPlus,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,6 +175,8 @@ export default function InterCity() {
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [departPopoverOpen, setDepartPopoverOpen] = useState(false);
   const [arriveePopoverOpen, setArriveePopoverOpen] = useState(false);
+  const [vehiclePage, setVehiclePage] = useState(0);
+  const VEHICLES_PER_PAGE = 4;
 
   // Fetch payment options from API
   const { data: paymentOptionsResponse } = useQuery({
@@ -249,6 +253,11 @@ export default function InterCity() {
   // The trajet selected by the user (when they pick a vehicle)
   const selectedTrajet = trajets.find(t => t.id === formData.trajetInterVilleId);
 
+  // First available vehicle image — used as background for the "Privilegiez le silence" card
+  const featuredVehicleImage: string | undefined = trajets
+    .map(t => (Array.isArray(t.vehicule?.image) ? t.vehicule?.image?.[0] : t.vehicule?.image))
+    .find((img): img is string => typeof img === 'string' && img.length > 0);
+
   // Create booking mutation
   const createBooking = useMutation({
     mutationFn: (data: CreateInterCityBookingDto) => api.bookings.createInterCity(data),
@@ -287,6 +296,11 @@ export default function InterCity() {
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Reset vehicle pagination when the route (and therefore the list) changes
+  useEffect(() => {
+    setVehiclePage(0);
+  }, [selectedDepartId, selectedArriveeId]);
 
   const handleSwapCities = () => {
     const newDepartId = selectedArriveeId;
@@ -503,124 +517,251 @@ export default function InterCity() {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-2xl mx-auto text-center py-16"
+        className="max-w-6xl mx-auto space-y-10"
       >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 15 }}
-          className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6"
-        >
-          <CheckCircle2 className="w-12 h-12 text-green-600" />
-        </motion.div>
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">
-          Reservation confirmee !
-        </h1>
-        <p className="text-slate-500 mb-8">
-          Votre trajet inter-villes est reserve avec succes
-        </p>
-
-        <div className="inline-block mb-8">
-          <Badge className="text-lg px-6 py-3 bg-gradient-to-r from-pink-500 to-red-500 text-white border-0">
-            Reference : {bookingReference}
-          </Badge>
-        </div>
-
-        <div className="bg-slate-100 rounded-2xl p-6 mb-8 text-left">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-slate-600 mb-1">Trajet</p>
-              <p className="font-bold text-slate-800 text-lg">
-                {getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}
-              </p>
-            </div>
-            <p className="text-2xl font-bold text-subito">
-              {calculateTotal().toLocaleString()} FCFA
-            </p>
+        {/* Editorial header */}
+        <section className="mb-4">
+          <p className="text-[#E04A1F] font-bold tracking-widest text-xs uppercase mb-2">Derniere etape</p>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight leading-tight">
+            Recapitulatif de votre reservation
+          </h1>
+          <p className="text-slate-500 max-w-2xl leading-relaxed">
+            Votre trajet inter-urbain a ete enregistre. Une fois valide, votre demande sera traitee par notre equipe logistique.
+          </p>
+          <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#ffdbd0] rounded-full">
+            <CheckCircle2 className="w-4 h-4 text-[#E04A1F]" />
+            <span className="text-sm font-bold text-orange-700 tracking-wider">REF: {bookingReference}</span>
           </div>
-          {selectedTrajet?.vehicule && (
-            <p className="text-slate-600 mb-1">
-              Vehicule : {selectedTrajet.vehicule.categorie || selectedTrajet.vehicule.marque} {selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model || ''}
-            </p>
-          )}
-          <p className="text-slate-600">
-            {formData.pickupDateAller && format(new Date(formData.pickupDateAller), "EEEE d MMMM yyyy", { locale: fr })}
-            {' a '}
-            {formData.pickupTimeAller}
-          </p>
-          <p className="text-slate-600 mt-2">
-            Client : {formData.clientName} - {formData.clientPhone}
-          </p>
-        </div>
+        </section>
 
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => router.push("/tracking")}
-          >
-            Voir dans le suivi
-          </Button>
-          <Button
-            className="gradient-subito text-white border-0"
-            onClick={resetForm}
-          >
-            Nouvelle reservation
-          </Button>
+        {/* Bento recap */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left col */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                  <MapPin className="w-5 h-5 text-[#E04A1F]" />
+                  Details du trajet
+                </h2>
+              </div>
+              <div className="flex items-start gap-8">
+                <div className="relative flex flex-col items-center">
+                  <div className="w-4 h-4 rounded-full border-4 border-orange-600 bg-white z-10" />
+                  <div className="w-[2px] h-24 border-l-2 border-dashed border-slate-200 my-1" />
+                  <div className="w-4 h-4 rounded-full bg-slate-900 z-10" />
+                </div>
+                <div className="flex-1 space-y-12">
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Point de depart</p>
+                    <p className="text-lg font-bold text-slate-900">{getVilleName(selectedTrajet?.villeDepart) || '—'}</p>
+                    {formData.adressePriseEnChargeDepartAller && (
+                      <p className="text-sm text-slate-500">{formData.adressePriseEnChargeDepartAller}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Point d&apos;arrivee</p>
+                    <p className="text-lg font-bold text-slate-900">{getVilleName(selectedTrajet?.villeArrivee) || '—'}</p>
+                    {formData.adressePriseEnChargeArriveeAller && (
+                      <p className="text-sm text-slate-500">{formData.adressePriseEnChargeArriveeAller}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-50 rounded-3xl p-6">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Passager &amp; Client</h3>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-[#E04A1F] font-bold shadow-sm">
+                    {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 truncate">{formData.clientName}</p>
+                    <p className="text-sm text-slate-500 truncate">{formData.clientPhone}</p>
+                    {formData.clientEmail && <p className="text-sm text-slate-500 truncate">{formData.clientEmail}</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-3xl p-6">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Date &amp; Heure</h3>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
+                    <CalendarIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {formData.pickupDateAller && format(new Date(formData.pickupDateAller), 'EEE d MMM yyyy', { locale: fr })}
+                    </p>
+                    <p className="text-sm text-slate-500">Depart prevu a {formData.pickupTimeAller}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right col */}
+          <aside className="lg:col-span-4 space-y-6">
+            <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Vehicule selectionne</h3>
+              <div className="mb-4 h-28 bg-slate-50 rounded-2xl flex items-center justify-center">
+                <Car className="w-16 h-16 text-slate-400" />
+              </div>
+              <div className="flex justify-between items-end">
+                <div className="min-w-0">
+                  <p className="text-xl font-bold text-slate-900 capitalize truncate">
+                    {selectedTrajet?.vehicule?.categorie || selectedTrajet?.vehicule?.marque || 'Vehicule'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {selectedTrajet?.vehicule?.modele || selectedTrajet?.vehicule?.model || 'Ou similaire'}
+                  </p>
+                </div>
+                <CheckCircle2 className="w-8 h-8 text-[#E04A1F] shrink-0" fill="currentColor" strokeWidth={0} />
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white rounded-3xl p-8 shadow-xl">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Detail du paiement</h3>
+              <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                <span className="font-bold text-lg">Total</span>
+                <div className="text-right">
+                  <p className="text-2xl font-black text-orange-400">{calculateTotal().toLocaleString()} FCFA</p>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest">TVA incluse</p>
+                </div>
+              </div>
+              <div className="bg-white/5 rounded-2xl p-4 my-6 flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-orange-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white/60">Mode de paiement</p>
+                  <p className="text-sm font-semibold truncate">
+                    {formData.paymentMethod || 'Compte entreprise'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={() => router.push("/tracking")}
+                  className="w-full bg-[#E04A1F] text-white py-5 rounded-2xl font-extrabold text-base border-0 hover:shadow-[0_0_32px_rgba(172,53,9,0.4)] active:scale-[0.98] transition-all gap-2"
+                >
+                  Voir dans le suivi
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={resetForm}
+                  variant="outline"
+                  className="w-full py-5 rounded-2xl font-bold text-sm bg-white/10 text-white border-0 hover:bg-white/20 transition-all"
+                >
+                  Nouvelle reservation
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-teal-50 rounded-3xl p-6 border border-teal-100">
+              <div className="flex gap-4">
+                <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-teal-900 mb-1">Besoin d&apos;aide ?</p>
+                  <p className="text-xs text-teal-800/80 leading-relaxed">
+                    Notre support business est disponible 24/7 pour toute demande specifique.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
       </motion.div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl gradient-subito">
-            <Car className="w-6 h-6 text-white" />
-          </div>
+    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+      {/* Hero Header */}
+      <div className="mb-10">
+        <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Reservation Inter-villes</h1>
-            <p className="text-slate-500">Voyages entre villes</p>
+            <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <span>Reservations</span>
+              <span>/</span>
+              <span className="text-[#E04A1F]">Inter-villes</span>
+            </nav>
+            <h1
+              className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
+              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+            >
+              {currentStep === 1 && "Informations du client"}
+              {currentStep === 2 && "Configuration du trajet"}
+              {currentStep === 3 && "Selectionnez votre vehicule"}
+              {currentStep === 4 && "Paiement"}
+              {currentStep === 5 && "Recapitulatif de votre reservation"}
+            </h1>
+            <p className="text-[#585e6c] font-medium mt-1">
+              {currentStep === 1 && "Renseignez les details du voyageur pour cette reservation."}
+              {currentStep === 2 && "Etape 2 sur 5 — Definissez les details de votre voyage inter-villes."}
+              {currentStep === 3 && "Choisissez la categorie de vehicule la mieux adaptee a votre trajet."}
+              {currentStep === 4 && "Choisissez votre mode de facturation pour cette reservation."}
+              {currentStep === 5 && "Verifiez les details avant de confirmer votre reservation."}
+            </p>
           </div>
+          <span className="text-[#E04A1F] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full whitespace-nowrap uppercase tracking-widest">
+            Etape {currentStep}/{steps.length}
+          </span>
+        </div>
+
+        {/* Editorial Stepper with connecting lines */}
+        <div className="flex items-center w-full">
+          {steps.map((step, idx) => {
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            const isLast = idx === steps.length - 1;
+            return (
+              <React.Fragment key={step.id}>
+                <div className="flex flex-col items-center gap-2 shrink-0">
+                  <div
+                    className={`rounded-full flex items-center justify-center transition-all font-bold ${
+                      isActive
+                        ? "w-12 h-12 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#E04A1F]/20"
+                        : isDone
+                        ? "w-10 h-10 bg-[#E04A1F] text-white"
+                        : "w-10 h-10 bg-[#dfe3e7] text-slate-500"
+                    }`}
+                  >
+                    {isDone ? (
+                      <Check className="w-5 h-5" strokeWidth={3} />
+                    ) : (
+                      <span className="text-sm">{step.id}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs hidden sm:block whitespace-nowrap ${
+                      isActive
+                        ? "font-bold text-[#E04A1F]"
+                        : isDone
+                        ? "font-semibold text-[#171c1f]"
+                        : "font-medium text-slate-400"
+                    }`}
+                  >
+                    {step.title}
+                  </span>
+                </div>
+                {!isLast && (
+                  <div className="flex-1 h-1 mx-2 sm:mx-4 -mt-6 rounded-full overflow-hidden bg-[#dfe3e7]">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
+                      }`}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
-      {/* Progress */}
-      <div className="flex items-center justify-between mb-8">
-        {steps.map((step, index) => (
-          <React.Fragment key={step.id}>
-            <div className="flex items-center gap-2">
-              <div className={`
-                w-10 h-10 rounded-xl flex items-center justify-center transition-all
-                ${currentStep >= step.id
-                  ? 'gradient-subito text-white'
-                  : 'bg-slate-200 text-slate-400'
-                }
-              `}>
-                {currentStep > step.id ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <step.icon className="w-5 h-5" />
-                )}
-              </div>
-              <span className={`font-medium text-sm hidden sm:block ${
-                currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
-              }`}>
-                {step.title}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 rounded ${
-                currentStep > step.id ? 'bg-orange-400' : 'bg-slate-200'
-              }`} />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Form content */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      {/* Form content (full width — chaque etape gere sa propre grille interne) */}
+      <div className="bg-white rounded-[2rem] shadow-xl shadow-black/5 p-6 md:p-10">
         <AnimatePresence mode="wait">
           {/* Step 2: Trip details */}
           {currentStep === 2 && (
@@ -629,7 +770,6 @@ export default function InterCity() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
             >
               {trajetsLoading ? (
                 <div className="flex items-center justify-center py-12">
@@ -637,410 +777,434 @@ export default function InterCity() {
                 </div>
               ) : (
                 <>
-                  {/* Pays */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold">Pays</Label>
-                    <Select
-                      value={selectedPays}
-                      onValueChange={(v) => {
-                        setSelectedPays(v);
-                        setSelectedDepartId(null);
-                        setSelectedArriveeId(null);
-                        handleChange('trajetInterVilleId', null);
-                        handleChange('vehiculeId', null);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <MapPin className="w-4 h-4 mr-2" />
-                        <SelectValue placeholder="Choisir un pays" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pays.map(p => (
-                          <SelectItem key={p} value={p}>{p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Cities with swap button */}
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
-                    <div className="space-y-2">
-                      <Label>Ville de depart</Label>
-                      <Popover open={departPopoverOpen} onOpenChange={setDepartPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            role="combobox"
-                            disabled={!selectedPays}
-                            className="w-full justify-between font-normal h-10"
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              <MapPin className="w-4 h-4 shrink-0" />
-                              {selectedDepartId
-                                ? getVilleName(villes.find(v => v.id === selectedDepartId))
-                                : (!selectedPays ? "Selectionnez un pays" : "Choisir une ville")
-                              }
-                            </span>
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Rechercher une ville..." />
-                            <CommandList>
-                              <CommandEmpty>Aucune ville trouvee</CommandEmpty>
-                              <CommandGroup>
-                                {villes.map(v => (
-                                  <CommandItem
-                                    key={v.id}
-                                    value={getVilleName(v)}
-                                    onSelect={() => {
-                                      setSelectedDepartId(v.id);
-                                      // Reset arrival if same city was selected
-                                      if (selectedArriveeId === v.id) setSelectedArriveeId(null);
-                                      handleChange('trajetInterVilleId', null);
-                                      handleChange('vehiculeId', null);
-                                      setDepartPopoverOpen(false);
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <MapPin className="w-4 h-4 mr-2 shrink-0" />
-                                    {getVilleName(v)}
-                                    {selectedDepartId === v.id && (
-                                      <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
-                                    )}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleSwapCities}
-                      disabled={!selectedDepartId || !selectedArriveeId}
-                      className="mb-1"
-                    >
-                      <ArrowRightLeft className="w-4 h-4" />
-                    </Button>
-
-                    <div className="space-y-2">
-                      <Label>Ville d&apos;arrivee</Label>
-                      <Popover open={arriveePopoverOpen} onOpenChange={setArriveePopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            role="combobox"
-                            disabled={!selectedPays}
-                            className="w-full justify-between font-normal h-10"
-                          >
-                            <span className="flex items-center gap-2 truncate">
-                              <MapPin className="w-4 h-4 shrink-0" />
-                              {selectedArriveeId
-                                ? getVilleName(villes.find(v => v.id === selectedArriveeId))
-                                : (!selectedPays ? "Selectionnez un pays" : "Choisir une ville")
-                              }
-                            </span>
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Rechercher une ville..." />
-                            <CommandList>
-                              <CommandEmpty>Aucune ville trouvee</CommandEmpty>
-                              <CommandGroup>
-                                {villes.filter(v => v.id !== selectedDepartId).map(v => (
-                                  <CommandItem
-                                    key={v.id}
-                                    value={getVilleName(v)}
-                                    onSelect={() => {
-                                      setSelectedArriveeId(v.id);
-                                      handleChange('trajetInterVilleId', null);
-                                      handleChange('vehiculeId', null);
-                                      setArriveePopoverOpen(false);
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <MapPin className="w-4 h-4 mr-2 shrink-0" />
-                                    {getVilleName(v)}
-                                    {selectedArriveeId === v.id && (
-                                      <Check className="ml-auto w-4 h-4 text-orange-600 shrink-0" />
-                                    )}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  {/* Pickup addresses */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        Adresse de prise en charge (depart) *
-                      </Label>
-                      <AddressAutocomplete
-                        placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
-                        value={formData.adressePriseEnChargeDepartAller}
-                        onChange={(val) => handleChange('adressePriseEnChargeDepartAller', val)}
-                        onSelect={(address, lat, lng) => {
-                          setFormData(prev => ({ ...prev, adressePriseEnChargeDepartAller: address, adressePriseEnChargeDepartAllerLat: lat, adressePriseEnChargeDepartAllerLng: lng }));
-                        }}
-                        iconColor="text-green-500"
-                        countryCode={countryNameToCode(selectedPays)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        Adresse de depose (arrivee) *
-                      </Label>
-                      <AddressAutocomplete
-                        placeholder="Ex: Gare routiere, Thies"
-                        value={formData.adressePriseEnChargeArriveeAller}
-                        onChange={(val) => handleChange('adressePriseEnChargeArriveeAller', val)}
-                        onSelect={(address, lat, lng) => {
-                          setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeAller: address, adressePriseEnChargeArriveeAllerLat: lat, adressePriseEnChargeArriveeAllerLng: lng }));
-                        }}
-                        iconColor="text-red-500"
-                        countryCode={countryNameToCode(selectedPays)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Date and time */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-50 rounded-2xl p-4">
-                      <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
-                          >
-                            <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
-                            {formData.pickupDateAller
-                              ? format(new Date(formData.pickupDateAller + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                              : "Selectionner une date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : undefined}
-                            onSelect={(date) => handleChange('pickupDateAller', date ? format(date, 'yyyy-MM-dd') : '')}
-                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="bg-slate-50 rounded-2xl p-4">
-                      <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
-                      <TimePicker
-                        value={formData.pickupTimeAller}
-                        onChange={(v) => handleChange('pickupTimeAller', v)}
-                        placeholder="Choisir une heure"
-                        selectedDate={formData.pickupDateAller}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Baggage */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Petits bagages</Label>
-                      <Select
-                        value={formData.smallBags.toString()}
-                        onValueChange={(v) => handleChange('smallBags', parseInt(v))}
-                      >
-                        <SelectTrigger>
-                          <Briefcase className="w-4 h-4 mr-2" />
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[0, 1, 2, 3, 4, 5].map(n => (
-                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Grands bagages</Label>
-                      <Select
-                        value={formData.largeBags.toString()}
-                        onValueChange={(v) => handleChange('largeBags', parseInt(v))}
-                      >
-                        <SelectTrigger>
-                          <Briefcase className="w-4 h-4 mr-2" />
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[0, 1, 2, 3, 4, 5].map(n => (
-                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Options */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <Baby className="w-5 h-5 text-slate-500" />
-                        <div>
-                          <p className="font-medium text-slate-800">Sieges bebe</p>
-                          <p className="text-sm text-slate-500">+5 000 FCFA/siege</p>
-                        </div>
-                      </div>
-                      <Select
-                        value={formData.siegeBebes.toString()}
-                        onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[0, 1, 2, 3].map(n => (
-                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <PawPrint className="w-5 h-5 text-slate-500" />
-                        <div>
-                          <p className="font-medium text-slate-800">Animal de compagnie</p>
-                          <p className="text-sm text-slate-500">+5 000 FCFA</p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={formData.animalDeCompagnie}
-                        onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Round trip toggle */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
-                    <div className="flex items-center gap-3">
-                      <ArrowRightLeft className="w-5 h-5 text-slate-500" />
-                      <div>
-                        <p className="font-medium text-slate-800">Aller-retour</p>
-                        <p className="text-sm text-slate-500">Reserver le retour en meme temps</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={!formData.isOneWay}
-                      onCheckedChange={(v) => handleChange('isOneWay', !v)}
-                    />
-                  </div>
-
-                  {/* Return trip fields */}
-                  {!formData.isOneWay && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="space-y-4 pt-4 border-t border-slate-200"
-                    >
-                      <h3 className="font-semibold text-slate-800">Trajet retour</h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Adresse de prise en charge (retour)
-                          </Label>
-                          <AddressAutocomplete
-                            placeholder="Ex: Gare routiere, Thies"
-                            value={formData.adressePriseEnChargeDepartRetour}
-                            onChange={(val) => handleChange('adressePriseEnChargeDepartRetour', val)}
-                            onSelect={(address, lat, lng) => {
-                              setFormData(prev => ({ ...prev, adressePriseEnChargeDepartRetour: address, adressePriseEnChargeDepartRetourLat: lat, adressePriseEnChargeDepartRetourLng: lng }));
-                            }}
-                            iconColor="text-green-500"
-                            countryCode={countryNameToCode(selectedPays)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Adresse de depose (retour)
-                          </Label>
-                          <AddressAutocomplete
-                            placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
-                            value={formData.adressePriseEnChargeArriveeRetour}
-                            onChange={(val) => handleChange('adressePriseEnChargeArriveeRetour', val)}
-                            onSelect={(address, lat, lng) => {
-                              setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeRetour: address, adressePriseEnChargeArriveeRetourLat: lat, adressePriseEnChargeArriveeRetourLng: lng }));
-                            }}
-                            iconColor="text-red-500"
-                            countryCode={countryNameToCode(selectedPays)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-slate-50 rounded-2xl p-4">
-                          <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
-                              >
-                                <CalendarIcon className="w-4 h-4 mr-2 text-orange-600" />
-                                {formData.pickupDateRetour
-                                  ? format(new Date(formData.pickupDateRetour + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                                  : "Selectionner une date"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={formData.pickupDateRetour ? new Date(formData.pickupDateRetour + 'T00:00:00') : undefined}
-                                onSelect={(date) => handleChange('pickupDateRetour', date ? format(date, 'yyyy-MM-dd') : '')}
-                                disabled={(date) => {
-                                  const minDate = formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
-                                  return date < minDate;
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* LEFT col-8: form sections */}
+                    <div className="lg:col-span-8 space-y-6">
+                      {/* Itineraire card */}
+                      <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+                          <Route className="w-5 h-5 text-[#E04A1F]" />
+                          Itineraire
+                        </h2>
+                        <div className="space-y-5">
+                          {/* Pays + Date */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Pays</Label>
+                              <Select
+                                value={selectedPays}
+                                onValueChange={(v) => {
+                                  setSelectedPays(v);
+                                  setSelectedDepartId(null);
+                                  setSelectedArriveeId(null);
+                                  handleChange('trajetInterVilleId', null);
+                                  handleChange('vehiculeId', null);
                                 }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="bg-slate-50 rounded-2xl p-4">
-                          <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
-                          <TimePicker
-                            value={formData.pickupTimeRetour}
-                            onChange={(v) => handleChange('pickupTimeRetour', v)}
-                            placeholder="Choisir une heure"
-                            selectedDate={formData.pickupDateRetour}
-                          />
-                        </div>
-                      </div>
+                              >
+                                <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                                  <MapPin className="w-4 h-4 mr-2 text-slate-400" />
+                                  <SelectValue placeholder="Choisir un pays" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {pays.map(p => (
+                                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date de depart</Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    className="w-full justify-start bg-slate-50 hover:bg-slate-100 rounded-xl h-12 px-4 font-normal"
+                                  >
+                                    <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                                    {formData.pickupDateAller
+                                      ? format(new Date(formData.pickupDateAller + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                                      : <span className="text-slate-500">Selectionner une date</span>}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                    mode="single"
+                                    selected={formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : undefined}
+                                    onSelect={(date) => handleChange('pickupDateAller', date ? format(date, 'yyyy-MM-dd') : '')}
+                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                          <div className="flex items-center gap-3">
-                            <Baby className="w-5 h-5 text-slate-500" />
-                            <div>
-                              <p className="font-medium text-slate-800">Sieges bebe (retour)</p>
-                              <p className="text-sm text-slate-500">+5 000 FCFA/siege</p>
+                          {/* Time */}
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de depart</Label>
+                            <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
+                              <Clock className="w-4 h-4 mr-2 text-slate-400 shrink-0" />
+                              <TimePicker
+                                value={formData.pickupTimeAller}
+                                onChange={(v) => handleChange('pickupTimeAller', v)}
+                                placeholder="Choisir une heure"
+                                selectedDate={formData.pickupDateAller}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Cities with swap button */}
+                          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Ville de depart</Label>
+                              <Popover open={departPopoverOpen} onOpenChange={setDepartPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    role="combobox"
+                                    disabled={!selectedPays}
+                                    className="w-full justify-between font-normal h-12 bg-slate-50 hover:bg-slate-100 rounded-xl px-4"
+                                  >
+                                    <span className="flex items-center gap-2 truncate">
+                                      <MapPin className="w-4 h-4 shrink-0 text-slate-400" />
+                                      {selectedDepartId
+                                        ? getVilleName(villes.find(v => v.id === selectedDepartId))
+                                        : (!selectedPays ? <span className="text-slate-500">Selectionnez un pays</span> : <span className="text-slate-500">Choisir une ville</span>)
+                                      }
+                                    </span>
+                                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Rechercher une ville..." />
+                                    <CommandList>
+                                      <CommandEmpty>Aucune ville trouvee</CommandEmpty>
+                                      <CommandGroup>
+                                        {villes.map(v => (
+                                          <CommandItem
+                                            key={v.id}
+                                            value={getVilleName(v)}
+                                            onSelect={() => {
+                                              setSelectedDepartId(v.id);
+                                              if (selectedArriveeId === v.id) setSelectedArriveeId(null);
+                                              handleChange('trajetInterVilleId', null);
+                                              handleChange('vehiculeId', null);
+                                              setDepartPopoverOpen(false);
+                                            }}
+                                            className="cursor-pointer"
+                                          >
+                                            <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                                            {getVilleName(v)}
+                                            {selectedDepartId === v.id && (
+                                              <Check className="ml-auto w-4 h-4 text-[#E04A1F] shrink-0" />
+                                            )}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={handleSwapCities}
+                              disabled={!selectedDepartId || !selectedArriveeId}
+                              className="h-12 w-12 rounded-xl bg-[#ffdbd0]/40 hover:bg-[#ffdbd0] border-0 text-[#E04A1F]"
+                            >
+                              <ArrowRightLeft className="w-4 h-4" />
+                            </Button>
+
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Ville d&apos;arrivee</Label>
+                              <Popover open={arriveePopoverOpen} onOpenChange={setArriveePopoverOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    role="combobox"
+                                    disabled={!selectedPays}
+                                    className="w-full justify-between font-normal h-12 bg-slate-50 hover:bg-slate-100 rounded-xl px-4"
+                                  >
+                                    <span className="flex items-center gap-2 truncate">
+                                      <MapPin className="w-4 h-4 shrink-0 text-slate-400" />
+                                      {selectedArriveeId
+                                        ? getVilleName(villes.find(v => v.id === selectedArriveeId))
+                                        : (!selectedPays ? <span className="text-slate-500">Selectionnez un pays</span> : <span className="text-slate-500">Choisir une ville</span>)
+                                      }
+                                    </span>
+                                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Rechercher une ville..." />
+                                    <CommandList>
+                                      <CommandEmpty>Aucune ville trouvee</CommandEmpty>
+                                      <CommandGroup>
+                                        {villes.filter(v => v.id !== selectedDepartId).map(v => (
+                                          <CommandItem
+                                            key={v.id}
+                                            value={getVilleName(v)}
+                                            onSelect={() => {
+                                              setSelectedArriveeId(v.id);
+                                              handleChange('trajetInterVilleId', null);
+                                              handleChange('vehiculeId', null);
+                                              setArriveePopoverOpen(false);
+                                            }}
+                                            className="cursor-pointer"
+                                          >
+                                            <MapPin className="w-4 h-4 mr-2 shrink-0" />
+                                            {getVilleName(v)}
+                                            {selectedArriveeId === v.id && (
+                                              <Check className="ml-auto w-4 h-4 text-[#E04A1F] shrink-0" />
+                                            )}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
+
+                          {/* Pickup addresses */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Adresse de prise en charge *</Label>
+                              <AddressAutocomplete
+                                placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
+                                value={formData.adressePriseEnChargeDepartAller}
+                                onChange={(val) => handleChange('adressePriseEnChargeDepartAller', val)}
+                                onSelect={(address, lat, lng) => {
+                                  setFormData(prev => ({ ...prev, adressePriseEnChargeDepartAller: address, adressePriseEnChargeDepartAllerLat: lat, adressePriseEnChargeDepartAllerLng: lng }));
+                                }}
+                                iconColor="text-green-500"
+                                countryCode={countryNameToCode(selectedPays)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Adresse de depose *</Label>
+                              <AddressAutocomplete
+                                placeholder="Ex: Gare routiere, Thies"
+                                value={formData.adressePriseEnChargeArriveeAller}
+                                onChange={(val) => handleChange('adressePriseEnChargeArriveeAller', val)}
+                                onSelect={(address, lat, lng) => {
+                                  setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeAller: address, adressePriseEnChargeArriveeAllerLat: lat, adressePriseEnChargeArriveeAllerLng: lng }));
+                                }}
+                                iconColor="text-red-500"
+                                countryCode={countryNameToCode(selectedPays)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Bagages card */}
+                      <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+                          <Briefcase className="w-5 h-5 text-[#E04A1F]" />
+                          Bagages
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Petits bagages</Label>
+                            <Select
+                              value={formData.smallBags.toString()}
+                              onValueChange={(v) => handleChange('smallBags', parseInt(v))}
+                            >
+                              <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                                <Briefcase className="w-4 h-4 mr-2 text-slate-400" />
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 1, 2, 3, 4, 5].map(n => (
+                                  <SelectItem key={n} value={n.toString()}>{n} bagage{n > 1 ? 's' : ''}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Grands bagages</Label>
+                            <Select
+                              value={formData.largeBags.toString()}
+                              onValueChange={(v) => handleChange('largeBags', parseInt(v))}
+                            >
+                              <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                                <Briefcase className="w-4 h-4 mr-2 text-slate-400" />
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 1, 2, 3, 4, 5].map(n => (
+                                  <SelectItem key={n} value={n.toString()}>{n} bagage{n > 1 ? 's' : ''}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Trajet retour card (conditional) */}
+                      {!formData.isOneWay && (
+                        <motion.section
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-orange-100"
+                        >
+                          <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
+                            <ArrowRightLeft className="w-5 h-5 text-[#E04A1F]" />
+                            Trajet retour
+                          </h2>
+                          <div className="space-y-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Adresse de prise en charge</Label>
+                                <AddressAutocomplete
+                                  placeholder="Ex: Gare routiere, Thies"
+                                  value={formData.adressePriseEnChargeDepartRetour}
+                                  onChange={(val) => handleChange('adressePriseEnChargeDepartRetour', val)}
+                                  onSelect={(address, lat, lng) => {
+                                    setFormData(prev => ({ ...prev, adressePriseEnChargeDepartRetour: address, adressePriseEnChargeDepartRetourLat: lat, adressePriseEnChargeDepartRetourLng: lng }));
+                                  }}
+                                  iconColor="text-green-500"
+                                  countryCode={countryNameToCode(selectedPays)}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Adresse de depose</Label>
+                                <AddressAutocomplete
+                                  placeholder="Ex: Hotel Terrou-Bi, Corniche, Dakar"
+                                  value={formData.adressePriseEnChargeArriveeRetour}
+                                  onChange={(val) => handleChange('adressePriseEnChargeArriveeRetour', val)}
+                                  onSelect={(address, lat, lng) => {
+                                    setFormData(prev => ({ ...prev, adressePriseEnChargeArriveeRetour: address, adressePriseEnChargeArriveeRetourLat: lat, adressePriseEnChargeArriveeRetourLng: lng }));
+                                  }}
+                                  iconColor="text-red-500"
+                                  countryCode={countryNameToCode(selectedPays)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date de retour</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      className="w-full justify-start bg-slate-50 hover:bg-slate-100 rounded-xl h-12 px-4 font-normal"
+                                    >
+                                      <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                                      {formData.pickupDateRetour
+                                        ? format(new Date(formData.pickupDateRetour + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                                        : <span className="text-slate-500">Selectionner une date</span>}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                      mode="single"
+                                      selected={formData.pickupDateRetour ? new Date(formData.pickupDateRetour + 'T00:00:00') : undefined}
+                                      onSelect={(date) => handleChange('pickupDateRetour', date ? format(date, 'yyyy-MM-dd') : '')}
+                                      disabled={(date) => {
+                                        const minDate = formData.pickupDateAller ? new Date(formData.pickupDateAller + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                                        return date < minDate;
+                                      }}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de retour</Label>
+                                <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
+                                  <Clock className="w-4 h-4 mr-2 text-slate-400 shrink-0" />
+                                  <TimePicker
+                                    value={formData.pickupTimeRetour}
+                                    onChange={(v) => handleChange('pickupTimeRetour', v)}
+                                    placeholder="Choisir une heure"
+                                    selectedDate={formData.pickupDateRetour}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <Baby className="w-5 h-5 text-slate-500 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">Sieges bebe (retour)</p>
+                                    <p className="text-xs text-slate-500">+5 000 FCFA/siege</p>
+                                  </div>
+                                </div>
+                                <Select
+                                  value={formData.siegeBebesRetour.toString()}
+                                  onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v))}
+                                >
+                                  <SelectTrigger className="w-20 bg-white border-0">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0, 1, 2, 3].map(n => (
+                                      <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <PawPrint className="w-5 h-5 text-slate-500 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">Animal (retour)</p>
+                                    <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                                  </div>
+                                </div>
+                                <Switch
+                                  checked={formData.animalDeCompagnieRetour}
+                                  onCheckedChange={(v) => handleChange('animalDeCompagnieRetour', v)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </motion.section>
+                      )}
+
+                      {/* Notes card */}
+                      <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1 mb-3 block">Demandes speciales (optionnel)</Label>
+                        <Textarea
+                          placeholder="Instructions particulieres pour le chauffeur..."
+                          value={formData.specialRequests}
+                          onChange={(e) => handleChange('specialRequests', e.target.value)}
+                          className="bg-slate-50 border-0 rounded-xl resize-none min-h-[80px]"
+                        />
+                      </section>
+                    </div>
+
+                    {/* RIGHT col-4: sticky options */}
+                    <aside className="lg:col-span-4">
+                      <div className="sticky top-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-6">
+                        <h2 className="text-xl font-bold text-slate-900">Options</h2>
+
+                        {/* Sieges bebe with count */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                              <Baby className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">Sieges bebe</p>
+                              <p className="text-xs text-slate-500">+5 000 FCFA/siege</p>
                             </div>
                           </div>
                           <Select
-                            value={formData.siegeBebesRetour.toString()}
-                            onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v))}
+                            value={formData.siegeBebes.toString()}
+                            onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
                           >
-                            <SelectTrigger className="w-20">
+                            <SelectTrigger className="w-16 h-9 bg-slate-50 border-0 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1050,32 +1214,79 @@ export default function InterCity() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                          <div className="flex items-center gap-3">
-                            <PawPrint className="w-5 h-5 text-slate-500" />
-                            <div>
-                              <p className="font-medium text-slate-800">Animal (retour)</p>
-                              <p className="text-sm text-slate-500">+5 000 FCFA</p>
+
+                        {/* Animal */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                              <PawPrint className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">Animal de compagnie</p>
+                              <p className="text-xs text-slate-500">+5 000 FCFA</p>
                             </div>
                           </div>
                           <Switch
-                            checked={formData.animalDeCompagnieRetour}
-                            onCheckedChange={(v) => handleChange('animalDeCompagnieRetour', v)}
+                            checked={formData.animalDeCompagnie}
+                            onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
                           />
                         </div>
-                      </div>
-                    </motion.div>
-                  )}
 
-                  {/* Special requests */}
-                  <div className="space-y-2">
-                    <Label>Demandes speciales (optionnel)</Label>
-                    <Textarea
-                      placeholder="Instructions particulieres pour le chauffeur..."
-                      value={formData.specialRequests}
-                      onChange={(e) => handleChange('specialRequests', e.target.value)}
-                      className="h-20"
-                    />
+                        {/* Aller-retour (highlighted) */}
+                        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                              <ArrowRightLeft className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-[#E04A1F] truncate">Aller-retour</p>
+                              <p className="text-xs text-slate-500">Reserver le retour</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={!formData.isOneWay}
+                            onCheckedChange={(v) => handleChange('isOneWay', !v)}
+                          />
+                        </div>
+
+                        {/* Price preview */}
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center">
+                          <p className="text-xs text-slate-500 uppercase tracking-widest font-bold mb-1">Estimation</p>
+                          <p className="text-2xl font-extrabold text-[#E04A1F]">
+                            {selectedTrajet
+                              ? `${calculateTotal().toLocaleString()} FCFA`
+                              : <span className="text-base text-slate-400 font-bold">A l&apos;etape suivante</span>}
+                          </p>
+                        </div>
+
+                        {/* Privacy note */}
+                        <p className="text-center text-xs text-slate-400 leading-relaxed">
+                          Vos donnees sont securisees et traitees selon notre politique de confidentialite.
+                        </p>
+                      </div>
+                    </aside>
+                  </div>
+
+                  {/* Editorial bottom image */}
+                  <div className="mt-12 rounded-[2rem] overflow-hidden h-56 relative bg-gradient-to-br from-slate-800 to-slate-900 group">
+                    {featuredVehicleImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={featuredVehicleImage}
+                        alt="Vehicule premium"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-end opacity-10 pr-12">
+                        <Car className="w-72 h-72 text-white" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent flex flex-col justify-end p-10">
+                      <h3 className="text-white font-extrabold text-2xl tracking-tight">Le confort Subito Business</h3>
+                      <p className="text-white/70 max-w-md mt-2 text-sm">
+                        Flotte de vehicules premium avec Wi-Fi embarque et chauffeurs multilingues certifies.
+                      </p>
+                    </div>
                   </div>
                 </>
               )}
@@ -1089,13 +1300,16 @@ export default function InterCity() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Informations du client</h3>
+              {/* LEFT col-8 : Form bento */}
+              <div className="lg:col-span-8">
+                <div className="bg-white p-6 md:p-10 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Informations du client</h3>
 
               {/* Employee selector with search */}
-              <div className="space-y-2">
-                <Label>Voyageur (employe) *</Label>
+              <div className="flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-slate-600 ml-1">Sélectionner l&apos;employé (voyageur)</Label>
                 <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -1169,7 +1383,7 @@ export default function InterCity() {
                                   {deptName && <p className="text-xs text-slate-500">{deptName}</p>}
                                 </div>
                                 {formData.employeeId === emp.id && (
-                                  <Check className="w-4 h-4 text-orange-600 shrink-0" />
+                                  <Check className="w-4 h-4 text-[#E04A1F] shrink-0" />
                                 )}
                               </CommandItem>
                             );
@@ -1196,64 +1410,146 @@ export default function InterCity() {
                 </DialogContent>
               </Dialog>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Nom complet *
-                  </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-semibold text-slate-600 ml-1">Nom complet</Label>
                   <Input
                     placeholder="Nom et prenom du client"
+                    className="w-full h-14 px-4 bg-slate-50 border-0 rounded-xl focus-visible:ring-2 focus-visible:ring-orange-500/40 font-medium text-slate-900"
                     value={formData.clientName}
                     onChange={(e) => handleChange('clientName', e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    Telephone *
-                  </Label>
-                  <PhoneInput
-                    value={formData.clientPhone}
-                    onChange={(v) => handleChange('clientPhone', v)}
-                    error={!!phoneError}
-                  />
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-semibold text-slate-600 ml-1">Téléphone</Label>
+                  <div className="bg-slate-50 rounded-xl h-14 flex items-center px-2">
+                    <PhoneInput
+                      value={formData.clientPhone}
+                      onChange={(v) => handleChange('clientPhone', v)}
+                      error={!!phoneError}
+                    />
+                  </div>
                   {phoneError && (
-                    <p className="text-sm text-red-500">Numero invalide</p>
+                    <p className="text-sm text-red-500 ml-1">Numero invalide</p>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    Email (optionnel)
-                  </Label>
-                  <Input
-                    type="email"
-                    placeholder="client@email.com"
-                    value={formData.clientEmail}
-                    onChange={(e) => handleChange('clientEmail', e.target.value)}
-                  />
+              <div className="flex flex-col gap-2">
+                <Label className="text-sm font-semibold text-slate-600 ml-1">Adresse e-mail (optionnel)</Label>
+                <Input
+                  type="email"
+                  placeholder="client@email.com"
+                  className="w-full h-14 px-4 bg-slate-50 border-0 rounded-xl focus-visible:ring-2 focus-visible:ring-orange-500/40 font-medium text-slate-900"
+                  value={formData.clientEmail}
+                  onChange={(e) => handleChange('clientEmail', e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 pt-4">
+                <Label className="text-sm font-semibold text-slate-600 ml-1">Notes particulieres pour le chauffeur</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="Ex: Accueil avec pancarte, bagages volumineux..."
+                  className="w-full p-4 bg-slate-50 border-0 rounded-xl focus-visible:ring-2 focus-visible:ring-orange-500/40 font-medium text-slate-900 resize-none"
+                  value={formData.specialRequests || ''}
+                  onChange={(e) => handleChange('specialRequests', e.target.value)}
+                />
+              </div>
                 </div>
               </div>
 
-              {/* Trip summary */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <h4 className="font-medium text-slate-800 mb-2">Resume du trajet</h4>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <span className="font-semibold">{getVilleName(villes.find(v => v.id === selectedDepartId))}</span>
-                  <ArrowRight className="w-4 h-4" />
-                  <span className="font-semibold">{getVilleName(villes.find(v => v.id === selectedArriveeId))}</span>
+              {/* RIGHT col-4 : Trip recap + editorial */}
+              <aside className="lg:col-span-4 space-y-6">
+                {/* Recap Card */}
+                <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-100">
+                  <h3 className="text-lg font-bold mb-6 text-slate-900">Resume du trajet</h3>
+                  <div className="space-y-6">
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center py-1">
+                        <div className="w-3 h-3 rounded-full border-2 border-orange-600 bg-white shrink-0" />
+                        <div className="w-0.5 flex-1 bg-slate-200 my-1 min-h-[32px]" />
+                        <div className="w-3 h-3 rounded-full bg-orange-600 shrink-0" />
+                      </div>
+                      <div className="space-y-4 min-w-0">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Depart</p>
+                          <p className="text-sm font-semibold leading-tight mt-1 truncate">
+                            {getVilleName(villes.find(v => v.id === selectedDepartId)) || '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Arrivee</p>
+                          <p className="text-sm font-semibold leading-tight mt-1 truncate">
+                            {getVilleName(villes.find(v => v.id === selectedArriveeId)) || '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="h-px bg-slate-200" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Date</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <CalendarIcon className="w-3 h-3 text-[#E04A1F]" />
+                          <span className="text-sm font-bold">
+                            {formData.pickupDateAller ? format(new Date(formData.pickupDateAller), 'dd MMM', { locale: fr }) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Heure</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Clock className="w-3 h-3 text-[#E04A1F]" />
+                          <span className="text-sm font-bold">{formData.pickupTimeAller || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {!formData.isOneWay && (
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ffdbd0] text-orange-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        <ArrowRightLeft className="w-3 h-3" />
+                        Aller-retour
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-slate-500 mt-1">
-                  {formData.pickupDateAller && format(new Date(formData.pickupDateAller), "EEEE d MMMM yyyy", { locale: fr })}
-                  {' a '}
-                  {formData.pickupTimeAller}
-                  {!formData.isOneWay && ' (Aller-retour)'}
-                </p>
-              </div>
+
+                {/* Editorial image card */}
+                <div className="relative overflow-hidden rounded-3xl aspect-[4/3] bg-gradient-to-br from-slate-800 to-slate-900 group">
+                  {featuredVehicleImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={featuredVehicleImage}
+                      alt="Vehicule premium"
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                      <Car className="w-40 h-40 text-white" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-6 flex flex-col justify-end">
+                    <span className="bg-orange-600 text-[10px] font-bold text-white px-3 py-1 rounded-full w-fit mb-3 uppercase tracking-wider">
+                      Conseil voyage
+                    </span>
+                    <h4 className="text-white font-bold text-lg leading-tight">Privilegiez le silence pour vos appels</h4>
+                    <p className="text-white/70 text-xs mt-2">
+                      Tous nos vehicules Business sont equipes de vitres acoustiques.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Help alert */}
+                <div className="bg-teal-50 p-6 rounded-3xl border border-teal-100 flex gap-4">
+                  <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-teal-900">Besoin d&apos;aide ?</p>
+                    <p className="text-xs text-teal-800/80 mt-1 leading-relaxed">
+                      Notre support client est disponible 24/7 pour vos reservations complexes.
+                    </p>
+                  </div>
+                </div>
+              </aside>
             </motion.div>
           )}
 
@@ -1264,82 +1560,151 @@ export default function InterCity() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="space-y-8"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Choisissez votre vehicule</h3>
+              <div className="text-center">
+                <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">Selectionnez votre vehicule</h3>
+                <p className="text-slate-500 max-w-xl mx-auto">Choisissez la categorie la mieux adaptee a votre trajet interurbain et a vos bagages.</p>
+              </div>
 
-              <div className="space-y-3">
-                {matchingTrajets.map(trajet => {
-                  const v = trajet.vehicule;
-                  const vehiculeName = v?.categorie || v?.marque || `Vehicule`;
-                  const vehiculeModel = `${v?.marque || ''} ${v?.modele || v?.model || ''}`.trim();
-                  const price = trajet.prixAllerSimple ?? trajet.prix ?? 0;
-                  const places = v?.places ?? v?.nombrePlace;
-                  const imageUrl = Array.isArray(v?.image) ? v.image[0] : v?.image;
-                  const isSelected = formData.trajetInterVilleId === trajet.id;
-                  return (
-                    <div
-                      key={trajet.id}
-                      onClick={() => {
-                        handleChange('trajetInterVilleId', trajet.id);
-                        handleChange('vehiculeId', v?.id || null);
-                      }}
-                      className={`
-                        flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all
-                        ${isSelected
-                          ? 'border-orange-400 bg-orange-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                        }
-                      `}
-                    >
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                        {imageUrl ? (
-                          <img src={imageUrl} alt={vehiculeName} className="w-10 h-10 object-contain rounded" />
-                        ) : (
-                          <Car className="w-7 h-7 text-slate-400" />
+              {matchingTrajets.length > 0 ? (() => {
+                const totalPages = Math.max(1, Math.ceil(matchingTrajets.length / VEHICLES_PER_PAGE));
+                const safePage = Math.min(vehiclePage, totalPages - 1);
+                const start = safePage * VEHICLES_PER_PAGE;
+                const pageTrajets = matchingTrajets.slice(start, start + VEHICLES_PER_PAGE);
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {pageTrajets.map(trajet => {
+                    const v = trajet.vehicule;
+                    const vehiculeName = v?.categorie || v?.marque || 'Vehicule';
+                    const vehiculeModel = `${v?.marque || ''} ${v?.modele || v?.model || ''}`.trim();
+                    const price = trajet.prixAllerSimple ?? trajet.prix ?? 0;
+                    const places = v?.places ?? v?.nombrePlace;
+                    const imageUrl = Array.isArray(v?.image) ? v.image[0] : v?.image;
+                    const isSelected = formData.trajetInterVilleId === trajet.id;
+                    return (
+                      <button
+                        key={trajet.id}
+                        type="button"
+                        onClick={() => {
+                          handleChange('trajetInterVilleId', trajet.id);
+                          handleChange('vehiculeId', v?.id || null);
+                        }}
+                        className={`relative text-left bg-white rounded-3xl p-6 transition-all overflow-hidden ${
+                          isSelected
+                            ? 'ring-2 ring-orange-600 shadow-lg shadow-orange-500/10'
+                            : 'ring-1 ring-slate-100 hover:ring-orange-200 hover:shadow-md'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-orange-600 flex items-center justify-center shadow">
+                            <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                          </div>
                         )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-800 capitalize">{vehiculeName}</p>
-                        {vehiculeModel && <p className="text-sm text-slate-500">{vehiculeModel}</p>}
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+
+                        <div className="bg-slate-50 rounded-2xl h-40 flex items-center justify-center mb-4 overflow-hidden">
+                          {imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageUrl}
+                              alt={vehiculeName}
+                              className="max-w-full max-h-32 object-contain drop-shadow-md"
+                            />
+                          ) : (
+                            <Car className="w-20 h-20 text-slate-300" />
+                          )}
+                        </div>
+
+                        <div className="mb-4">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] block mb-1">
+                            Categorie
+                          </span>
+                          <h3 className="text-lg font-extrabold capitalize text-slate-900 leading-tight">
+                            {vehiculeName}
+                          </h3>
+                          {vehiculeModel && (
+                            <p className="text-xs text-slate-500 italic mt-0.5">{vehiculeModel} ou similaire</p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mb-5">
                           {places != null && (
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {places} places
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
+                              <Users className="w-3.5 h-3.5 text-[#E04A1F]" />
+                              {places} places
+                            </span>
+                          )}
+                          {v?.grandBagage != null && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
+                              <Briefcase className="w-3.5 h-3.5 text-[#E04A1F]" />
+                              {v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''}
                             </span>
                           )}
                           {v?.petitBagage != null && (
-                            <span>{v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''} bagage{Number(v.petitBagage) > 1 ? 's' : ''}</span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
+                              <Briefcase className="w-3.5 h-3.5 text-[#E04A1F]" />
+                              {v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''}
+                            </span>
                           )}
-                          {v?.grandBagage != null && (
-                            <span>{v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''} bagage{Number(v.grandBagage) > 1 ? 's' : ''}</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
+                            <Shield className="w-3.5 h-3.5 text-[#E04A1F]" />
+                            Climatise
+                          </span>
+                        </div>
+
+                        <div className="flex items-end justify-between pt-4 border-t border-slate-100">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                            Prix du trajet
+                          </p>
+                          {price > 0 ? (
+                            <p className="text-xl font-extrabold text-slate-900">
+                              {Number(price).toLocaleString()}
+                              <span className="text-xs font-bold text-slate-500 ml-1">FCFA</span>
+                            </p>
+                          ) : (
+                            <p className="text-xs font-bold uppercase tracking-wider text-[#E04A1F]">
+                              Prix sur demande
+                            </p>
                           )}
                         </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-bold text-slate-800 text-lg">{Number(price).toLocaleString()} FCFA</p>
-                      </div>
-                      <div className={`
-                        w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
-                        ${isSelected
-                          ? 'border-orange-500 bg-orange-500'
-                          : 'border-slate-300'
-                        }
-                      `}>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-white" />
-                        )}
-                      </div>
+                      </button>
+                    );
+                  })}
                     </div>
-                  );
-                })}
-              </div>
 
-              {matchingTrajets.length === 0 && (
-                <div className="text-center py-12 text-slate-400">
-                  <Car className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun vehicule disponible</p>
-                  <p className="text-sm mt-1">Selectionnez un trajet valide pour voir les vehicules</p>
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between mt-8">
+                        <button
+                          type="button"
+                          onClick={() => setVehiclePage(p => Math.max(0, p - 1))}
+                          disabled={safePage === 0}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-700 border border-slate-200 text-sm font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Precedent
+                        </button>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                          Page {safePage + 1} / {totalPages} <span className="text-slate-400 normal-case">({matchingTrajets.length} vehicules)</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setVehiclePage(p => Math.min(totalPages - 1, p + 1))}
+                          disabled={safePage >= totalPages - 1}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#E04A1F] text-white text-sm font-bold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none transition"
+                        >
+                          Suivant
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })() : (
+                <div className="text-center py-16 bg-slate-50 rounded-3xl">
+                  <Car className="w-14 h-14 mx-auto mb-3 text-slate-300" />
+                  <p className="font-semibold text-slate-700">Aucun vehicule disponible</p>
+                  <p className="text-sm mt-1 text-slate-500">Selectionnez un trajet valide pour voir les vehicules</p>
                 </div>
               )}
             </motion.div>
@@ -1352,317 +1717,475 @@ export default function InterCity() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Mode de paiement</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {paymentMethods.map((option) => (
-                  <div
-                    key={option.value}
-                    onClick={() => handleChange('paymentMethod', option.value)}
-                    className={`
-                      flex flex-col items-center gap-3 p-6 rounded-xl border-2 cursor-pointer transition-all
-                      ${formData.paymentMethod === option.value
-                        ? 'border-orange-400 bg-orange-50'
-                        : 'border-slate-200 hover:border-slate-300'
-                      }
-                    `}
-                  >
-                    <span className="text-4xl">{option.icon}</span>
-                    <div className="text-center">
-                      <p className="font-medium text-slate-800">{option.label}</p>
-                      <p className="text-sm text-slate-500">{option.desc}</p>
-                    </div>
-                    {formData.paymentMethod === option.value && (
-                      <Check className="w-5 h-5 text-orange-600" />
-                    )}
+              {/* Left: Payment options */}
+              <div className="lg:col-span-7 space-y-8">
+                <h3 className="text-xl font-bold text-slate-900">Selectionnez le mode de paiement</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {paymentMethods.map((option, idx) => {
+                    const isSelected = formData.paymentMethod === option.value;
+                    return (
+                      <div
+                        key={option.value}
+                        onClick={() => handleChange('paymentMethod', option.value)}
+                        className={`group relative p-8 rounded-2xl cursor-pointer hover:shadow-xl transition-all duration-300 ${
+                          isSelected
+                            ? 'bg-white border-2 border-orange-600 shadow-lg shadow-orange-500/5'
+                            : 'bg-slate-50 border-2 border-transparent hover:bg-white'
+                        }`}
+                      >
+                        <div className="absolute top-4 right-4">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            isSelected ? 'bg-orange-600' : 'border-2 border-slate-300'
+                          }`}>
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                        </div>
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-6 text-3xl ${
+                          isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-200 text-slate-500 group-hover:bg-slate-100'
+                        }`}>
+                          {option.icon || (idx === 0 ? '🏢' : '👤')}
+                        </div>
+                        <h3 className="text-lg font-bold mb-2 text-slate-900">{option.label}</h3>
+                        <p className="text-sm text-slate-500 leading-relaxed">{option.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Moyens de paiement */}
+                <div className="pt-8 border-t border-slate-200">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
+                    Moyens de paiement acceptes
+                  </p>
+                  <div className="flex gap-3 items-center flex-wrap">
+                    {['VISA', 'MC', 'OM', 'MOMO', 'WAVE'].map(label => (
+                      <div key={label} className="h-10 px-4 bg-slate-100 rounded flex items-center justify-center font-bold text-xs text-slate-500">
+                        {label}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
 
-              {/* Price breakdown */}
-              <div className="p-6 rounded-xl bg-slate-50 space-y-3">
-                <h4 className="font-medium text-slate-800">Detail du prix</h4>
-                <div className="space-y-2 text-sm">
+              {/* Right: Sticky summary */}
+              <aside className="lg:col-span-5">
+                <div className="sticky top-6 bg-slate-50 rounded-3xl p-8 space-y-6">
+                  <h2 className="text-xl font-bold text-slate-900">Detail du prix</h2>
+
+                  {/* Trip summary */}
                   {selectedTrajet && (
-                    <div className="flex justify-between">
-                      <span>Trajet aller ({getVilleName(selectedTrajet.villeDepart)} → {getVilleName(selectedTrajet.villeArrivee)})</span>
-                      <span className="font-medium">{(selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0).toLocaleString()} FCFA</span>
-                    </div>
-                  )}
-                  {formData.siegeBebes > 0 && (
-                    <div className="flex justify-between">
-                      <span>Sieges bebe (x{formData.siegeBebes})</span>
-                      <span className="font-medium">{(formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
-                    </div>
-                  )}
-                  {formData.animalDeCompagnie && (
-                    <div className="flex justify-between">
-                      <span>Animal de compagnie</span>
-                      <span className="font-medium">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
-                    </div>
-                  )}
-                  {!formData.isOneWay && selectedTrajet && (
-                    <>
-                      <div className="flex justify-between pt-2 border-t border-slate-200">
-                        <span>Trajet retour</span>
-                        <span className="font-medium">{(selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0)).toLocaleString()} FCFA</span>
+                    <div className="flex items-start gap-4 pb-6 border-b border-slate-200">
+                      <div className="bg-white p-3 rounded-lg shadow-sm shrink-0">
+                        <MapPin className="w-5 h-5 text-[#E04A1F]" />
                       </div>
-                      {formData.siegeBebesRetour > 0 && (
-                        <div className="flex justify-between">
-                          <span>Sieges bebe retour (x{formData.siegeBebesRetour})</span>
-                          <span className="font-medium">{(formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
-                        </div>
-                      )}
-                      {formData.animalDeCompagnieRetour && (
-                        <div className="flex justify-between">
-                          <span>Animal retour</span>
-                          <span className="font-medium">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
-                        </div>
-                      )}
-                    </>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 font-medium">Itineraire</p>
+                        <p className="font-bold text-slate-900 truncate">
+                          {getVilleName(selectedTrajet.villeDepart)} <span className="text-[#E04A1F]">→</span> {getVilleName(selectedTrajet.villeArrivee)}
+                        </p>
+                        <p className="text-xs text-slate-500 capitalize">
+                          {selectedTrajet.vehicule?.categorie || selectedTrajet.vehicule?.marque || 'Vehicule'}
+                          {!formData.isOneWay && ' • Aller-retour'}
+                        </p>
+                      </div>
+                    </div>
                   )}
-                </div>
-                <div className="pt-3 border-t border-slate-300 flex justify-between">
-                  <span className="font-semibold">{user?.isTva ? 'Total HT' : 'Total'}</span>
-                  <span className={`font-bold ${user?.isTva ? 'text-slate-800 text-lg' : 'text-subito text-xl'}`}>{calculateTotal().toLocaleString()} FCFA</span>
-                </div>
-                {user?.isTva && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span>TVA (18%)</span>
-                      <span className="font-medium">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+
+                  {/* Breakdown */}
+                  <div className="space-y-3 pt-2">
+                    {selectedTrajet && (() => {
+                      const allerPrice = selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0;
+                      return (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500">Trajet aller</span>
+                          <span className="font-semibold">
+                            {allerPrice > 0 ? `${allerPrice.toLocaleString()} FCFA` : 'Sur demande'}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    {formData.siegeBebes > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Sieges bebe (x{formData.siegeBebes})</span>
+                        <span className="font-semibold">{(formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
+                      </div>
+                    )}
+                    {formData.animalDeCompagnie && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Animal</span>
+                        <span className="font-semibold">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
+                      </div>
+                    )}
+                    {!formData.isOneWay && selectedTrajet && (
+                      <>
+                        {(() => {
+                          const retourPrice = selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0);
+                          return (
+                            <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                              <span className="text-slate-500">Trajet retour</span>
+                              <span className="font-semibold">
+                                {retourPrice > 0 ? `${retourPrice.toLocaleString()} FCFA` : 'Sur demande'}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                        {formData.siegeBebesRetour > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">Sieges bebe retour (x{formData.siegeBebesRetour})</span>
+                            <span className="font-semibold">{(formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)).toLocaleString()} FCFA</span>
+                          </div>
+                        )}
+                        {formData.animalDeCompagnieRetour && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">Animal retour</span>
+                            <span className="font-semibold">{(selectedTrajet?.prixAnimalCompagnie ?? 5000).toLocaleString()} FCFA</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Total dashed */}
+                  <div className="pt-6 mt-6 border-t-2 border-dashed border-slate-300">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          {user?.isTva ? 'Total HT' : 'Total a regler'}
+                        </p>
+                        <p className="text-3xl font-extrabold text-slate-900">
+                          {calculateTotal().toLocaleString()} <span className="text-base">FCFA</span>
+                        </p>
+                      </div>
+                      <div className="bg-[#ffdbd0] text-[#E04A1F] text-[10px] px-2 py-1 rounded font-bold uppercase">
+                        {user?.isTva ? 'HT' : 'TVA Incluse'}
+                      </div>
                     </div>
-                    <div className="pt-2 border-t border-slate-300 flex justify-between">
-                      <span className="font-semibold">Total TTC</span>
-                      <span className="font-bold text-subito text-xl">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
-                    </div>
-                  </>
-                )}
-              </div>
+                    {user?.isTva && (
+                      <>
+                        <div className="flex justify-between text-sm mt-3">
+                          <span className="text-slate-500">TVA (18%)</span>
+                          <span className="font-medium">{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
+                        </div>
+                        <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between items-end">
+                          <span className="font-bold text-slate-900">Total TTC</span>
+                          <span className="text-xl font-extrabold text-[#E04A1F]">
+                            {Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Trust badge */}
+                  <div className="flex items-center justify-center gap-3 text-slate-400 pt-2">
+                    <Shield className="w-4 h-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                      Paiement 100% securise
+                    </span>
+                  </div>
+                </div>
+              </aside>
             </motion.div>
           )}
 
-          {/* Step 5: Summary */}
+          {/* Step 5: Summary (pre-confirmation) */}
           {currentStep === 5 && (
             <motion.div
               key="step5"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
             >
-              <h3 className="text-lg font-semibold text-slate-800">Recapitulatif de la reservation</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* LEFT col-8: trip + client + date */}
+                <div className="lg:col-span-8 space-y-6">
+                  {/* Trip details card */}
+                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-8">
+                      <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                        <Route className="w-5 h-5 text-[#E04A1F]" />
+                        Details du trajet
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(2)}
+                        className="text-sm font-semibold text-[#E04A1F] hover:underline"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+                    <div className="flex items-start gap-6 md:gap-8">
+                      <div className="relative flex flex-col items-center pt-1">
+                        <div className="w-4 h-4 rounded-full border-4 border-orange-600 bg-white z-10 shrink-0" />
+                        <div className="w-[2px] flex-1 min-h-[80px] border-l-2 border-dashed border-slate-200 my-1" />
+                        <div className="w-4 h-4 rounded-full bg-slate-900 z-10 shrink-0" />
+                      </div>
+                      <div className="flex-1 space-y-8 min-w-0">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Point de depart</p>
+                          <p className="text-base md:text-lg font-bold text-slate-900 truncate">
+                            {getVilleName(selectedTrajet?.villeDepart) || '—'}
+                          </p>
+                          {formData.adressePriseEnChargeDepartAller && (
+                            <p className="text-sm text-slate-500 truncate">{formData.adressePriseEnChargeDepartAller}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Point d&apos;arrivee</p>
+                          <p className="text-base md:text-lg font-bold text-slate-900 truncate">
+                            {getVilleName(selectedTrajet?.villeArrivee) || '—'}
+                          </p>
+                          {formData.adressePriseEnChargeArriveeAller && (
+                            <p className="text-sm text-slate-500 truncate">{formData.adressePriseEnChargeArriveeAller}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-              {/* Itinerary */}
-              <div className="p-6 rounded-xl bg-slate-50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-800">{getVilleName(selectedTrajet?.villeDepart)}</span>
-                    <ArrowRight className="w-5 h-5 text-slate-400" />
-                    <span className="font-bold text-slate-800">{getVilleName(selectedTrajet?.villeArrivee)}</span>
+                    {!formData.isOneWay && (
+                      <div className="mt-6 pt-6 border-t border-slate-100">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ffdbd0] text-orange-700 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4">
+                          <ArrowRightLeft className="w-3 h-3" />
+                          Trajet retour
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          {formData.pickupDateRetour && format(new Date(formData.pickupDateRetour), "EEEE d MMMM yyyy", { locale: fr })}
+                          {formData.pickupTimeRetour && ` a ${formData.pickupTimeRetour}`}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {!formData.isOneWay && (
-                    <Badge className="bg-blue-100 text-blue-700 border-0">
-                      Aller-retour
-                    </Badge>
-                  )}
-                </div>
-                <div className="text-sm text-slate-600 space-y-1 pt-2 border-t border-slate-200">
-                  <p><span className="text-slate-500">Prise en charge:</span> {formData.adressePriseEnChargeDepartAller}</p>
-                  <p><span className="text-slate-500">Depose:</span> {formData.adressePriseEnChargeArriveeAller}</p>
-                </div>
-              </div>
 
-              {/* Vehicle info */}
-              {selectedTrajet?.vehicule && (
-                <div className="p-6 rounded-xl border border-slate-200 space-y-2">
-                  <p className="text-sm text-slate-500">Vehicule</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                      {Array.isArray(selectedTrajet.vehicule.image) && selectedTrajet.vehicule.image[0] ? (
-                        <img src={selectedTrajet.vehicule.image[0]} alt="" className="w-8 h-8 object-contain rounded" />
-                      ) : (
-                        <Car className="w-5 h-5 text-slate-400" />
+                  {/* Client + Date split */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-50 rounded-3xl p-6">
+                      <div className="flex items-center justify-between mb-5">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Passager &amp; Client</h3>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(1)}
+                          className="text-xs font-semibold text-[#E04A1F] hover:underline"
+                        >
+                          Modifier
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-[#E04A1F] font-bold shadow-sm shrink-0">
+                          {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">{formData.clientName}</p>
+                          <p className="text-sm text-slate-500 truncate">{formData.clientPhone}</p>
+                          {formData.clientEmail && <p className="text-sm text-slate-500 truncate">{formData.clientEmail}</p>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-3xl p-6">
+                      <div className="flex items-center justify-between mb-5">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Date &amp; Heure</h3>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(2)}
+                          className="text-xs font-semibold text-[#E04A1F] hover:underline"
+                        >
+                          Modifier
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                          <CalendarIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">
+                            {formData.pickupDateAller && format(new Date(formData.pickupDateAller), 'EEEE d MMMM yyyy', { locale: fr })}
+                          </p>
+                          <p className="text-sm text-slate-500">Depart prevu a {formData.pickupTimeAller}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT col-4: vehicle + payment + help */}
+                <aside className="lg:col-span-4 space-y-6">
+                  {/* Vehicle card */}
+                  <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Vehicule selectionne</h3>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(3)}
+                        className="text-xs font-semibold text-[#E04A1F] hover:underline"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+                    <div className="mb-4 h-28 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden">
+                      {(() => {
+                        const v = selectedTrajet?.vehicule;
+                        const imageUrl = Array.isArray(v?.image) ? v.image[0] : v?.image;
+                        return imageUrl ? (
+                          <img src={imageUrl} alt="" className="max-w-full max-h-24 object-contain" />
+                        ) : (
+                          <Car className="w-16 h-16 text-slate-400" />
+                        );
+                      })()}
+                    </div>
+                    <div className="flex justify-between items-end">
+                      <div className="min-w-0">
+                        <p className="text-xl font-bold text-slate-900 capitalize truncate">
+                          {selectedTrajet?.vehicule?.categorie || selectedTrajet?.vehicule?.marque || 'Vehicule'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {(selectedTrajet?.vehicule?.places ?? selectedTrajet?.vehicule?.nombrePlace) != null && (
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <Users className="w-3 h-3" />
+                              {selectedTrajet?.vehicule?.places ?? selectedTrajet?.vehicule?.nombrePlace} places
+                            </span>
+                          )}
+                          {selectedTrajet?.vehicule?.grandBagage != null && (
+                            <>
+                              <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                              <span className="flex items-center gap-1 text-xs text-slate-500">
+                                <Briefcase className="w-3 h-3" />
+                                {selectedTrajet.vehicule.grandBagage} bagages
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <CheckCircle2 className="w-7 h-7 text-[#E04A1F] shrink-0" fill="currentColor" strokeWidth={0} />
+                    </div>
+                  </div>
+
+                  {/* Dark payment card */}
+                  <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Detail du paiement</h3>
+                    <div className="space-y-3 mb-6">
+                      {selectedTrajet && (() => {
+                        const allerPrice = selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0;
+                        return (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-white/70">Trajet aller</span>
+                            <span className="font-semibold">
+                              {allerPrice > 0 ? `${allerPrice.toLocaleString()} FCFA` : 'Sur demande'}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                      {!formData.isOneWay && selectedTrajet && (() => {
+                        const retourPrice = selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0);
+                        return (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-white/70">Trajet retour</span>
+                            <span className="font-semibold">
+                              {retourPrice > 0 ? `${retourPrice.toLocaleString()} FCFA` : 'Sur demande'}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                      {(formData.siegeBebes > 0 || formData.animalDeCompagnie || formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-white/70">Options</span>
+                          <span className="font-semibold">
+                            {(
+                              (formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
+                              (formData.animalDeCompagnie ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0) +
+                              (formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
+                              (formData.animalDeCompagnieRetour ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0)
+                            ).toLocaleString()} FCFA
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <div>
-                      <p className="font-medium text-slate-800">
-                        {selectedTrajet.vehicule.categorie || selectedTrajet.vehicule.marque}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {`${selectedTrajet.vehicule.marque || ''} ${selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model || ''}`.trim()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Trip details */}
-              <div className="p-6 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-800">Trajet aller</p>
-                    <p className="text-sm text-slate-500">
-                      {formData.pickupDateAller && format(new Date(formData.pickupDateAller), "EEEE d MMMM yyyy", { locale: fr })}
-                      {' a '}
-                      {formData.pickupTimeAller}
+                    <div className="pt-4 border-t border-white/10 flex justify-between items-end mb-6">
+                      <div>
+                        <span className="text-xs font-bold text-white/60 uppercase tracking-widest">
+                          {user?.isTva ? 'Total TTC' : 'Total'}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-orange-400">
+                          {(user?.isTva ? Math.round(calculateTotal() * 1.18) : calculateTotal()).toLocaleString()} FCFA
+                        </p>
+                        <p className="text-[10px] text-white/40 uppercase tracking-widest">
+                          {user?.isTva ? 'TVA 18% incluse' : 'TVA incluse'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-2xl p-4 mb-6 flex items-center gap-3">
+                      <CreditCard className="w-5 h-5 text-orange-400 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-white/60">Mode de paiement</p>
+                        <p className="text-sm font-semibold truncate">
+                          {paymentMethods.find(m => m.value === formData.paymentMethod)?.label || 'Compte entreprise'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(4)}
+                        className="text-xs font-semibold text-orange-400 hover:underline shrink-0"
+                      >
+                        Modifier
+                      </button>
+                    </div>
+
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={createBooking.isPending}
+                      className="w-full bg-[#E04A1F] text-white py-5 rounded-2xl font-extrabold text-base border-0 hover:shadow-[0_0_32px_rgba(172,53,9,0.4)] active:scale-[0.98] transition-all"
+                    >
+                      {createBooking.isPending ? 'Confirmation...' : 'Confirmer la reservation'}
+                    </Button>
+                    <p className="text-center text-[10px] text-white/40 mt-4 leading-tight">
+                      En confirmant, vous acceptez nos conditions generales de vente et notre politique d&apos;annulation.
                     </p>
                   </div>
-                  {selectedTrajet && (
-                    <span className="font-semibold text-slate-800">
-                      {(selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0).toLocaleString()} FCFA
-                    </span>
-                  )}
-                </div>
 
-                {(formData.siegeBebes > 0 || formData.animalDeCompagnie) && (
-                  <div className="pt-2 space-y-1">
-                    {formData.siegeBebes > 0 && (
-                      <Badge className="mr-2 bg-blue-100 text-blue-700 border-0">
-                        {formData.siegeBebes} siege(s) bebe
-                      </Badge>
-                    )}
-                    {formData.animalDeCompagnie && (
-                      <Badge className="bg-green-100 text-green-700 border-0">
-                        Animal de compagnie
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Return trip */}
-              {!formData.isOneWay && (
-                <div className="p-6 rounded-xl border-2 border-red-200 bg-red-50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Badge className="bg-red-500 text-white border-0 mb-2">TRAJET RETOUR</Badge>
-                      <p className="text-sm text-slate-600">
-                        {formData.pickupDateRetour && format(new Date(formData.pickupDateRetour), "EEEE d MMMM yyyy", { locale: fr })}
-                        {' a '}
-                        {formData.pickupTimeRetour}
-                      </p>
-                    </div>
-                    {selectedTrajet && (
-                      <span className="font-semibold text-slate-800">
-                        {(selectedTrajet.prixAllerRetour || (selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0)).toLocaleString()} FCFA
-                      </span>
-                    )}
-                  </div>
-
-                  {(formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour) && (
-                    <div className="pt-2 space-y-1">
-                      {formData.siegeBebesRetour > 0 && (
-                        <Badge className="mr-2 bg-gray-200 text-gray-700 border-0">
-                          {formData.siegeBebesRetour} siege(s) bebe
-                        </Badge>
-                      )}
-                      {formData.animalDeCompagnieRetour && (
-                        <Badge className="bg-gray-200 text-gray-700 border-0">
-                          Animal de compagnie
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Client info */}
-              <div className="p-6 rounded-xl border border-slate-200">
-                <p className="text-sm text-slate-500 mb-2">Client</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-semibold">
-                    {formData.clientName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{formData.clientName}</p>
-                    <p className="text-sm text-slate-500">{formData.clientPhone}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Total */}
-              <div className="p-6 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 text-white">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Trajet aller</span>
-                    <span>{(selectedTrajet?.prixAllerSimple ?? selectedTrajet?.prix ?? 0).toLocaleString()} FCFA</span>
-                  </div>
-                  {!formData.isOneWay && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Trajet retour</span>
-                      <span>{(selectedTrajet?.prixAllerRetour || (selectedTrajet?.prixAllerSimple ?? selectedTrajet?.prix ?? 0)).toLocaleString()} FCFA</span>
-                    </div>
-                  )}
-                  {(formData.siegeBebes > 0 || formData.animalDeCompagnie || formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour) && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Options</span>
-                      <span>
-                        {(
-                          (formData.siegeBebes * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
-                          (formData.animalDeCompagnie ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0) +
-                          (formData.siegeBebesRetour * (selectedTrajet?.prixSiegeBebe ?? 5000)) +
-                          (formData.animalDeCompagnieRetour ? (selectedTrajet?.prixAnimalCompagnie ?? 5000) : 0)
-                        ).toLocaleString()} FCFA
-                      </span>
-                    </div>
-                  )}
-                  {user?.isTva ? (
-                    <>
-                      <div className="border-t border-white/20 pt-3 flex items-center justify-between">
-                        <span className="text-sm text-slate-300">Total HT</span>
-                        <span className="text-lg font-semibold">{calculateTotal().toLocaleString()} FCFA</span>
+                  {/* Help alert */}
+                  <div className="bg-teal-50 rounded-3xl p-6 border border-teal-100">
+                    <div className="flex gap-4">
+                      <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-teal-900 mb-1">Besoin d&apos;aide ?</p>
+                        <p className="text-xs text-teal-800/80 leading-relaxed">
+                          Notre support business est disponible 24/7 pour toute demande specifique.
+                        </p>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-300">TVA (18%)</span>
-                        <span>{Math.round(calculateTotal() * 0.18).toLocaleString()} FCFA</span>
-                      </div>
-                      <div className="border-t border-white/20 pt-2 flex items-center justify-between">
-                        <span className="text-lg font-semibold">Total TTC</span>
-                        <span className="text-3xl font-bold text-red-400">{Math.round(calculateTotal() * 1.18).toLocaleString()} FCFA</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="border-t border-white/20 pt-3 flex items-center justify-between">
-                      <span className="text-lg font-semibold">Total</span>
-                      <span className="text-3xl font-bold text-red-400">{calculateTotal().toLocaleString()} FCFA</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                </aside>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
+
       {/* Navigation */}
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex items-center justify-between gap-4 mt-8 bg-slate-50 p-4 md:p-6 rounded-2xl">
         <Button
           variant="ghost"
           onClick={currentStep === 1 ? () => router.push("/") : handleBack}
-          className="gap-2"
+          className="gap-2 text-slate-600 font-bold px-6 py-3 hover:bg-slate-200 rounded-xl transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           {currentStep === 1 ? 'Annuler' : 'Retour'}
         </Button>
 
-        {currentStep < 5 ? (
+        {currentStep < 5 && (
           <Button
             onClick={handleNext}
             disabled={!canContinue()}
-            className="gradient-subito text-white border-0 gap-2"
+            className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             Continuer
             <ArrowRight className="w-4 h-4" />
-          </Button>
-        ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={createBooking.isPending}
-            className="gradient-subito text-white border-0 gap-2 text-lg px-8"
-          >
-            {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`}
           </Button>
         )}
       </div>

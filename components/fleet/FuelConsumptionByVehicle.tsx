@@ -149,7 +149,7 @@ export default function FuelConsumptionByVehicle({ vehicles, fuelRequests, perio
               }}
             />
             <Legend />
-            <Bar dataKey="liters" fill="#FF6B35" name="Litres" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="liters" fill="#E04A1F" name="Litres" radius={[8, 8, 0, 0]} />
             <Bar dataKey="average" fill="#94a3b8" name="Moyenne" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

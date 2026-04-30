@@ -282,7 +282,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto sidebar-scroll">
             {navigation.map((item) => {
               const active = isActive(item.href);
               return (
@@ -296,12 +296,12 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                     transition-all duration-200
                     ${sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 py-3' : 'px-4 py-3'}
                     ${active
-                      ? 'bg-white border-l-4 border-[#FF7842] text-[#FF7842] font-semibold shadow-sm pl-3'
+                      ? 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3'
                       : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'
                     }
                   `}
                 >
-                  <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#FF7842]' : ''}`} />
+                  <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#E04A1F]' : ''}`} />
                   <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
                   {item.href === '/notifications' && unreadCount > 0 && (
                     <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-red-500 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
@@ -437,7 +437,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="p-6 lg:p-8">
+        <main className="py-6 lg:py-8 px-6 sm:px-10 lg:px-16 xl:px-24">
           {children}
         </main>
 

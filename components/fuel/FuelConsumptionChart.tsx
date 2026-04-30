@@ -6,7 +6,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const COLORS = ['#FF6B35', '#F77F73', '#4F46E5', '#10B981', '#F59E0B', '#EC4899'];
+const COLORS = ['#E04A1F', '#F77F73', '#4F46E5', '#10B981', '#F59E0B', '#EC4899'];
 
 interface FuelRequest {
   id: string;
@@ -103,10 +103,10 @@ export default function FuelConsumptionChart({ requests }: FuelConsumptionChartP
             <Line
               type="monotone"
               dataKey="litres"
-              stroke="#FF6B35"
+              stroke="#E04A1F"
               strokeWidth={2}
               name="Litres"
-              dot={{ fill: '#FF6B35', r: 4 }}
+              dot={{ fill: '#E04A1F', r: 4 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -158,7 +158,7 @@ export default function FuelConsumptionChart({ requests }: FuelConsumptionChartP
               <Tooltip
                 contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
               />
-              <Bar dataKey="litres" fill="#FF6B35" name="Litres" />
+              <Bar dataKey="litres" fill="#E04A1F" name="Litres" />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>

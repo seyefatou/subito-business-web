@@ -41,11 +41,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { api, ApiResponse, BookingResponse, BictorysServiceType } from "@/lib/api";
+import { api, BookingResponse, BictorysServiceType } from "@/lib/api";
 
 const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
+  intercity: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
 };
 
@@ -85,13 +86,22 @@ export default function TrackingDetailPage() {
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [selectedPayMethod, setSelectedPayMethod] = useState("");
 
-  const { data, isLoading, error } = useQuery<ApiResponse<BookingResponse>>({
+  const { data, isLoading, error } = useQuery<unknown>({
     queryKey: ["booking-detail-page", id, serviceType],
     queryFn: () => api.bookings.get(id),
     enabled: !isNaN(id),
   });
 
-  const booking = data?.data as (BookingResponse & Record<string, unknown>) | undefined;
+  // Backend may return the booking directly OR wrapped in { data: ... }.
+  // Detect by checking if .data is an object with an id field.
+  const rawBooking = data as Record<string, unknown> | undefined;
+  const unwrapped = rawBooking
+    && typeof rawBooking.data === "object"
+    && rawBooking.data !== null
+    && "id" in (rawBooking.data as Record<string, unknown>)
+      ? (rawBooking.data as Record<string, unknown>)
+      : rawBooking;
+  const booking = unwrapped as (BookingResponse & Record<string, unknown>) | undefined;
 
   const payMutation = useMutation({
     mutationFn: async () => {
@@ -128,7 +138,7 @@ export default function TrackingDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#FF7842]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#E04A1F]" />
       </div>
     );
   }
@@ -151,10 +161,30 @@ export default function TrackingDetailPage() {
     || (booking.vtcHourlyBooking as Record<string, unknown> | undefined)
     || {};
   const trajet = (sub.trajetAeroport as Record<string, unknown> | undefined)
+    || (sub.trajetInterVille as Record<string, unknown> | undefined)
     || (sub.trajet as Record<string, unknown> | undefined);
-  const vehicule = (trajet?.vehicule as Record<string, unknown> | undefined)
+  let vehicule = (trajet?.vehicule as Record<string, unknown> | undefined)
     || (sub.vehicule as Record<string, unknown> | undefined)
     || (booking.vehicule as Record<string, unknown> | undefined);
+  // For VTC hourly there's no vehicule object — synthesize one from vehicleType/Label
+  if (!vehicule && booking.serviceType === "vtc_hourly") {
+    const vehicleTypeMap: Record<string, { emoji: string; capacity: number; description: string }> = {
+      berline: { emoji: "🚗", capacity: 3, description: "Berline confortable" },
+      berline_premium: { emoji: "🛋️", capacity: 3, description: "Mercedes Classe E ou équivalent" },
+      suv: { emoji: "🚙", capacity: 4, description: "SUV spacieux" },
+      monospace: { emoji: "🚐", capacity: 6, description: "Monospace 6 places" },
+      van: { emoji: "🚌", capacity: 8, description: "Van 8 places" },
+    };
+    const type = booking.vehicleType as string | undefined;
+    const conf = type ? vehicleTypeMap[type] : undefined;
+    vehicule = {
+      marque: (booking.vehicleTypeLabel as string | undefined) || (conf ? conf.description : "VTC Horaire"),
+      model: conf?.description,
+      categorie: "VTC Horaire",
+      nombrePlace: conf?.capacity,
+      vtcEmoji: conf?.emoji || "🚗",
+    } as Record<string, unknown>;
+  }
   const driver = (sub.driver as Record<string, unknown> | undefined)
     || (booking.driver as Record<string, unknown> | undefined);
 
@@ -264,11 +294,11 @@ export default function TrackingDetailPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <nav className="flex items-center gap-2 text-sm text-slate-500 mb-2">
-            <Link href="/tracking" className="hover:text-[#FF7842] cursor-pointer transition-colors font-medium">
+            <Link href="/tracking" className="hover:text-[#E04A1F] cursor-pointer transition-colors font-medium">
               Suivi commandes
             </Link>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-[#FF7842] font-semibold">{bookingCode}</span>
+            <span className="text-[#E04A1F] font-semibold">{bookingCode}</span>
           </nav>
           <h1
             className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
@@ -285,7 +315,7 @@ export default function TrackingDetailPage() {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">Départ</p>
                 <p className="text-sm font-bold text-[#171c1f] mt-1">
                   {dateAllerFormatted}
-                  {heureAller ? <span className="ml-2 text-[#FF7842]">à {heureAller}</span> : null}
+                  {heureAller ? <span className="ml-2 text-[#E04A1F]">à {heureAller}</span> : null}
                 </p>
               </div>
             </div>
@@ -382,7 +412,7 @@ export default function TrackingDetailPage() {
 
           {/* Passenger / Client Details */}
           <article className="bg-white p-4 md:p-5 rounded-2xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#FF7842] mb-2.5">Informations client</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] mb-2.5">Informations client</p>
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-9 h-9 rounded-lg gradient-subito flex items-center justify-center text-white font-bold text-xs shrink-0">
                 {(d.clientName || "C").substring(0, 2).toUpperCase()}
@@ -395,7 +425,7 @@ export default function TrackingDetailPage() {
             <dl className="space-y-1.5 text-xs">
               {d.clientPhone ? (
                 <KeyValueRow label="Téléphone">
-                  <a href={`tel:${d.clientPhone}`} className="font-bold text-[#171c1f] hover:text-[#FF7842] transition-colors flex items-center gap-1.5">
+                  <a href={`tel:${d.clientPhone}`} className="font-bold text-[#171c1f] hover:text-[#E04A1F] transition-colors flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5" />
                     {d.clientPhone}
                   </a>
@@ -403,7 +433,7 @@ export default function TrackingDetailPage() {
               ) : null}
               {d.clientEmail ? (
                 <KeyValueRow label="Email">
-                  <a href={`mailto:${d.clientEmail}`} className="font-bold text-[#171c1f] hover:text-[#FF7842] transition-colors truncate flex items-center gap-1.5">
+                  <a href={`mailto:${d.clientEmail}`} className="font-bold text-[#171c1f] hover:text-[#E04A1F] transition-colors truncate flex items-center gap-1.5">
                     <Mail className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{d.clientEmail}</span>
                   </a>
@@ -426,7 +456,7 @@ export default function TrackingDetailPage() {
           <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-1">Itinéraire</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-1">Itinéraire</p>
                 <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
                   {departVille && arriveeVille ? `${departVille} → ${arriveeVille}` : "Trajet"}
                 </h3>
@@ -439,12 +469,19 @@ export default function TrackingDetailPage() {
             {/* Aller */}
             <div className="p-6 md:p-8">
               <div className="flex items-center gap-2 mb-5">
-                <PlaneTakeoff className="w-4 h-4 text-[#FF7842]" />
-                <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842]">Aller</p>
+                {d.serviceType === "airport_shuttle" ? (
+                  <PlaneTakeoff className="w-4 h-4 text-[#E04A1F]" />
+                ) : (
+                  <Car className="w-4 h-4 text-[#E04A1F]" />
+                )}
+                <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">Aller</p>
                 {dateAller ? (
                   <span className="ml-auto text-sm font-medium text-slate-600">
                     {format(new Date(dateAller), "dd MMM yyyy", { locale: fr })}
                     {heureAller ? ` à ${heureAller}` : ""}
+                    {(d.arrivalTime as string | undefined) ? (
+                      <span className="text-slate-400"> → arr. {d.arrivalTime as string}</span>
+                    ) : null}
                   </span>
                 ) : null}
               </div>
@@ -484,12 +521,19 @@ export default function TrackingDetailPage() {
             {!isOneWay && (
               <div className="px-6 md:px-8 pb-6 md:pb-8 border-t border-slate-100 pt-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <PlaneLanding className="w-4 h-4 text-blue-600" />
+                  {d.serviceType === "airport_shuttle" ? (
+                    <PlaneLanding className="w-4 h-4 text-blue-600" />
+                  ) : (
+                    <Car className="w-4 h-4 text-blue-600" />
+                  )}
                   <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Retour</p>
                   {d.pickupDateRetour ? (
                     <span className="ml-auto text-sm font-medium text-slate-600">
                       {format(new Date(d.pickupDateRetour as string), "dd MMM yyyy", { locale: fr })}
                       {d.pickupTimeRetour ? ` à ${d.pickupTimeRetour}` : ""}
+                      {(d.arrivalTimeRetour as string | undefined) ? (
+                        <span className="text-slate-400"> → arr. {d.arrivalTimeRetour as string}</span>
+                      ) : null}
                     </span>
                   ) : null}
                 </div>
@@ -538,7 +582,7 @@ export default function TrackingDetailPage() {
               )}
               <div className="flex justify-between items-center">
                 <span className="text-base font-bold text-[#171c1f]">Total</span>
-                <span className="text-2xl font-black text-[#FF7842]">{FORMAT_FCFA(totalPrice)}</span>
+                <span className="text-2xl font-black text-[#E04A1F]">{FORMAT_FCFA(totalPrice)}</span>
               </div>
 
               {d.paymentMethod ? (
@@ -663,12 +707,12 @@ interface TimelineStepProps {
 function TimelineStep({ n, label, current, active, icon: Icon }: TimelineStepProps) {
   if (active) {
     return (
-      <div className="flex items-center gap-4 bg-white border border-[#FF7842]/30 p-4 rounded-2xl z-10 w-full md:w-auto shadow-sm backdrop-blur-sm">
-        <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#FF7842] shrink-0">
+      <div className="flex items-center gap-4 bg-white border border-[#E04A1F]/30 p-4 rounded-2xl z-10 w-full md:w-auto shadow-sm backdrop-blur-sm">
+        <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#FF7842]">En cours</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F]">En cours</p>
           <p className="font-bold text-[#171c1f] text-sm">{label}</p>
         </div>
       </div>
@@ -724,8 +768,8 @@ interface ItineraryTimelineProps {
 }
 
 function ItineraryTimeline({ origin, originLabel, destination, destinationLabel, flightNumber, variant = "default" }: ItineraryTimelineProps) {
-  const accentColor = variant === "return" ? "bg-blue-500" : "bg-[#FF7842]";
-  const destAccentColor = variant === "return" ? "bg-[#FF7842]" : "bg-[#00acbb]";
+  const accentColor = variant === "return" ? "bg-blue-500" : "bg-[#E04A1F]";
+  const destAccentColor = variant === "return" ? "bg-[#E04A1F]" : "bg-[#00acbb]";
 
   return (
     <div className="relative">
@@ -774,7 +818,7 @@ interface ServiceInfoCardProps {
 
 function ServiceInfoCard({ booking: d, serviceType, showFlightNumber = true }: ServiceInfoCardProps) {
   const isShuttle = serviceType === "airport_shuttle";
-  const isInterCity = serviceType === "inter_city";
+  const isInterCity = serviceType === "inter_city" || serviceType === "intercity";
   const isVtc = serviceType === "vtc_hourly";
 
   const dateAller = (d.pickupDate as string | undefined)
@@ -801,9 +845,9 @@ function ServiceInfoCard({ booking: d, serviceType, showFlightNumber = true }: S
   return (
     <article className="bg-white p-4 md:p-5 rounded-2xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 relative overflow-hidden">
       <div className="absolute top-0 right-0 p-2 pointer-events-none">
-        <TitleIcon className="text-[#FF7842]/10 w-12 h-12" />
+        <TitleIcon className="text-[#E04A1F]/10 w-12 h-12" />
       </div>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-[#FF7842] mb-2.5">{titleLabel}</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] mb-2.5">{titleLabel}</p>
       <div className="relative z-10">
         {displayFlight ? (
           <>
@@ -898,8 +942,8 @@ function DriverVehicleCard({ driver, vehicule, hasDriver }: DriverVehicleCardPro
     const driverPhoto = (driver.photo as string) || (driver.avatar as string);
     const driverRating = driver.rating as number;
     return (
-      <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Votre chauffeur</p>
+      <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#E04A1F]/10">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-6">Votre chauffeur</p>
         <div className="flex flex-col items-center text-center mb-6">
           <div className="relative mb-4">
             {driverPhoto ? (
@@ -948,8 +992,8 @@ function DriverVehicleCard({ driver, vehicule, hasDriver }: DriverVehicleCardPro
 
   // No driver yet — show vehicle preview if available
   return (
-    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#FF7842]/10">
-      <p className="text-xs font-bold uppercase tracking-widest text-[#FF7842] mb-6">Véhicule prévu</p>
+    <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-[#E04A1F]/10">
+      <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-6">Véhicule prévu</p>
       {vehicule ? (
         <VehiculeShowcase vehicule={vehicule} />
       ) : (
@@ -985,13 +1029,23 @@ function VehiculeShowcase({ vehicule }: VehiculeShowcaseProps) {
   const climatisation = vehicule.climatisation as boolean | undefined;
   const petitBagage = vehicule.petitBagage as number | undefined;
   const grandBagage = vehicule.grandBagage as number | undefined;
+  const vtcEmoji = vehicule.vtcEmoji as string | undefined;
 
   return (
     <>
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={photo} alt={`${marque} ${model}`} className="w-full h-32 object-cover rounded-2xl mb-4" />
-      ) : null}
+      ) : (
+        <div className="w-full h-32 rounded-2xl mb-4 bg-gradient-to-br from-[#E04A1F]/10 via-[#E04A1F]/5 to-[#00acbb]/10 flex items-center justify-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,120,66,0.15),transparent_60%)]" />
+          {vtcEmoji ? (
+            <span className="text-6xl relative z-10">{vtcEmoji}</span>
+          ) : (
+            <Car className="w-16 h-16 text-[#E04A1F] relative z-10" />
+          )}
+        </div>
+      )}
       <div className="text-center mb-4">
         <h3 className="text-xl font-bold text-[#171c1f]">{[marque, model].filter(Boolean).join(" ") || "Véhicule"}</h3>
         {categorie ? <p className="text-sm text-slate-500 mt-1">{categorie}</p> : null}
@@ -1047,7 +1101,7 @@ function VehiculeBlock({ vehicule }: VehiculeBlockProps) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={photo} alt={`${marque} ${model}`} className="w-14 h-14 object-cover rounded-xl shrink-0" />
       ) : (
-        <div className="bg-white p-3 rounded-xl shadow-sm text-[#FF7842]">
+        <div className="bg-white p-3 rounded-xl shadow-sm text-[#E04A1F]">
           <Car className="w-5 h-5" />
         </div>
       )}

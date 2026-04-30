@@ -3,7 +3,7 @@
 import React from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
-const COLORS = ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981'];
+const COLORS = ['#E04A1F', '#3B82F6', '#8B5CF6', '#10B981'];
 
 interface FuelRequest {
   id: string;

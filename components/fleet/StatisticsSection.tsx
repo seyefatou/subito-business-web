@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { TrendingUp, DollarSign, Fuel, Wrench } from "lucide-react";
 
-const COLORS = ['#FF6B35', '#F7931E', '#FDC830', '#37CDFF', '#A78BFA'];
+const COLORS = ['#E04A1F', '#F7931E', '#FDC830', '#37CDFF', '#A78BFA'];
 
 interface Vehicle {
   id: string;
@@ -122,7 +122,7 @@ export default function StatisticsSection() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="carburant" fill="#FF6B35" name="Carburant" />
+              <Bar dataKey="carburant" fill="#E04A1F" name="Carburant" />
               <Bar dataKey="entretien" fill="#37CDFF" name="Entretien" />
             </BarChart>
           </ResponsiveContainer>

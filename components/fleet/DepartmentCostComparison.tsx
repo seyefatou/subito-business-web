@@ -81,7 +81,7 @@ export default function DepartmentCostComparison({ vehicles, fuelRequests, maint
               contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
             />
             <Legend />
-            <Bar dataKey="carburant" fill="#FF6B35" name="Carburant" radius={[8, 8, 0, 0]} />
+            <Bar dataKey="carburant" fill="#E04A1F" name="Carburant" radius={[8, 8, 0, 0]} />
             <Bar dataKey="entretien" fill="#3B82F6" name="Entretien" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

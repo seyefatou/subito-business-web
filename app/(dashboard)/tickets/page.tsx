@@ -62,7 +62,7 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newTicket, setNewTicket] = useState({ subject: '', message: '' });
+  const [newTicket, setNewTicket] = useState({ sujet: '', description: '' });
   const limit = 10;
 
   const { data: ticketsResponse, isLoading, error } = useQuery({
@@ -76,12 +76,16 @@ export default function TicketsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { subject: string; message: string }) => api.tickets.create(data),
+    mutationFn: (data: { sujet: string; description: string }) =>
+      api.tickets.create({
+        subject: data.sujet,
+        message: data.description,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
       toast.success('Ticket créé avec succès');
       setDialogOpen(false);
-      setNewTicket({ subject: '', message: '' });
+      setNewTicket({ sujet: '', description: '' });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -104,7 +108,7 @@ export default function TicketsPage() {
     : sortedTickets;
 
   const handleCreateTicket = () => {
-    if (!newTicket.subject.trim() || !newTicket.message.trim()) {
+    if (!newTicket.sujet.trim() || !newTicket.description.trim()) {
       toast.error('Veuillez remplir tous les champs');
       return;
     }
@@ -162,27 +166,27 @@ export default function TicketsPage() {
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
-                  <Label htmlFor="subject" className="text-sm font-bold text-[#171c1f]">
+                  <Label htmlFor="sujet" className="text-sm font-bold text-[#171c1f]">
                     Sujet
                   </Label>
                   <Input
-                    id="subject"
+                    id="sujet"
                     placeholder="Ex: Problème d'accès employés"
-                    value={newTicket.subject}
-                    onChange={(e) => setNewTicket((p) => ({ ...p, subject: e.target.value }))}
+                    value={newTicket.sujet}
+                    onChange={(e) => setNewTicket((p) => ({ ...p, sujet: e.target.value }))}
                     className="mt-1.5 rounded-xl border-slate-200"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="message" className="text-sm font-bold text-[#171c1f]">
-                    Message
+                  <Label htmlFor="description" className="text-sm font-bold text-[#171c1f]">
+                    Description
                   </Label>
                   <Textarea
-                    id="message"
+                    id="description"
                     placeholder="Décrivez votre demande en détail..."
                     rows={5}
-                    value={newTicket.message}
-                    onChange={(e) => setNewTicket((p) => ({ ...p, message: e.target.value }))}
+                    value={newTicket.description}
+                    onChange={(e) => setNewTicket((p) => ({ ...p, description: e.target.value }))}
                     className="mt-1.5 rounded-xl border-slate-200"
                   />
                 </div>
