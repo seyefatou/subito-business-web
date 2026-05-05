@@ -3,8 +3,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
+import type { BookingResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 type InterCityPaymentMethod = string;
+
+export interface InterCityBookingWizardProps {
+  mode?: 'create' | 'edit';
+  bookingId?: number;
+  initialData?: BookingResponse;
+}
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -121,7 +128,57 @@ const steps: Step[] = [
   { id: 5, title: "Confirmation", icon: Check },
 ];
 
-export default function InterCityBookingWizard() {
+export default function InterCityBookingWizard({
+  mode = 'create',
+  bookingId,
+  initialData,
+}: InterCityBookingWizardProps = {}) {
+  const isEdit = mode === 'edit';
+
+  const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
+    const get = (k: string) => (b as Record<string, unknown>)[k];
+    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
+    const bool = (k: string) => { const v = get(k); return typeof v === 'boolean' ? v : false; };
+    const numOr = (k: string, fallback: number) => { const v = get(k); return typeof v === 'number' ? v : fallback; };
+    return {
+      clientName: str('clientName'),
+      clientEmail: str('clientEmail'),
+      clientPhone: str('clientPhone'),
+      clientAddress: str('clientAddress'),
+      employeeId: num('employeeId'),
+      trajetInterVilleId: num('trajetInterVilleId'),
+      vehiculeId: num('vehiculeId'),
+      departureCity: str('departureCity'),
+      arrivalCity: str('arrivalCity'),
+      pickupDateAller: str('pickupDateAller'),
+      pickupTimeAller: str('pickupTimeAller'),
+      isOneWay: bool('isOneWay'),
+      adressePriseEnChargeDepartAller: str('adressePriseEnChargeDepartAller'),
+      adressePriseEnChargeDepartAllerLat: num('adressePriseEnChargeDepartAllerLat'),
+      adressePriseEnChargeDepartAllerLng: num('adressePriseEnChargeDepartAllerLng'),
+      adressePriseEnChargeArriveeAller: str('adressePriseEnChargeArriveeAller'),
+      adressePriseEnChargeArriveeAllerLat: num('adressePriseEnChargeArriveeAllerLat'),
+      adressePriseEnChargeArriveeAllerLng: num('adressePriseEnChargeArriveeAllerLng'),
+      adressePriseEnChargeDepartRetour: str('adressePriseEnChargeDepartRetour'),
+      adressePriseEnChargeDepartRetourLat: num('adressePriseEnChargeDepartRetourLat'),
+      adressePriseEnChargeDepartRetourLng: num('adressePriseEnChargeDepartRetourLng'),
+      adressePriseEnChargeArriveeRetour: str('adressePriseEnChargeArriveeRetour'),
+      adressePriseEnChargeArriveeRetourLat: num('adressePriseEnChargeArriveeRetourLat'),
+      adressePriseEnChargeArriveeRetourLng: num('adressePriseEnChargeArriveeRetourLng'),
+      siegeBebes: numOr('siegeBebes', 0),
+      animalDeCompagnie: bool('animalDeCompagnie'),
+      smallBags: numOr('smallBags', 0),
+      largeBags: numOr('largeBags', 0),
+      specialRequests: str('specialRequests'),
+      pickupDateRetour: str('pickupDateRetour'),
+      pickupTimeRetour: str('pickupTimeRetour'),
+      siegeBebesRetour: numOr('siegeBebesRetour', 0),
+      animalDeCompagnieRetour: bool('animalDeCompagnieRetour'),
+      paymentMethod: (str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : '')) as InterCityPaymentMethod | '',
+    };
+  };
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -167,6 +224,15 @@ export default function InterCityBookingWizard() {
   };
 
   const [formData, setFormData] = useState<FormData>(initialFormData);
+
+  useEffect(() => {
+    if (isEdit && initialData) {
+      const mapped = bookingResponseToFormData(initialData);
+      setFormData(prev => ({ ...prev, ...mapped }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, initialData?.id]);
+
   const [selectedPays, setSelectedPays] = useState<string>("");
   const [selectedDepartId, setSelectedDepartId] = useState<number | null>(null);
   const [selectedArriveeId, setSelectedArriveeId] = useState<number | null>(null);
@@ -269,6 +335,23 @@ export default function InterCityBookingWizard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Erreur lors de la reservation");
+    },
+  });
+
+  const updateBooking = useMutation({
+    mutationFn: (data: Partial<CreateInterCityBookingDto>) => {
+      if (!bookingId) throw new Error('bookingId requis en mode edit');
+      return api.bookings.interCity.update(bookingId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-detail-page'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-edit'] });
+      toast.success('Reservation mise a jour');
+      if (bookingId) router.push(`/tracking/${bookingId}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors de la modification');
     },
   });
 
@@ -482,7 +565,11 @@ export default function InterCityBookingWizard() {
     }
 
     console.log('[INTER-CITY] Booking data:', JSON.stringify(bookingData, null, 2));
-    createBooking.mutate(bookingData);
+    if (isEdit) {
+      updateBooking.mutate(bookingData);
+    } else {
+      createBooking.mutate(bookingData);
+    }
   };
 
   const resetForm = () => {
@@ -684,17 +771,21 @@ export default function InterCityBookingWizard() {
             <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
               <span>Reservations</span>
               <span>/</span>
-              <span className="text-[#E04A1F]">Inter-villes</span>
+              <span className="text-[#E04A1F]">{isEdit ? "Modifier" : "Inter-villes"}</span>
             </nav>
             <h1
               className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
               style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
             >
-              {currentStep === 1 && "Informations du client"}
-              {currentStep === 2 && "Configuration du trajet"}
-              {currentStep === 3 && "Selectionnez votre vehicule"}
-              {currentStep === 4 && "Paiement"}
-              {currentStep === 5 && "Recapitulatif de votre reservation"}
+              {isEdit ? "Modifier la reservation" : (
+                <>
+                  {currentStep === 1 && "Informations du client"}
+                  {currentStep === 2 && "Configuration du trajet"}
+                  {currentStep === 3 && "Selectionnez votre vehicule"}
+                  {currentStep === 4 && "Paiement"}
+                  {currentStep === 5 && "Recapitulatif de votre reservation"}
+                </>
+              )}
             </h1>
             <p className="text-[#585e6c] font-medium mt-1">
               {currentStep === 1 && "Renseignez les details du voyageur pour cette reservation."}
@@ -1676,37 +1767,49 @@ export default function InterCityBookingWizard() {
               {/* Left: Payment options */}
               <div className="lg:col-span-7 space-y-8">
                 <h3 className="text-xl font-bold text-slate-900">Selectionnez le mode de paiement</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {paymentMethods.map((option, idx) => {
-                    const isSelected = formData.paymentMethod === option.value;
-                    return (
-                      <div
-                        key={option.value}
-                        onClick={() => handleChange('paymentMethod', option.value)}
-                        className={`group relative p-8 rounded-2xl cursor-pointer hover:shadow-xl transition-all duration-300 ${
-                          isSelected
-                            ? 'bg-white border-2 border-orange-600 shadow-lg shadow-orange-500/5'
-                            : 'bg-slate-50 border-2 border-transparent hover:bg-white'
-                        }`}
-                      >
-                        <div className="absolute top-4 right-4">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                            isSelected ? 'bg-orange-600' : 'border-2 border-slate-300'
-                          }`}>
-                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                {isEdit ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
+                    <p className="font-semibold text-slate-800">
+                      {paymentMethods.find(m => m.value === formData.paymentMethod)?.label || 'Non defini'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {paymentMethods.map((option, idx) => {
+                      const isSelected = formData.paymentMethod === option.value;
+                      return (
+                        <div
+                          key={option.value}
+                          onClick={() => handleChange('paymentMethod', option.value)}
+                          className={`group relative p-8 rounded-2xl cursor-pointer hover:shadow-xl transition-all duration-300 ${
+                            isSelected
+                              ? 'bg-white border-2 border-orange-600 shadow-lg shadow-orange-500/5'
+                              : 'bg-slate-50 border-2 border-transparent hover:bg-white'
+                          }`}
+                        >
+                          <div className="absolute top-4 right-4">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                              isSelected ? 'bg-orange-600' : 'border-2 border-slate-300'
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
                           </div>
+                          <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-6 text-3xl ${
+                            isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-200 text-slate-500 group-hover:bg-slate-100'
+                          }`}>
+                            {option.icon || (idx === 0 ? '🏢' : '👤')}
+                          </div>
+                          <h3 className="text-lg font-bold mb-2 text-slate-900">{option.label}</h3>
+                          <p className="text-sm text-slate-500 leading-relaxed">{option.desc}</p>
                         </div>
-                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-6 text-3xl ${
-                          isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-200 text-slate-500 group-hover:bg-slate-100'
-                        }`}>
-                          {option.icon || (idx === 0 ? '🏢' : '👤')}
-                        </div>
-                        <h3 className="text-lg font-bold mb-2 text-slate-900">{option.label}</h3>
-                        <p className="text-sm text-slate-500 leading-relaxed">{option.desc}</p>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Moyens de paiement */}
                 <div className="pt-8 border-t border-slate-200">
@@ -2091,10 +2194,12 @@ export default function InterCityBookingWizard() {
 
                     <Button
                       onClick={handleSubmit}
-                      disabled={createBooking.isPending}
+                      disabled={isEdit ? updateBooking.isPending : createBooking.isPending}
                       className="w-full bg-[#E04A1F] text-white py-5 rounded-2xl font-extrabold text-base border-0 hover:shadow-[0_0_32px_rgba(172,53,9,0.4)] active:scale-[0.98] transition-all"
                     >
-                      {createBooking.isPending ? 'Confirmation...' : 'Confirmer la reservation'}
+                      {isEdit
+                        ? (updateBooking.isPending ? 'Enregistrement...' : 'Enregistrer les modifications')
+                        : (createBooking.isPending ? 'Confirmation...' : 'Confirmer la reservation')}
                     </Button>
                     <p className="text-center text-[10px] text-white/40 mt-4 leading-tight">
                       En confirmant, vous acceptez nos conditions generales de vente et notre politique d&apos;annulation.
