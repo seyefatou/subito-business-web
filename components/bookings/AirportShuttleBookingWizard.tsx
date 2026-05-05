@@ -151,19 +151,60 @@ export default function AirportShuttleBookingWizard({
   const isEdit = mode === 'edit';
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
-    const get = (k: string) => (b as Record<string, unknown>)[k];
-    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
-    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
-    const bool = (k: string) => { const v = get(k); return typeof v === 'boolean' ? v : false; };
-    const numOr = (k: string, fallback: number) => { const v = get(k); return typeof v === 'number' ? v : fallback; };
+    const top = b as Record<string, unknown>;
+    const nested = (top.airportShuttle as Record<string, unknown> | undefined) || {};
+    // Prefer nested type-specific value, fall back to top-level (client info lives at top, type-specific in nested)
+    const pick = (key: string): unknown => {
+      const fromNested = nested[key];
+      if (fromNested !== null && fromNested !== undefined && fromNested !== '') return fromNested;
+      return top[key];
+    };
+    const str = (k: string) => { const v = pick(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = pick(k); return typeof v === 'number' ? v : null; };
+    const bool = (k: string) => { const v = pick(k); return typeof v === 'boolean' ? v : false; };
+    const numOr = (k: string, fallback: number) => { const v = pick(k); return typeof v === 'number' ? v : fallback; };
+
+    // Date helpers — backend returns ISO timestamps; the wizard stores YYYY-MM-DD + HH:MM separately.
+    const isoToDate = (iso: string): string => {
+      if (!iso) return '';
+      // If the string already looks like YYYY-MM-DD (no T), keep first 10 chars.
+      if (!iso.includes('T')) return iso.slice(0, 10);
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Date Aller: use top-level pickupDate first (cleaner), fall back to nested pickupDateAller.
+    const rawDateAller = (typeof top.pickupDate === 'string' ? top.pickupDate : '')
+      || (typeof nested.pickupDateAller === 'string' ? nested.pickupDateAller : '');
+    const departure_date = isoToDate(rawDateAller);
+    // Time Aller: top-level pickupTime is "HH:MM"; nested pickupTimeAller often empty.
+    const departure_time = (typeof top.pickupTime === 'string' && top.pickupTime)
+      || (typeof nested.pickupTimeAller === 'string' ? nested.pickupTimeAller : '')
+      || '';
+    const return_date = isoToDate(typeof nested.pickupDateRetour === 'string' ? nested.pickupDateRetour : '');
+    const return_time = typeof nested.pickupTimeRetour === 'string' ? nested.pickupTimeRetour : '';
+
+    // Direction: derive from the trajet's villeDepart.isAeroport.
+    // If the API's villeDepart is an airport, then user's direction was "from_airport" (airport → city).
+    // Otherwise it was "to_airport" (city → airport, the API stores it inverted relative to user view).
+    const trajet = nested.trajetAeroport as Record<string, unknown> | undefined;
+    const villeDepart = trajet?.villeDepart as Record<string, unknown> | undefined;
+    const direction: 'to_airport' | 'from_airport' = villeDepart?.isAeroport === true ? 'from_airport' : 'to_airport';
+    const vehiculeId = (typeof trajet?.vehiculeId === 'number' ? trajet.vehiculeId : null);
+
+    const paidByValue = typeof top.paidBy === 'string' ? top.paidBy : '';
+    const payment_method: PaymentChoice | '' =
+      paidByValue === 'company' ? 'company_account' : (paidByValue === 'client' ? 'client' : '');
+
     return {
-      direction: str('direction') || 'to_airport',
+      direction,
       trajetAeroportId: num('trajetAeroportId'),
       is_round_trip: !bool('isOneWay'),
-      departure_date: str('pickupDateAller'),
-      departure_time: str('pickupTimeAller'),
-      return_date: str('pickupDateRetour'),
-      return_time: str('pickupTimeRetour'),
+      departure_date,
+      departure_time,
+      return_date,
+      return_time,
       passengers: numOr('passengers', 1),
       flight_number: str('flightNumber'),
       address: str('adressePriseEnChargeAller'),
@@ -172,17 +213,17 @@ export default function AirportShuttleBookingWizard({
       return_address: str('adressePriseEnChargeRetour'),
       returnAddressLat: num('adressePriseEnChargeRetourLat'),
       returnAddressLng: num('adressePriseEnChargeRetourLng'),
-      payment_method: str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : ''),
-      clientName: str('clientName'),
-      clientEmail: str('clientEmail'),
-      clientPhone: str('clientPhone'),
-      clientAddress: str('clientAddress'),
+      payment_method,
+      clientName: typeof top.clientName === 'string' ? top.clientName : '',
+      clientEmail: typeof top.clientEmail === 'string' ? top.clientEmail : '',
+      clientPhone: typeof top.clientPhone === 'string' ? top.clientPhone : '',
+      clientAddress: typeof top.clientAddress === 'string' ? top.clientAddress : '',
       siegeBebes: numOr('siegeBebes', 0),
       animalDeCompagnie: bool('animalDeCompagnie'),
       adresseSupplement: numOr('adresseSupplement', 0),
       specialRequests: str('specialRequests'),
-      employeeId: num('employeeId'),
-      vehiculeId: num('vehiculeId'),
+      employeeId: typeof top.employeeId === 'number' ? top.employeeId : null,
+      vehiculeId,
     };
   };
 

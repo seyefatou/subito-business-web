@@ -136,23 +136,56 @@ export default function InterCityBookingWizard({
   const isEdit = mode === 'edit';
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
-    const get = (k: string) => (b as Record<string, unknown>)[k];
-    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
-    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
-    const bool = (k: string) => { const v = get(k); return typeof v === 'boolean' ? v : false; };
-    const numOr = (k: string, fallback: number) => { const v = get(k); return typeof v === 'number' ? v : fallback; };
+    const top = b as Record<string, unknown>;
+    const nested = (top.interCity as Record<string, unknown> | undefined)
+      || (top.intercity as Record<string, unknown> | undefined)
+      || {};
+    const pick = (key: string): unknown => {
+      const fromNested = nested[key];
+      if (fromNested !== null && fromNested !== undefined && fromNested !== '') return fromNested;
+      return top[key];
+    };
+    const str = (k: string) => { const v = pick(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = pick(k); return typeof v === 'number' ? v : null; };
+    const bool = (k: string) => { const v = pick(k); return typeof v === 'boolean' ? v : false; };
+    const numOr = (k: string, fallback: number) => { const v = pick(k); return typeof v === 'number' ? v : fallback; };
+
+    const isoToDate = (iso: string): string => {
+      if (!iso) return '';
+      if (!iso.includes('T')) return iso.slice(0, 10);
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Date Aller: prefer top-level pickupDate (cleanest), fall back to nested pickupDateAller.
+    const rawDateAller = (typeof top.pickupDate === 'string' ? top.pickupDate : '')
+      || (typeof nested.pickupDateAller === 'string' ? nested.pickupDateAller : '');
+    const pickupDateAller = isoToDate(rawDateAller);
+    const pickupTimeAller = (typeof top.pickupTime === 'string' && top.pickupTime)
+      || (typeof nested.pickupTimeAller === 'string' ? nested.pickupTimeAller : '')
+      || '';
+    const pickupDateRetour = isoToDate(typeof nested.pickupDateRetour === 'string' ? nested.pickupDateRetour : '');
+    const pickupTimeRetour = typeof nested.pickupTimeRetour === 'string' ? nested.pickupTimeRetour : '';
+
+    const trajet = nested.trajetInterVille as Record<string, unknown> | undefined;
+    const vehiculeId = (typeof trajet?.vehiculeId === 'number' ? trajet.vehiculeId : null);
+
+    const paidByValue = typeof top.paidBy === 'string' ? top.paidBy : '';
+    const paymentMethod = (paidByValue === 'company' ? 'company_account' : (paidByValue === 'client' ? 'client' : '')) as InterCityPaymentMethod | '';
+
     return {
-      clientName: str('clientName'),
-      clientEmail: str('clientEmail'),
-      clientPhone: str('clientPhone'),
-      clientAddress: str('clientAddress'),
-      employeeId: num('employeeId'),
+      clientName: typeof top.clientName === 'string' ? top.clientName : '',
+      clientEmail: typeof top.clientEmail === 'string' ? top.clientEmail : '',
+      clientPhone: typeof top.clientPhone === 'string' ? top.clientPhone : '',
+      clientAddress: typeof top.clientAddress === 'string' ? top.clientAddress : '',
+      employeeId: typeof top.employeeId === 'number' ? top.employeeId : null,
       trajetInterVilleId: num('trajetInterVilleId'),
-      vehiculeId: num('vehiculeId'),
+      vehiculeId,
       departureCity: str('departureCity'),
       arrivalCity: str('arrivalCity'),
-      pickupDateAller: str('pickupDateAller'),
-      pickupTimeAller: str('pickupTimeAller'),
+      pickupDateAller,
+      pickupTimeAller,
       isOneWay: bool('isOneWay'),
       adressePriseEnChargeDepartAller: str('adressePriseEnChargeDepartAller'),
       adressePriseEnChargeDepartAllerLat: num('adressePriseEnChargeDepartAllerLat'),
@@ -171,11 +204,11 @@ export default function InterCityBookingWizard({
       smallBags: numOr('smallBags', 0),
       largeBags: numOr('largeBags', 0),
       specialRequests: str('specialRequests'),
-      pickupDateRetour: str('pickupDateRetour'),
-      pickupTimeRetour: str('pickupTimeRetour'),
+      pickupDateRetour,
+      pickupTimeRetour,
       siegeBebesRetour: numOr('siegeBebesRetour', 0),
       animalDeCompagnieRetour: bool('animalDeCompagnieRetour'),
-      paymentMethod: (str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : '')) as InterCityPaymentMethod | '',
+      paymentMethod,
     };
   };
 

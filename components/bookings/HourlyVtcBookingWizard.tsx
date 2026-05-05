@@ -192,24 +192,49 @@ export default function HourlyVtcBookingWizard({
   const isEdit = mode === 'edit';
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
-    const get = (k: string) => (b as Record<string, unknown>)[k];
-    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
-    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
+    const top = b as Record<string, unknown>;
+    const nested = (top.vtcHourly as Record<string, unknown> | undefined)
+      || (top.hourlyVtc as Record<string, unknown> | undefined)
+      || {};
+    const pick = (key: string): unknown => {
+      const fromNested = nested[key];
+      if (fromNested !== null && fromNested !== undefined && fromNested !== '') return fromNested;
+      return top[key];
+    };
+    const str = (k: string) => { const v = pick(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = pick(k); return typeof v === 'number' ? v : null; };
 
-    // Parse scheduledDatetime (ISO string) into pickupDate (Date) + pickupTime (HH:MM)
+    // Parse scheduledDatetime (ISO string) into pickupDate (Date) + pickupTime (HH:MM).
+    // Prefer top-level pickupDate + pickupTime if present, fall back to nested scheduledDatetime.
     let pickupDate: Date | null = null;
     let pickupTime = '';
-    const scheduled = str('scheduledDatetime');
-    if (scheduled) {
-      const d = new Date(scheduled);
-      if (!isNaN(d.getTime())) {
-        pickupDate = d;
-        pickupTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const topDate = typeof top.pickupDate === 'string' ? top.pickupDate : '';
+    const topTime = typeof top.pickupTime === 'string' ? top.pickupTime : '';
+    if (topDate) {
+      const d = new Date(topDate);
+      if (!isNaN(d.getTime())) pickupDate = d;
+      pickupTime = topTime || pickupTime;
+    }
+    if (!pickupDate || !pickupTime) {
+      const scheduled = str('scheduledDatetime');
+      if (scheduled) {
+        const d = new Date(scheduled);
+        if (!isNaN(d.getTime())) {
+          if (!pickupDate) pickupDate = d;
+          if (!pickupTime) pickupTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
       }
     }
 
-    // Address: prefer pickupAddress, fall back to adressePriseEnCharge
-    const pickupLocation = str('pickupAddress') || str('adressePriseEnCharge');
+    // Address: prefer top-level pickupLocation, then nested pickupAddress / adressePriseEnCharge.
+    const pickupLocation =
+      (typeof top.pickupLocation === 'string' && top.pickupLocation)
+      || str('pickupAddress')
+      || str('adressePriseEnCharge')
+      || '';
+
+    const paidByValue = typeof top.paidBy === 'string' ? top.paidBy : '';
+    const paymentMethod = (paidByValue === 'company' ? 'company_account' : (paidByValue === 'client' ? 'client' : '')) as FormData['paymentMethod'];
 
     return {
       country: (str('country') as FormData['country']) || 'senegal',
@@ -221,12 +246,12 @@ export default function HourlyVtcBookingWizard({
       pickupLocationLat: num('adressePriseEnChargeLat'),
       pickupLocationLng: num('adressePriseEnChargeLng'),
       instructions: str('notes'),
-      paymentMethod: (str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : '')) as FormData['paymentMethod'],
-      employeeId: num('employeeId'),
-      clientName: str('clientName'),
-      clientEmail: str('clientEmail'),
-      clientPhone: str('clientPhone'),
-      clientAddress: str('clientAddress'),
+      paymentMethod,
+      employeeId: typeof top.employeeId === 'number' ? top.employeeId : null,
+      clientName: typeof top.clientName === 'string' ? top.clientName : '',
+      clientEmail: typeof top.clientEmail === 'string' ? top.clientEmail : '',
+      clientPhone: typeof top.clientPhone === 'string' ? top.clientPhone : '',
+      clientAddress: typeof top.clientAddress === 'string' ? top.clientAddress : '',
     };
   };
 
