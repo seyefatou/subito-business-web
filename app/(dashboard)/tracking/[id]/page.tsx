@@ -319,19 +319,29 @@ export default function TrackingDetailPage() {
           </h1>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={() => {
-              const t = (d.serviceType || serviceType || "").toLowerCase();
-              if (t === "airport_shuttle") router.push("/airport-shuttle");
-              else if (t === "inter_city" || t === "intercity") router.push("/inter-city");
-              else if (t === "vtc_hourly") router.push("/hourly-vtc");
-              else router.push("/tracking");
-            }}
-            className="gap-2 rounded-xl"
-          >
-            Modifier
-          </Button>
+          {(() => {
+            const t = (d.serviceType || serviceType || "").toLowerCase();
+            const status = (d.status || "").toLowerCase();
+            const editableStatuses = ["pending", "confirmed"];
+            const slugByType: Record<string, string> = {
+              airport_shuttle: "airport-shuttle",
+              inter_city: "inter-city",
+              intercity: "inter-city",
+              vtc_hourly: "hourly-vtc",
+            };
+            const slug = slugByType[t];
+            const canEdit = !!slug && editableStatuses.includes(status);
+            if (!canEdit) return null;
+            return (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/${slug}/${id}/edit`)}
+                className="gap-2 rounded-xl"
+              >
+                Modifier
+              </Button>
+            );
+          })()}
           <Button
             variant="outline"
             onClick={() => window.print()}
