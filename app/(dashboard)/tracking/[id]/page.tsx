@@ -322,7 +322,17 @@ export default function TrackingDetailPage() {
           {(() => {
             const t = (d.serviceType || serviceType || "").toLowerCase();
             const status = (d.status || "").toLowerCase();
-            const editableStatuses = ["pending", "confirmed"];
+            const nonEditableStatuses = [
+              "in_progress",
+              "started",
+              "coordonnees_chauffeur_arrivee",
+              "completed",
+              "cancelled",
+              "rejected",
+              "paid",
+              "processing",
+              "deleted",
+            ];
             const slugByType: Record<string, string> = {
               airport_shuttle: "airport-shuttle",
               inter_city: "inter-city",
@@ -330,7 +340,7 @@ export default function TrackingDetailPage() {
               vtc_hourly: "hourly-vtc",
             };
             const slug = slugByType[t];
-            const canEdit = !!slug && editableStatuses.includes(status);
+            const canEdit = !!slug && !nonEditableStatuses.includes(status);
             if (!canEdit) return null;
             return (
               <Button
