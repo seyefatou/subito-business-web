@@ -157,7 +157,11 @@ export default function TrackingDetailPage() {
 
   // Extract service-specific sub-object (the API nests airport/inter-city/VTC fields)
   const sub = (booking.airportShuttle as Record<string, unknown> | undefined)
+    || (booking.interCity as Record<string, unknown> | undefined)
+    || (booking.intercity as Record<string, unknown> | undefined)
     || (booking.interCityBooking as Record<string, unknown> | undefined)
+    || (booking.vtcHourly as Record<string, unknown> | undefined)
+    || (booking.hourlyVtc as Record<string, unknown> | undefined)
     || (booking.vtcHourlyBooking as Record<string, unknown> | undefined)
     || {};
   const trajet = (sub.trajetAeroport as Record<string, unknown> | undefined)
