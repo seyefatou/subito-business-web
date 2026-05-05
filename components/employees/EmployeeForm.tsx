@@ -74,7 +74,7 @@ export default function EmployeeForm({
       prenom: formData.prenom,
       email: formData.email,
       telephone: formData.telephone || undefined,
-      adresse: formData.adresse,
+      adresse: formData.adresse || undefined,
       departementId:
         formData.departementId && formData.departementId !== "none"
           ? parseInt(formData.departementId)
@@ -96,7 +96,7 @@ export default function EmployeeForm({
     "w-full bg-[#f0f4f8] border-none rounded-xl p-3 focus-visible:ring-2 focus-visible:ring-[#E04A1F]/40 transition-all outline-none";
 
   return (
-    <div className="space-y-10 -m-2 md:-m-4 lg:-m-6 max-w-6xl">
+    <div className="space-y-10 -m-2 md:-m-4 lg:-m-6 max-w-6xl pb-24 lg:pb-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -165,23 +165,13 @@ export default function EmployeeForm({
                   className={inputClass}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label className="text-sm font-semibold text-slate-700">Telephone</Label>
                 <PhoneInput
                   value={formData.telephone}
                   onChange={(val) => handleChange("telephone", val)}
                   defaultCountryCode="+221"
                   placeholder="77 123 45 67"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-slate-700">Adresse *</Label>
-                <Input
-                  value={formData.adresse}
-                  onChange={(e) => handleChange("adresse", e.target.value)}
-                  placeholder="123 Rue Example, Dakar"
-                  required
-                  className={inputClass}
                 />
               </div>
             </div>
@@ -347,13 +337,29 @@ export default function EmployeeForm({
             </div>
           </div>
 
-          <div className="rounded-[1.5rem] overflow-hidden relative h-48 group bg-[#E04A1F]">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-              <p className="text-white text-xs font-medium leading-relaxed">
-                Rejoignez 500+ entreprises qui font confiance a Subito.
-              </p>
-            </div>
-          </div>
+        </div>
+
+        {/* Mobile sticky submit bar (visible quand la sidebar lg:sticky est hors écran) */}
+        <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-3 flex gap-3 shadow-[0_-4px_16px_rgba(23,28,31,0.08)]">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 bg-slate-100 text-[#171c1f] py-3 rounded-xl font-bold text-sm"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex-[2] bg-[#E04A1F] text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-[#E04A1F]/20 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isSubmitting
+              ? "Enregistrement..."
+              : mode === "edit"
+              ? "Enregistrer"
+              : "Creer l'employe"}
+          </button>
         </div>
       </form>
     </div>

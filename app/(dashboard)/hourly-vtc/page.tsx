@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dialog";
 import EmployeeForm from "@/components/employees/EmployeeForm";
 import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
+import { VehicleIllustration } from "@/components/ui/vehicle-illustration";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
@@ -182,6 +183,7 @@ export default function HourlyVTC() {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [bookingSuccess, setBookingSuccess] = useState<boolean>(false);
   const [bookingRef, setBookingRef] = useState<string>("");
+  const packagesRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     country: "senegal",
@@ -280,6 +282,17 @@ export default function HourlyVTC() {
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Quand l'utilisateur choisit un véhicule, on défile vers les forfaits pour bien lui montrer
+  // qu'il faut maintenant choisir une durée.
+  useEffect(() => {
+    if (formData.vehicleType && packagesRef.current) {
+      const t = window.setTimeout(() => {
+        packagesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+      return () => window.clearTimeout(t);
+    }
+  }, [formData.vehicleType]);
 
   const selectedVehicle = vehicleTypes.find(v => v.id === formData.vehicleType);
   const selectedPackage = packages.find(p => p.id === formData.package);
@@ -589,33 +602,6 @@ export default function HourlyVTC() {
           </span>
         </div>
 
-        {/* Country Selector */}
-        <RadioGroup
-          value={formData.country}
-          onValueChange={(v) => handleChange('country', v as VtcCountry)}
-          className="flex gap-3 mb-8 flex-wrap"
-        >
-          {countries.map(country => (
-            <label
-              key={country.code}
-              className={`
-                flex items-center gap-3 px-5 py-3 rounded-full border-2 cursor-pointer transition-all
-                ${formData.country === country.code
-                  ? 'border-orange-500 bg-[#ffdbd0]/40'
-                  : 'border-slate-200 hover:border-slate-300 bg-white'
-                }
-              `}
-            >
-              <RadioGroupItem value={country.code} className="hidden" />
-              <span className="text-xl">{country.flag}</span>
-              <span className="font-semibold text-sm text-slate-900">{country.name}</span>
-              {formData.country === country.code && (
-                <Check className="w-4 h-4 text-[#E04A1F]" />
-              )}
-            </label>
-          ))}
-        </RadioGroup>
-
         {/* Editorial Stepper with connecting lines */}
         <div className="flex items-center w-full">
           {steps.map((step, idx) => {
@@ -679,7 +665,31 @@ export default function HourlyVTC() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              {/* Vehicle bento grid */}
+              {/* Vehicle bento grid — replié en carte compacte une fois la sélection faite */}
+              {formData.vehicleType && selectedVehicle ? (
+                <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-[#ffdbd0]/40 border border-orange-200">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-16 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                      <VehicleIllustration variant={selectedVehicle.id} className="w-full h-auto max-h-12" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F]">Vehicule choisi</p>
+                      <p className="text-base font-extrabold text-slate-900 truncate">{selectedVehicle.name}</p>
+                      <p className="text-xs text-slate-500 truncate">Jusqu&apos;a {selectedVehicle.capacity} passagers</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleChange('vehicleType', '');
+                      handleChange('package', '');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white text-slate-700 text-sm font-bold border border-slate-200 hover:border-orange-300 hover:text-[#E04A1F] transition shrink-0"
+                  >
+                    Changer
+                  </button>
+                </div>
+              ) : (
               <div>
                 <div className="mb-6">
                   <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Selectionnez votre vehicule</h3>
@@ -691,12 +701,6 @@ export default function HourlyVTC() {
                     const isFeatured = vehicle.id === 'berline_premium';
                     const isPopular = vehicle.id === 'berline';
                     const colSpan = isFeatured ? 'md:col-span-8' : 'md:col-span-4';
-                    const iconFor = (id: string) => {
-                      if (id === 'berline_premium') return '🛋️';
-                      if (id === 'suv') return '🚙';
-                      if (id === 'monospace' || id === 'van') return '🚐';
-                      return '🚗';
-                    };
                     return (
                       <motion.div
                         key={vehicle.id}
@@ -725,9 +729,6 @@ export default function HourlyVTC() {
                                   </div>
                                 )}
                               </div>
-                              <div className="p-4 bg-white rounded-2xl text-[#E04A1F] w-fit mb-6 text-3xl shadow-sm">
-                                {iconFor(vehicle.id)}
-                              </div>
                               <h4 className="text-2xl font-extrabold text-slate-900 mb-2">{vehicle.name}</h4>
                               <p className="text-sm text-slate-500 leading-relaxed mb-6">{vehicle.description}</p>
                               <div className="flex items-center gap-6">
@@ -736,24 +737,18 @@ export default function HourlyVTC() {
                                   <span className="text-sm">{vehicle.capacity} passagers</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                  <Car className="w-4 h-4 text-[#E04A1F]" />
-                                  <span className="text-sm">VIP</span>
+                                  <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#ffdbd0] text-[#E04A1F]">VIP</span>
                                 </div>
                               </div>
                             </div>
-                            <div className="hidden md:block md:w-1/2 bg-gradient-to-br from-orange-100 to-orange-200 relative">
-                              <div className="absolute inset-0 flex items-center justify-center text-8xl">
-                                {iconFor(vehicle.id)}
-                              </div>
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+                            <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-orange-100 to-orange-200 relative items-center justify-center p-6">
+                              <VehicleIllustration variant={vehicle.id} className="w-full max-w-[260px] h-auto drop-shadow-md" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
                             </div>
                           </div>
                         ) : (
                           <div className="flex flex-col p-6 h-full">
-                            <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-slate-100 rounded-xl text-[#E04A1F] group-hover:scale-110 transition-transform text-2xl">
-                                {iconFor(vehicle.id)}
-                              </div>
+                            <div className="flex justify-end items-start mb-2 min-h-[24px]">
                               {isPopular && !isSelected && (
                                 <span className="bg-[#ffdbd0] text-orange-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">
                                   Populaire
@@ -765,8 +760,11 @@ export default function HourlyVTC() {
                                 </div>
                               )}
                             </div>
+                            <div className="bg-slate-50 rounded-2xl h-32 flex items-center justify-center mb-4 overflow-hidden">
+                              <VehicleIllustration variant={vehicle.id} className="w-full max-w-[180px] h-auto group-hover:scale-105 transition-transform" />
+                            </div>
                             <h4 className="text-xl font-bold text-slate-900 mb-2">{vehicle.name}</h4>
-                            <p className="text-sm text-slate-500 leading-relaxed mb-6 flex-grow">{vehicle.description}</p>
+                            <p className="text-sm text-slate-500 leading-relaxed mb-4 flex-grow">{vehicle.description}</p>
                             <div className="flex items-center gap-4 py-4 border-t border-slate-100 mt-auto">
                               <div className="flex items-center gap-1.5 text-slate-600 font-medium text-sm">
                                 <Users className="w-4 h-4" />
@@ -780,13 +778,15 @@ export default function HourlyVTC() {
                   })}
                 </div>
               </div>
+              )}
 
               {/* Package cards */}
               {formData.vehicleType && (
                 <motion.div
+                  ref={packagesRef}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-6"
+                  className="space-y-6 scroll-mt-24"
                 >
                   <div>
                     <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">Choisissez votre forfait</h3>
@@ -942,19 +942,16 @@ export default function HourlyVTC() {
               <div className="lg:col-span-7">
                 <div className="bg-slate-50 rounded-[2rem] p-6 md:p-8 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <CalendarIcon className="w-4 h-4 text-[#E04A1F]" />
-                        Date de prise en charge
-                      </Label>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date de prise en charge</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="w-full justify-start bg-white border-0 rounded-2xl p-4 h-auto font-semibold text-slate-900 hover:bg-white"
+                            className="w-full justify-start bg-white hover:bg-white rounded-xl h-12 px-4 font-normal"
                           >
-                            <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
-                            {formData.pickupDate ? format(formData.pickupDate, "dd MMM yyyy", { locale: fr }) : "Selectionner une date"}
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                            {formData.pickupDate ? format(formData.pickupDate, "dd/MM/yyyy", { locale: fr }) : <span className="text-slate-500">Selectionner une date</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -968,12 +965,9 @@ export default function HourlyVTC() {
                       </Popover>
                     </div>
 
-                    <div className="space-y-3">
-                      <Label className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-[#E04A1F]" />
-                        Heure de prise en charge
-                      </Label>
-                      <div className="bg-white rounded-2xl p-1">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de prise en charge</Label>
+                      <div className="bg-white rounded-xl px-4 h-12 flex items-center">
                         <TimePicker
                           value={formData.pickupTime}
                           onChange={(v) => handleChange('pickupTime', v)}

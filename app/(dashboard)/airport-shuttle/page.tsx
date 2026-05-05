@@ -256,9 +256,13 @@ export default function AirportShuttle() {
     }
   };
 
-  // Trajets matching current route selection (for vehicle step)
+  // Trajets matching current route selection, triés du moins cher au plus cher
   const matchingTrajets: TrajetAeroport[] = (selectedDepartId && selectedArriveeId)
-    ? findMatchingTrajets(selectedDepartId, selectedArriveeId)
+    ? [...findMatchingTrajets(selectedDepartId, selectedArriveeId)].sort((a, b) => {
+        const pa = a.prixAllerSimple ?? a.prix ?? Number.POSITIVE_INFINITY;
+        const pb = b.prixAllerSimple ?? b.prix ?? Number.POSITIVE_INFINITY;
+        return pa - pb;
+      })
     : [];
 
   // The trajet selected by the user (when they pick a vehicle)
@@ -309,12 +313,39 @@ export default function AirportShuttle() {
   };
 
 
-  const calculateTotal = (): number => {
+  const ROUND_TRIP_DISCOUNT_RATE = 0.10;
+  const ROUND_TRIP_SHORT_HOURS = 3;
+
+  const getRoundTripDurationHours = (): number | null => {
+    if (!formData.departure_date || !formData.departure_time) return null;
+    if (!formData.return_date || !formData.return_time) return null;
+    const dep = new Date(`${formData.departure_date}T${formData.departure_time}`);
+    const ret = new Date(`${formData.return_date}T${formData.return_time}`);
+    if (Number.isNaN(dep.getTime()) || Number.isNaN(ret.getTime())) return null;
+    const diff = (ret.getTime() - dep.getTime()) / (1000 * 60 * 60);
+    return diff > 0 ? diff : null;
+  };
+
+  const getTrajetBase = (): number => {
     if (!selectedTrajet) return 0;
     const basePrice = selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0;
-    let total = formData.is_round_trip
-      ? (selectedTrajet.prixAllerRetour || basePrice * 2)
-      : basePrice;
+    if (!formData.is_round_trip) return basePrice;
+    const duration = getRoundTripDurationHours();
+    // < 3h : prix aller-retour du backend (avec fallback). >= 3h : 2x aller simple.
+    if (duration !== null && duration >= ROUND_TRIP_SHORT_HOURS) {
+      return basePrice * 2;
+    }
+    return selectedTrajet.prixAllerRetour || basePrice * 2;
+  };
+
+  const getRoundTripDiscount = (): number => {
+    if (!formData.is_round_trip) return 0;
+    return Math.round(getTrajetBase() * ROUND_TRIP_DISCOUNT_RATE);
+  };
+
+  const calculateTotal = (): number => {
+    if (!selectedTrajet) return 0;
+    let total = getTrajetBase() - getRoundTripDiscount();
     if (formData.siegeBebes > 0 && selectedTrajet.prixSiegeBebe) {
       total += selectedTrajet.prixSiegeBebe * formData.siegeBebes;
     }
@@ -413,6 +444,8 @@ export default function AirportShuttle() {
       paidBy: isCompanyPayment ? 'company' : 'client',
       companyCode: user?.companyCode || undefined,
       employeeId: formData.employeeId || undefined,
+      discountAmount: getRoundTripDiscount() || undefined,
+      discountPercent: formData.is_round_trip ? ROUND_TRIP_DISCOUNT_RATE * 100 : undefined,
     };
 
     console.log('[AIRPORT-SHUTTLE] Booking data:', JSON.stringify(bookingData, null, 2));
@@ -773,6 +806,7 @@ export default function AirportShuttle() {
                               value={getVilleName(v)}
                               onSelect={() => {
                                 setSelectedDepartId(v.id);
+                                if (v.pays) setSelectedPays(v.pays);
                                 handleChange('trajetAeroportId', null);
                                 handleChange('vehiculeId', null);
                                 setDepartPopoverOpen(false);
@@ -834,6 +868,7 @@ export default function AirportShuttle() {
                               value={getVilleName(v)}
                               onSelect={() => {
                                 setSelectedArriveeId(v.id);
+                                if (v.pays) setSelectedPays(v.pays);
                                 handleChange('trajetAeroportId', null);
                                 handleChange('vehiculeId', null);
                                 setArriveePopoverOpen(false);
@@ -862,8 +897,13 @@ export default function AirportShuttle() {
                 <div className="flex items-center gap-3">
                   <ArrowRightLeft className="w-5 h-5 text-slate-500" />
                   <div>
-                    <p className="font-medium text-slate-800">Aller-retour</p>
-                    <p className="text-sm text-slate-500">Reserver le retour en meme temps</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-slate-800">Aller-retour</p>
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#E04A1F] text-white">
+                        -10%
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-500">Reservez le retour et beneficiez de 10% de reduction</p>
                   </div>
                 </div>
                 <Switch
@@ -880,18 +920,18 @@ export default function AirportShuttle() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-2xl p-4">
-                    <Label className="text-xs text-slate-500 mb-2 block">Date de depart</Label>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date de depart</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="ghost"
-                          className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                          className="w-full justify-start bg-slate-50 hover:bg-slate-100 rounded-xl h-12 px-4 font-normal"
                         >
-                          <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
+                          <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
                           {formData.departure_date
                             ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                            : "Selectionner une date"}
+                            : <span className="text-slate-500">Selectionner une date</span>}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
@@ -904,14 +944,16 @@ export default function AirportShuttle() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl p-4">
-                    <Label className="text-xs text-slate-500 mb-2 block">Heure de depart</Label>
-                    <TimePicker
-                      value={formData.departure_time}
-                      onChange={(v) => handleChange('departure_time', v)}
-                      placeholder="Choisir une heure"
-                      selectedDate={formData.departure_date}
-                    />
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de depart</Label>
+                    <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
+                      <TimePicker
+                        value={formData.departure_time}
+                        onChange={(v) => handleChange('departure_time', v)}
+                        placeholder="Choisir une heure"
+                        selectedDate={formData.departure_date}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -939,18 +981,18 @@ export default function AirportShuttle() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-2xl p-4">
-                      <Label className="text-xs text-slate-500 mb-2 block">Date de retour</Label>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date de retour</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="w-full justify-start border-0 bg-transparent p-0 h-auto font-normal hover:bg-transparent"
+                            className="w-full justify-start bg-white hover:bg-blue-50 rounded-xl h-12 px-4 font-normal"
                           >
-                            <CalendarIcon className="w-4 h-4 mr-2 text-[#E04A1F]" />
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
                             {formData.return_date
                               ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                              : "Selectionner une date"}
+                              : <span className="text-slate-500">Selectionner une date</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
@@ -966,14 +1008,16 @@ export default function AirportShuttle() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="bg-white rounded-2xl p-4">
-                      <Label className="text-xs text-slate-500 mb-2 block">Heure de retour</Label>
-                      <TimePicker
-                        value={formData.return_time}
-                        onChange={(v) => handleChange('return_time', v)}
-                        placeholder="Choisir une heure"
-                        selectedDate={formData.return_date}
-                      />
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de retour</Label>
+                      <div className="bg-white rounded-xl px-4 h-12 flex items-center">
+                        <TimePicker
+                          value={formData.return_time}
+                          onChange={(v) => handleChange('return_time', v)}
+                          placeholder="Choisir une heure"
+                          selectedDate={formData.return_date}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1502,6 +1546,12 @@ export default function AirportShuttle() {
                       <span className="text-slate-800">+{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adresseSupplement).toLocaleString()} FCFA</span>
                     </div>
                   )}
+                  {formData.is_round_trip && getRoundTripDiscount() > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-emerald-700 font-medium">Reduction aller-retour (-10%)</span>
+                      <span className="text-emerald-700 font-semibold">-{getRoundTripDiscount().toLocaleString()} FCFA</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                     <span className="text-lg font-semibold text-slate-800">{user?.isTva ? 'Total HT' : 'Total'}</span>
                     <span className={`font-bold ${user?.isTva ? 'text-lg text-slate-800' : 'text-2xl text-[#E04A1F]'}`}>{calculateTotal().toLocaleString()} FCFA</span>
@@ -1626,6 +1676,12 @@ export default function AirportShuttle() {
                     {paymentMethods.find((m: { id: string; label: string }) => m.id === formData.payment_method)?.label || 'Non selectionne'}
                   </span>
                 </div>
+                {formData.is_round_trip && getRoundTripDiscount() > 0 && (
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-emerald-700 font-medium">Reduction aller-retour (-10%)</span>
+                    <span className="text-emerald-700 font-semibold">-{getRoundTripDiscount().toLocaleString()} FCFA</span>
+                  </div>
+                )}
                 {user?.isTva ? (
                   <>
                     <div className="flex items-center justify-between pt-4 border-t border-orange-300">
@@ -1807,11 +1863,11 @@ export default function AirportShuttle() {
           {/* Tarif breakdown */}
           <div className="space-y-3 border-t border-[#dfe3e7] pt-6">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-500">Tarif de base</span>
+              <span className="text-sm text-slate-500">
+                {formData.is_round_trip ? "Tarif aller-retour" : "Tarif de base"}
+              </span>
               <span className="text-sm font-medium text-[#171c1f]">
-                {selectedTrajet
-                  ? `${(selectedTrajet.prixAllerSimple ?? selectedTrajet.prix ?? 0).toLocaleString()} FCFA`
-                  : "—"}
+                {selectedTrajet ? `${getTrajetBase().toLocaleString()} FCFA` : "—"}
               </span>
             </div>
             {formData.siegeBebes > 0 && (
@@ -1835,6 +1891,14 @@ export default function AirportShuttle() {
                 <span className="text-sm text-slate-500">Arrets sup. (x{formData.adresseSupplement})</span>
                 <span className="text-sm font-medium text-[#171c1f]">
                   +{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adresseSupplement).toLocaleString()} FCFA
+                </span>
+              </div>
+            )}
+            {formData.is_round_trip && getRoundTripDiscount() > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-emerald-700">Reduction A/R (-10%)</span>
+                <span className="text-sm font-semibold text-emerald-700">
+                  -{getRoundTripDiscount().toLocaleString()} FCFA
                 </span>
               </div>
             )}

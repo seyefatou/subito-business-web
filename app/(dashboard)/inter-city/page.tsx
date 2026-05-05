@@ -842,7 +842,6 @@ export default function InterCity() {
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de depart</Label>
                             <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
-                              <Clock className="w-4 h-4 mr-2 text-slate-400 shrink-0" />
                               <TimePicker
                                 value={formData.pickupTimeAller}
                                 onChange={(v) => handleChange('pickupTimeAller', v)}
@@ -1004,50 +1003,6 @@ export default function InterCity() {
                         </div>
                       </section>
 
-                      {/* Bagages card */}
-                      <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900">
-                          <Briefcase className="w-5 h-5 text-[#E04A1F]" />
-                          Bagages
-                        </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Petits bagages</Label>
-                            <Select
-                              value={formData.smallBags.toString()}
-                              onValueChange={(v) => handleChange('smallBags', parseInt(v))}
-                            >
-                              <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                                <Briefcase className="w-4 h-4 mr-2 text-slate-400" />
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 1, 2, 3, 4, 5].map(n => (
-                                  <SelectItem key={n} value={n.toString()}>{n} bagage{n > 1 ? 's' : ''}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Grands bagages</Label>
-                            <Select
-                              value={formData.largeBags.toString()}
-                              onValueChange={(v) => handleChange('largeBags', parseInt(v))}
-                            >
-                              <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                                <Briefcase className="w-4 h-4 mr-2 text-slate-400" />
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[0, 1, 2, 3, 4, 5].map(n => (
-                                  <SelectItem key={n} value={n.toString()}>{n} bagage{n > 1 ? 's' : ''}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </section>
-
                       {/* Trajet retour card (conditional) */}
                       {!formData.isOneWay && (
                         <motion.section
@@ -1120,7 +1075,6 @@ export default function InterCity() {
                               <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure de retour</Label>
                                 <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
-                                  <Clock className="w-4 h-4 mr-2 text-slate-400 shrink-0" />
                                   <TimePicker
                                     value={formData.pickupTimeRetour}
                                     onChange={(v) => handleChange('pickupTimeRetour', v)}

@@ -675,11 +675,9 @@ export default function TravelDocuments() {
                           const t = findTarif(s.id);
                           return sum + (t ? Number(t.price) : 0);
                         }, 0);
-                        const discounted = Math.round(total * 0.9);
-                        return `${discounted.toLocaleString()} FCFA`;
+                        return `${total.toLocaleString()} FCFA`;
                       })()}
                     </span>
-                    <span className="text-sm bg-white/95 text-orange-600 px-3 py-1 rounded-lg font-bold">-10%</span>
                   </div>
                 </div>
                 <div className="flex-shrink-0 z-10">

@@ -18,7 +18,6 @@ import {
   Thermometer,
   Navigation,
   UserCheck,
-  Banknote,
   ShieldCheck,
   Calendar,
   Star,
@@ -90,10 +89,23 @@ export default function VehiculeDetailPage() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header avec retour */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => router.push(returnTo)} className="gap-2">
-          <ArrowLeft className="w-4 h-4" /> Retour aux vehicules
+      {/* Header : retour + modifier la sélection */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="gap-2 -ml-2 text-slate-600 hover:text-[#E04A1F]"
+        >
+          <ArrowLeft className="w-4 h-4" /> Retour
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push(returnTo)}
+          className="gap-2 border-orange-200 text-[#E04A1F] hover:bg-[#ffdbd0]/40"
+        >
+          Modifier ma sélection
         </Button>
       </div>
 
@@ -217,12 +229,6 @@ export default function VehiculeDetailPage() {
                   <span>{vehicule.carburant}</span>
                 </div>
               )}
-              {vehicule.type && (
-                <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 rounded-lg p-3">
-                  <Car className="w-4 h-4 text-orange-500 shrink-0" />
-                  <span>{vehicule.type}</span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -248,39 +254,16 @@ export default function VehiculeDetailPage() {
             </div>
           </div>
 
-          {/* Tarification detaillee */}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Tarification</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {vehicule.prixParJour != null && (
-                <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <Banknote className="w-5 h-5 text-orange-600 shrink-0" />
-                  <div>
-                    <p className="text-sm text-slate-500">Prix par jour (semaine)</p>
-                    <p className="text-lg font-bold text-orange-600">{vehicule.prixParJour.toLocaleString()} FCFA</p>
-                  </div>
-                </div>
-              )}
-              {vehicule.prixWeekend != null && (
-                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <Banknote className="w-5 h-5 text-blue-600 shrink-0" />
-                  <div>
-                    <p className="text-sm text-slate-500">Prix par jour (weekend)</p>
-                    <p className="text-lg font-bold text-blue-600">{vehicule.prixWeekend.toLocaleString()} FCFA</p>
-                  </div>
-                </div>
-              )}
-              {vehicule.caution != null && (
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
-                  <div>
-                    <p className="text-sm text-slate-500">Caution</p>
-                    <p className="text-lg font-bold text-amber-600">{vehicule.caution.toLocaleString()} FCFA</p>
-                  </div>
-                </div>
-              )}
+          {/* Caution (l'unique info de tarification non visible en haut/footer) */}
+          {vehicule.caution != null && (
+            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-sm">
+              <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-sm text-slate-500">Caution</p>
+                <p className="text-lg font-bold text-amber-600">{vehicule.caution.toLocaleString()} FCFA</p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Avis */}
           {avisData && avisData.total > 0 && (

@@ -290,6 +290,17 @@ export default function TrackingDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 space-y-6">
+      {/* Bouton Retour */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.back()}
+        className="gap-2 -ml-2 text-slate-600 hover:text-[#E04A1F]"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Retour
+      </Button>
+
       {/* Breadcrumbs + Title + Actions */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
@@ -306,22 +317,21 @@ export default function TrackingDetailPage() {
           >
             Détail de la réservation
           </h1>
-          {dateAllerFormatted && (
-            <div className="mt-3 inline-flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="w-9 h-9 rounded-xl gradient-subito flex items-center justify-center text-white shrink-0">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">Départ</p>
-                <p className="text-sm font-bold text-[#171c1f] mt-1">
-                  {dateAllerFormatted}
-                  {heureAller ? <span className="ml-2 text-[#E04A1F]">à {heureAller}</span> : null}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const t = (d.serviceType || serviceType || "").toLowerCase();
+              if (t === "airport_shuttle") router.push("/airport-shuttle");
+              else if (t === "inter_city" || t === "intercity") router.push("/inter-city");
+              else if (t === "vtc_hourly") router.push("/hourly-vtc");
+              else router.push("/tracking");
+            }}
+            className="gap-2 rounded-xl"
+          >
+            Modifier
+          </Button>
           <Button
             variant="outline"
             onClick={() => window.print()}
@@ -455,12 +465,7 @@ export default function TrackingDetailPage() {
           {/* Itinéraire visuel */}
           <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-1">Itinéraire</p>
-                <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
-                  {departVille && arriveeVille ? `${departVille} → ${arriveeVille}` : "Trajet"}
-                </h3>
-              </div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">Itinéraire</p>
               <Badge className={`border-0 text-xs px-3 py-1 ${isOneWay ? "bg-slate-100 text-slate-700" : "bg-blue-100 text-blue-700"}`}>
                 {isOneWay ? "Aller simple" : "Aller-retour"}
               </Badge>
@@ -559,9 +564,6 @@ export default function TrackingDetailPage() {
         <aside className="lg:col-span-4 flex flex-col gap-6">
           {/* Driver / Vehicle Card */}
           <DriverVehicleCard driver={driver} vehicule={vehicule} hasDriver={hasDriver} />
-
-          {/* Trajet Pricing (from trajetAeroport) */}
-          {trajet ? <TrajetPricingCard trajet={trajet} isOneWay={isOneWay} /> : null}
 
           {/* Price Summary */}
           <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
