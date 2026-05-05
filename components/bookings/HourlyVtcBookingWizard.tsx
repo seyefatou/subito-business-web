@@ -4,6 +4,14 @@ import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import type { BookingResponse } from "@/lib/api";
+
+export interface HourlyVtcBookingWizardProps {
+  mode?: 'create' | 'edit';
+  bookingId?: number;
+  initialData?: BookingResponse;
+}
+
 type VtcVehicleType = 'berline' | 'berline_premium' | 'suv' | 'monospace' | 'van';
 type VtcPackageType = 'two_hours' | 'five_hours' | 'ten_hours';
 type VtcCountry = 'senegal' | 'cotedivoire' | 'mali';
@@ -176,7 +184,52 @@ const packages: PackageConfig[] = [
 
 // Payment methods fetched from API (see useQuery inside component)
 
-export default function HourlyVtcBookingWizard() {
+export default function HourlyVtcBookingWizard({
+  mode = 'create',
+  bookingId,
+  initialData,
+}: HourlyVtcBookingWizardProps = {}) {
+  const isEdit = mode === 'edit';
+
+  const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
+    const get = (k: string) => (b as Record<string, unknown>)[k];
+    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
+
+    // Parse scheduledDatetime (ISO string) into pickupDate (Date) + pickupTime (HH:MM)
+    let pickupDate: Date | null = null;
+    let pickupTime = '';
+    const scheduled = str('scheduledDatetime');
+    if (scheduled) {
+      const d = new Date(scheduled);
+      if (!isNaN(d.getTime())) {
+        pickupDate = d;
+        pickupTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+    }
+
+    // Address: prefer pickupAddress, fall back to adressePriseEnCharge
+    const pickupLocation = str('pickupAddress') || str('adressePriseEnCharge');
+
+    return {
+      country: (str('country') as FormData['country']) || 'senegal',
+      vehicleType: (str('vehicleType') as FormData['vehicleType']) || '',
+      package: (str('package') as FormData['package']) || '',
+      pickupDate,
+      pickupTime,
+      pickupLocation,
+      pickupLocationLat: num('adressePriseEnChargeLat'),
+      pickupLocationLng: num('adressePriseEnChargeLng'),
+      instructions: str('notes'),
+      paymentMethod: (str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : '')) as FormData['paymentMethod'],
+      employeeId: num('employeeId'),
+      clientName: str('clientName'),
+      clientEmail: str('clientEmail'),
+      clientPhone: str('clientPhone'),
+      clientAddress: str('clientAddress'),
+    };
+  };
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -202,6 +255,15 @@ export default function HourlyVtcBookingWizard() {
     clientPhone: "",
     clientAddress: "",
   });
+
+  useEffect(() => {
+    if (isEdit && initialData) {
+      const mapped = bookingResponseToFormData(initialData);
+      setFormData(prev => ({ ...prev, ...mapped }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, initialData?.id]);
+
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -255,6 +317,23 @@ export default function HourlyVtcBookingWizard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Erreur lors de la reservation");
+    },
+  });
+
+  const updateBooking = useMutation({
+    mutationFn: (data: Partial<CreateVtcHourlyBookingDto>) => {
+      if (!bookingId) throw new Error('bookingId requis en mode edit');
+      return api.bookings.vtcHourly.update(bookingId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-detail-page'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-edit'] });
+      toast.success('Reservation mise a jour');
+      if (bookingId) router.push(`/tracking/${bookingId}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors de la modification');
     },
   });
 
@@ -431,7 +510,11 @@ export default function HourlyVtcBookingWizard() {
     };
 
     console.log('[VTC-HOURLY] Booking data:', JSON.stringify(bookingData, null, 2));
-    createBooking.mutate(bookingData);
+    if (isEdit) {
+      updateBooking.mutate(bookingData);
+    } else {
+      createBooking.mutate(bookingData);
+    }
   };
 
   if (bookingSuccess) {
@@ -585,13 +668,13 @@ export default function HourlyVtcBookingWizard() {
             <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
               <span>Reservations</span>
               <span>/</span>
-              <span className="text-[#E04A1F]">VTC a l&apos;heure</span>
+              <span className="text-[#E04A1F]">{isEdit ? "Modifier" : "VTC a l'heure"}</span>
             </nav>
             <h1
               className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
               style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
             >
-              Reservation VTC
+              {isEdit ? 'Modifier la reservation' : 'Reservation VTC'}
             </h1>
             <p className="text-[#585e6c] font-medium mt-1">
               {steps[currentStep - 1]?.title} — etape {currentStep} sur {steps.length}
@@ -1237,45 +1320,57 @@ export default function HourlyVtcBookingWizard() {
                     <CreditCard className="w-5 h-5 text-[#E04A1F]" />
                     Mode de paiement
                   </h4>
-                  <RadioGroup
-                    value={formData.paymentMethod}
-                    onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
-                    className="flex flex-col md:flex-row gap-4"
-                  >
-                    {paymentMethods.map(method => {
-                      const isSelected = formData.paymentMethod === method.id;
-                      return (
-                        <label key={method.id} className="flex-1 cursor-pointer">
-                          <RadioGroupItem value={method.id} className="hidden" />
-                          <div className={`
-                            p-6 rounded-2xl bg-white border-2 transition-all
-                            ${isSelected ? 'border-orange-600 bg-[#ffdbd0]/30 shadow-lg shadow-orange-500/5' : 'border-transparent hover:border-slate-200'}
-                          `}>
-                            <div className="flex justify-between items-start mb-4">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-100 text-slate-500'
-                              }`}>
-                                {method.id === 'company_account' ? (
-                                  <Users className="w-6 h-6" />
-                                ) : (
-                                  <User className="w-6 h-6" />
-                                )}
+                  {isEdit ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
+                      <p className="font-semibold text-slate-800">
+                        {paymentMethods.find(m => m.id === formData.paymentMethod)?.label || 'Non defini'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
+                      </p>
+                    </div>
+                  ) : (
+                    <RadioGroup
+                      value={formData.paymentMethod}
+                      onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
+                      className="flex flex-col md:flex-row gap-4"
+                    >
+                      {paymentMethods.map(method => {
+                        const isSelected = formData.paymentMethod === method.id;
+                        return (
+                          <label key={method.id} className="flex-1 cursor-pointer">
+                            <RadioGroupItem value={method.id} className="hidden" />
+                            <div className={`
+                              p-6 rounded-2xl bg-white border-2 transition-all
+                              ${isSelected ? 'border-orange-600 bg-[#ffdbd0]/30 shadow-lg shadow-orange-500/5' : 'border-transparent hover:border-slate-200'}
+                            `}>
+                              <div className="flex justify-between items-start mb-4">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                  isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {method.id === 'company_account' ? (
+                                    <Users className="w-6 h-6" />
+                                  ) : (
+                                    <User className="w-6 h-6" />
+                                  )}
+                                </div>
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                  isSelected ? 'border-orange-600 bg-orange-600' : 'border-slate-300'
+                                }`}>
+                                  {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                                </div>
                               </div>
-                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                                isSelected ? 'border-orange-600 bg-orange-600' : 'border-slate-300'
-                              }`}>
-                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                              </div>
+                              <p className="font-bold text-lg text-slate-900">{method.label}</p>
+                              <p className="text-sm text-slate-500 mt-1">
+                                {method.id === 'company_account' ? 'Facturation centralisee' : 'Paiement direct par l\'employe'}
+                              </p>
                             </div>
-                            <p className="font-bold text-lg text-slate-900">{method.label}</p>
-                            <p className="text-sm text-slate-500 mt-1">
-                              {method.id === 'company_account' ? 'Facturation centralisee' : 'Paiement direct par l\'employe'}
-                            </p>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </RadioGroup>
+                          </label>
+                        );
+                      })}
+                    </RadioGroup>
+                  )}
                 </section>
               </div>
 
@@ -1473,10 +1568,12 @@ export default function HourlyVtcBookingWizard() {
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={createBooking.isPending}
+            disabled={isEdit ? updateBooking.isPending : createBooking.isPending}
             className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
-            {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${totalPrice.toLocaleString()} FCFA`}
+            {isEdit
+              ? (updateBooking.isPending ? 'Enregistrement...' : 'Enregistrer les modifications')
+              : (createBooking.isPending ? 'Confirmation...' : `Confirmer - ${totalPrice.toLocaleString()} FCFA`)}
           </Button>
         )}
       </div>
