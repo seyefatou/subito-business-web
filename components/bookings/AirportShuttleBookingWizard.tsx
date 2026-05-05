@@ -58,7 +58,14 @@ import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
+import type { BookingResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+export interface AirportShuttleBookingWizardProps {
+  mode?: 'create' | 'edit';
+  bookingId?: number;
+  initialData?: BookingResponse;
+}
 
 interface StepDef {
   id: number;
@@ -136,7 +143,49 @@ const steps: StepDef[] = [
 
 // Payment methods fetched from API (see useQuery inside component)
 
-export default function AirportShuttleBookingWizard() {
+export default function AirportShuttleBookingWizard({
+  mode = 'create',
+  bookingId,
+  initialData,
+}: AirportShuttleBookingWizardProps = {}) {
+  const isEdit = mode === 'edit';
+
+  const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
+    const get = (k: string) => (b as Record<string, unknown>)[k];
+    const str = (k: string) => { const v = get(k); return typeof v === 'string' ? v : ''; };
+    const num = (k: string) => { const v = get(k); return typeof v === 'number' ? v : null; };
+    const bool = (k: string) => { const v = get(k); return typeof v === 'boolean' ? v : false; };
+    const numOr = (k: string, fallback: number) => { const v = get(k); return typeof v === 'number' ? v : fallback; };
+    return {
+      direction: str('direction') || 'to_airport',
+      trajetAeroportId: num('trajetAeroportId'),
+      is_round_trip: !bool('isOneWay'),
+      departure_date: str('pickupDateAller'),
+      departure_time: str('pickupTimeAller'),
+      return_date: str('pickupDateRetour'),
+      return_time: str('pickupTimeRetour'),
+      passengers: numOr('passengers', 1),
+      flight_number: str('flightNumber'),
+      address: str('adressePriseEnChargeAller'),
+      addressLat: num('adressePriseEnChargeAllerLat'),
+      addressLng: num('adressePriseEnChargeAllerLng'),
+      return_address: str('adressePriseEnChargeRetour'),
+      returnAddressLat: num('adressePriseEnChargeRetourLat'),
+      returnAddressLng: num('adressePriseEnChargeRetourLng'),
+      payment_method: str('paidBy') === 'company' ? 'company_account' : (str('paidBy') === 'client' ? 'client' : ''),
+      clientName: str('clientName'),
+      clientEmail: str('clientEmail'),
+      clientPhone: str('clientPhone'),
+      clientAddress: str('clientAddress'),
+      siegeBebes: numOr('siegeBebes', 0),
+      animalDeCompagnie: bool('animalDeCompagnie'),
+      adresseSupplement: numOr('adresseSupplement', 0),
+      specialRequests: str('specialRequests'),
+      employeeId: num('employeeId'),
+      vehiculeId: num('vehiculeId'),
+    };
+  };
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -148,6 +197,15 @@ export default function AirportShuttleBookingWizard() {
   const [selectedPays, setSelectedPays] = useState<string>("");
   const [selectedDepartId, setSelectedDepartId] = useState<number | null>(null);
   const [selectedArriveeId, setSelectedArriveeId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isEdit && initialData) {
+      const mapped = bookingResponseToFormData(initialData);
+      setFormData(prev => ({ ...prev, ...mapped }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, initialData?.id]);
+
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -284,6 +342,23 @@ export default function AirportShuttleBookingWizard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Erreur lors de la reservation");
+    },
+  });
+
+  const updateBooking = useMutation({
+    mutationFn: (data: Partial<CreateAirportShuttleBookingDto>) => {
+      if (!bookingId) throw new Error('bookingId requis en mode edit');
+      return api.bookings.airportShuttle.update(bookingId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-detail-page'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-edit'] });
+      toast.success('Reservation mise a jour');
+      if (bookingId) router.push(`/tracking/${bookingId}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors de la modification');
     },
   });
 
@@ -449,7 +524,11 @@ export default function AirportShuttleBookingWizard() {
     };
 
     console.log('[AIRPORT-SHUTTLE] Booking data:', JSON.stringify(bookingData, null, 2));
-    createBooking.mutate(bookingData);
+    if (isEdit) {
+      updateBooking.mutate(bookingData);
+    } else {
+      createBooking.mutate(bookingData);
+    }
   };
 
   const canContinue = (): boolean => {
@@ -620,13 +699,13 @@ export default function AirportShuttleBookingWizard() {
             <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
               <span>Reservations</span>
               <span>/</span>
-              <span className="text-[#E04A1F]">Navette</span>
+              <span className="text-[#E04A1F]">{isEdit ? 'Modifier' : 'Navette'}</span>
             </nav>
             <h1
               className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
               style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
             >
-              Reservation de Navette
+              {isEdit ? 'Modifier la reservation' : 'Reservation de Navette'}
             </h1>
             <p className="text-[#585e6c] font-medium mt-1">
               {steps[currentStep - 1]?.title} — etape {currentStep} sur {steps.length}
@@ -1459,57 +1538,69 @@ export default function AirportShuttleBookingWizard() {
                     Mode de paiement
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {paymentMethods.map((option) => {
-                    const selected = formData.payment_method === option.id;
-                    const isCompany = option.id === "company_account";
-                    return (
-                      <button
-                        type="button"
-                        key={option.id}
-                        onClick={() =>
-                          handleChange("payment_method", option.id as PaymentChoice)
-                        }
-                        className={`relative cursor-pointer p-6 rounded-3xl bg-white text-left transition-all ${
-                          selected
-                            ? "ring-2 ring-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
-                            : "ring-1 ring-slate-200 hover:ring-slate-300 opacity-80 hover:opacity-100"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div
-                            className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                              selected
-                                ? "bg-[#ffdbd0] text-[#E04A1F]"
-                                : "bg-[#dfe3e7] text-slate-500"
-                            }`}
-                          >
-                            {isCompany ? <Users className="w-6 h-6" /> : <User className="w-6 h-6" />}
+                {isEdit ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
+                    <p className="font-semibold text-slate-800">
+                      {paymentMethods.find(m => m.id === formData.payment_method)?.label || 'Non defini'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {paymentMethods.map((option) => {
+                      const selected = formData.payment_method === option.id;
+                      const isCompany = option.id === "company_account";
+                      return (
+                        <button
+                          type="button"
+                          key={option.id}
+                          onClick={() =>
+                            handleChange("payment_method", option.id as PaymentChoice)
+                          }
+                          className={`relative cursor-pointer p-6 rounded-3xl bg-white text-left transition-all ${
+                            selected
+                              ? "ring-2 ring-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
+                              : "ring-1 ring-slate-200 hover:ring-slate-300 opacity-80 hover:opacity-100"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div
+                              className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                selected
+                                  ? "bg-[#ffdbd0] text-[#E04A1F]"
+                                  : "bg-[#dfe3e7] text-slate-500"
+                              }`}
+                            >
+                              {isCompany ? <Users className="w-6 h-6" /> : <User className="w-6 h-6" />}
+                            </div>
+                            {selected && (
+                              <div className="w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                              </div>
+                            )}
                           </div>
-                          {selected && (
-                            <div className="w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
-                              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                          <p
+                            className="font-bold text-lg text-[#171c1f]"
+                            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                          >
+                            {option.label}
+                          </p>
+                          <p className="text-xs text-[#585e6c] mt-1">{option.desc}</p>
+                          {isCompany && user?.companyCode && (
+                            <div className="mt-4 pt-4 border-t border-slate-100">
+                              <span className="text-[10px] font-bold uppercase tracking-tighter bg-[#f0f4f8] text-[#585e6c] px-2 py-0.5 rounded">
+                                ID: {user.companyCode}
+                              </span>
                             </div>
                           )}
-                        </div>
-                        <p
-                          className="font-bold text-lg text-[#171c1f]"
-                          style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-                        >
-                          {option.label}
-                        </p>
-                        <p className="text-xs text-[#585e6c] mt-1">{option.desc}</p>
-                        {isCompany && user?.companyCode && (
-                          <div className="mt-4 pt-4 border-t border-slate-100">
-                            <span className="text-[10px] font-bold uppercase tracking-tighter bg-[#f0f4f8] text-[#585e6c] px-2 py-0.5 rounded">
-                              ID: {user.companyCode}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Summary */}
@@ -1956,10 +2047,12 @@ export default function AirportShuttleBookingWizard() {
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={createBooking.isPending}
+            disabled={isEdit ? updateBooking.isPending : createBooking.isPending}
             className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
-            {createBooking.isPending ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`}
+            {isEdit
+              ? (updateBooking.isPending ? 'Enregistrement...' : 'Enregistrer les modifications')
+              : (createBooking.isPending ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`)}
           </Button>
         )}
       </div>
