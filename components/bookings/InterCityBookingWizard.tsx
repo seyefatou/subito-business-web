@@ -283,6 +283,19 @@ export default function InterCityBookingWizard({
   });
   const trajets: TrajetInterVille[] = trajetsResponse?.data?.list || [];
 
+  // Edit mode: once trajets are loaded, derive selectedPays / selectedDepartId / selectedArriveeId
+  // from the booking's trajet so steps 2 and 3 (Trajet + Vehicule) display pre-filled selections.
+  useEffect(() => {
+    if (!isEdit || !initialData || !formData.trajetInterVilleId || trajets.length === 0) return;
+    const trajet = trajets.find(t => t.id === formData.trajetInterVilleId);
+    if (!trajet) return;
+    if (trajet.villeDepart?.id) setSelectedDepartId(trajet.villeDepart.id);
+    if (trajet.villeArrivee?.id) setSelectedArriveeId(trajet.villeArrivee.id);
+    const pays = trajet.villeDepart?.pays || trajet.villeArrivee?.pays;
+    if (pays) setSelectedPays(pays);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, initialData?.id, formData.trajetInterVilleId, trajets.length]);
+
   // Fetch employees for company bookings
   const { data: employeesResponse } = useQuery({
     queryKey: ['employees'],

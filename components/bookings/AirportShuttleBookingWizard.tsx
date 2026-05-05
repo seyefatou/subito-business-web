@@ -262,6 +262,28 @@ export default function AirportShuttleBookingWizard({
     ? trajetsRaw
     : (trajetsRaw as any)?.list || (trajetsRaw as any)?.items || [];
 
+  // Edit mode: once trajets are loaded, derive selectedPays / selectedDepartId / selectedArriveeId
+  // from the booking's trajet so steps 2 and 3 (Trajet + Vehicule) display pre-filled selections.
+  useEffect(() => {
+    if (!isEdit || !initialData || !formData.trajetAeroportId || trajets.length === 0) return;
+    const trajet = trajets.find(t => t.id === formData.trajetAeroportId);
+    if (!trajet) return;
+    const villeDepart = trajet.villeDepart;
+    const villeArrivee = trajet.villeArrivee;
+    // API stores: villeDepart = airport, villeArrivee = city
+    if (formData.direction === 'to_airport') {
+      // User's depart = city = API's villeArrivee; user's arrivee = airport = API's villeDepart
+      if (villeArrivee?.id) setSelectedDepartId(villeArrivee.id);
+      if (villeDepart?.id) setSelectedArriveeId(villeDepart.id);
+    } else {
+      if (villeDepart?.id) setSelectedDepartId(villeDepart.id);
+      if (villeArrivee?.id) setSelectedArriveeId(villeArrivee.id);
+    }
+    const pays = villeDepart?.pays || villeArrivee?.pays;
+    if (pays) setSelectedPays(pays);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, initialData?.id, formData.trajetAeroportId, formData.direction, trajets.length]);
+
   // Fetch villes for selected country (fallback)
   const { data: villesResponse } = useQuery({
     queryKey: ['villes', selectedPays],
