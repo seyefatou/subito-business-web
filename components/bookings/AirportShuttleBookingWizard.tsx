@@ -1538,69 +1538,57 @@ export default function AirportShuttleBookingWizard({
                     Mode de paiement
                   </h3>
                 </div>
-                {isEdit ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
-                    <p className="font-semibold text-slate-800">
-                      {paymentMethods.find(m => m.id === formData.payment_method)?.label || 'Non defini'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-2">
-                      Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {paymentMethods.map((option) => {
-                      const selected = formData.payment_method === option.id;
-                      const isCompany = option.id === "company_account";
-                      return (
-                        <button
-                          type="button"
-                          key={option.id}
-                          onClick={() =>
-                            handleChange("payment_method", option.id as PaymentChoice)
-                          }
-                          className={`relative cursor-pointer p-6 rounded-3xl bg-white text-left transition-all ${
-                            selected
-                              ? "ring-2 ring-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
-                              : "ring-1 ring-slate-200 hover:ring-slate-300 opacity-80 hover:opacity-100"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-4">
-                            <div
-                              className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                                selected
-                                  ? "bg-[#ffdbd0] text-[#E04A1F]"
-                                  : "bg-[#dfe3e7] text-slate-500"
-                              }`}
-                            >
-                              {isCompany ? <Users className="w-6 h-6" /> : <User className="w-6 h-6" />}
-                            </div>
-                            {selected && (
-                              <div className="w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
-                                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                              </div>
-                            )}
-                          </div>
-                          <p
-                            className="font-bold text-lg text-[#171c1f]"
-                            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {paymentMethods.map((option) => {
+                    const selected = formData.payment_method === option.id;
+                    const isCompany = option.id === "company_account";
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        onClick={() =>
+                          handleChange("payment_method", option.id as PaymentChoice)
+                        }
+                        className={`relative cursor-pointer p-6 rounded-3xl bg-white text-left transition-all ${
+                          selected
+                            ? "ring-2 ring-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
+                            : "ring-1 ring-slate-200 hover:ring-slate-300 opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                              selected
+                                ? "bg-[#ffdbd0] text-[#E04A1F]"
+                                : "bg-[#dfe3e7] text-slate-500"
+                            }`}
                           >
-                            {option.label}
-                          </p>
-                          <p className="text-xs text-[#585e6c] mt-1">{option.desc}</p>
-                          {isCompany && user?.companyCode && (
-                            <div className="mt-4 pt-4 border-t border-slate-100">
-                              <span className="text-[10px] font-bold uppercase tracking-tighter bg-[#f0f4f8] text-[#585e6c] px-2 py-0.5 rounded">
-                                ID: {user.companyCode}
-                              </span>
+                            {isCompany ? <Users className="w-6 h-6" /> : <User className="w-6 h-6" />}
+                          </div>
+                          {selected && (
+                            <div className="w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                             </div>
                           )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                        </div>
+                        <p
+                          className="font-bold text-lg text-[#171c1f]"
+                          style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
+                        >
+                          {option.label}
+                        </p>
+                        <p className="text-xs text-[#585e6c] mt-1">{option.desc}</p>
+                        {isCompany && user?.companyCode && (
+                          <div className="mt-4 pt-4 border-t border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-tighter bg-[#f0f4f8] text-[#585e6c] px-2 py-0.5 rounded">
+                              ID: {user.companyCode}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Summary */}

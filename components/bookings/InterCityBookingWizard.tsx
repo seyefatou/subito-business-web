@@ -1767,49 +1767,37 @@ export default function InterCityBookingWizard({
               {/* Left: Payment options */}
               <div className="lg:col-span-7 space-y-8">
                 <h3 className="text-xl font-bold text-slate-900">Selectionnez le mode de paiement</h3>
-                {isEdit ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
-                    <p className="font-semibold text-slate-800">
-                      {paymentMethods.find(m => m.value === formData.paymentMethod)?.label || 'Non defini'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-2">
-                      Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {paymentMethods.map((option, idx) => {
-                      const isSelected = formData.paymentMethod === option.value;
-                      return (
-                        <div
-                          key={option.value}
-                          onClick={() => handleChange('paymentMethod', option.value)}
-                          className={`group relative p-8 rounded-2xl cursor-pointer hover:shadow-xl transition-all duration-300 ${
-                            isSelected
-                              ? 'bg-white border-2 border-orange-600 shadow-lg shadow-orange-500/5'
-                              : 'bg-slate-50 border-2 border-transparent hover:bg-white'
-                          }`}
-                        >
-                          <div className="absolute top-4 right-4">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              isSelected ? 'bg-orange-600' : 'border-2 border-slate-300'
-                            }`}>
-                              {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                            </div>
-                          </div>
-                          <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-6 text-3xl ${
-                            isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-200 text-slate-500 group-hover:bg-slate-100'
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {paymentMethods.map((option, idx) => {
+                    const isSelected = formData.paymentMethod === option.value;
+                    return (
+                      <div
+                        key={option.value}
+                        onClick={() => handleChange('paymentMethod', option.value)}
+                        className={`group relative p-8 rounded-2xl cursor-pointer hover:shadow-xl transition-all duration-300 ${
+                          isSelected
+                            ? 'bg-white border-2 border-orange-600 shadow-lg shadow-orange-500/5'
+                            : 'bg-slate-50 border-2 border-transparent hover:bg-white'
+                        }`}
+                      >
+                        <div className="absolute top-4 right-4">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            isSelected ? 'bg-orange-600' : 'border-2 border-slate-300'
                           }`}>
-                            {option.icon || (idx === 0 ? '🏢' : '👤')}
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                           </div>
-                          <h3 className="text-lg font-bold mb-2 text-slate-900">{option.label}</h3>
-                          <p className="text-sm text-slate-500 leading-relaxed">{option.desc}</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-6 text-3xl ${
+                          isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-200 text-slate-500 group-hover:bg-slate-100'
+                        }`}>
+                          {option.icon || (idx === 0 ? '🏢' : '👤')}
+                        </div>
+                        <h3 className="text-lg font-bold mb-2 text-slate-900">{option.label}</h3>
+                        <p className="text-sm text-slate-500 leading-relaxed">{option.desc}</p>
+                      </div>
+                    );
+                  })}
+                </div>
 
                 {/* Moyens de paiement */}
                 <div className="pt-8 border-t border-slate-200">

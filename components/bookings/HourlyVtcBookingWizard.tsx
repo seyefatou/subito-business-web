@@ -1320,57 +1320,45 @@ export default function HourlyVtcBookingWizard({
                     <CreditCard className="w-5 h-5 text-[#E04A1F]" />
                     Mode de paiement
                   </h4>
-                  {isEdit ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Mode de paiement</p>
-                      <p className="font-semibold text-slate-800">
-                        {paymentMethods.find(m => m.id === formData.paymentMethod)?.label || 'Non defini'}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-2">
-                        Le mode de paiement n&apos;est pas modifiable apres la creation de la reservation.
-                      </p>
-                    </div>
-                  ) : (
-                    <RadioGroup
-                      value={formData.paymentMethod}
-                      onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
-                      className="flex flex-col md:flex-row gap-4"
-                    >
-                      {paymentMethods.map(method => {
-                        const isSelected = formData.paymentMethod === method.id;
-                        return (
-                          <label key={method.id} className="flex-1 cursor-pointer">
-                            <RadioGroupItem value={method.id} className="hidden" />
-                            <div className={`
-                              p-6 rounded-2xl bg-white border-2 transition-all
-                              ${isSelected ? 'border-orange-600 bg-[#ffdbd0]/30 shadow-lg shadow-orange-500/5' : 'border-transparent hover:border-slate-200'}
-                            `}>
-                              <div className="flex justify-between items-start mb-4">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                  isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-100 text-slate-500'
-                                }`}>
-                                  {method.id === 'company_account' ? (
-                                    <Users className="w-6 h-6" />
-                                  ) : (
-                                    <User className="w-6 h-6" />
-                                  )}
-                                </div>
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                                  isSelected ? 'border-orange-600 bg-orange-600' : 'border-slate-300'
-                                }`}>
-                                  {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                                </div>
+                  <RadioGroup
+                    value={formData.paymentMethod}
+                    onValueChange={(v) => handleChange('paymentMethod', v as VtcPaymentMethod)}
+                    className="flex flex-col md:flex-row gap-4"
+                  >
+                    {paymentMethods.map(method => {
+                      const isSelected = formData.paymentMethod === method.id;
+                      return (
+                        <label key={method.id} className="flex-1 cursor-pointer">
+                          <RadioGroupItem value={method.id} className="hidden" />
+                          <div className={`
+                            p-6 rounded-2xl bg-white border-2 transition-all
+                            ${isSelected ? 'border-orange-600 bg-[#ffdbd0]/30 shadow-lg shadow-orange-500/5' : 'border-transparent hover:border-slate-200'}
+                          `}>
+                            <div className="flex justify-between items-start mb-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                isSelected ? 'bg-[#ffdbd0] text-[#E04A1F]' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {method.id === 'company_account' ? (
+                                  <Users className="w-6 h-6" />
+                                ) : (
+                                  <User className="w-6 h-6" />
+                                )}
                               </div>
-                              <p className="font-bold text-lg text-slate-900">{method.label}</p>
-                              <p className="text-sm text-slate-500 mt-1">
-                                {method.id === 'company_account' ? 'Facturation centralisee' : 'Paiement direct par l\'employe'}
-                              </p>
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                isSelected ? 'border-orange-600 bg-orange-600' : 'border-slate-300'
+                              }`}>
+                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                              </div>
                             </div>
-                          </label>
-                        );
-                      })}
-                    </RadioGroup>
-                  )}
+                            <p className="font-bold text-lg text-slate-900">{method.label}</p>
+                            <p className="text-sm text-slate-500 mt-1">
+                              {method.id === 'company_account' ? 'Facturation centralisee' : 'Paiement direct par l\'employe'}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
                 </section>
               </div>
 
