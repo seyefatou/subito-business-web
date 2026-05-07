@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_JOLOF_API_URL: ${NEXT_PUBLIC_JOLOF_API_URL}
     container_name: subito-business-web
     ports:
       - "3006:3006"

@@ -59,6 +59,8 @@ export function countryNameToCode(name: string): string {
   return map[name.toLowerCase()] || 'sn';
 }
 
+const JOLOF_BASE_URL = process.env.NEXT_PUBLIC_JOLOF_API_URL || 'https://map.jolofmobility.com';
+
 export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
   if (!query || query.length < 2) return [];
   try {
@@ -68,7 +70,7 @@ export async function searchAddresses(query: string, countryCode = 'sn'): Promis
       language: 'fr',
       country: countryCode.toUpperCase(),
     });
-    const res = await fetch(`https://map.jolofmobility.com/api/geocoding/autocomplete?${params.toString()}`);
+    const res = await fetch(`${JOLOF_BASE_URL}/api/geocoding/autocomplete?${params.toString()}`);
     if (!res.ok) return [];
     const json = await res.json();
     if (!json?.success || !Array.isArray(json.data)) return [];

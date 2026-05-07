@@ -42,6 +42,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { api, BookingResponse, BictorysServiceType } from "@/lib/api";
+import { extractBookingSub } from "@/lib/bookingResponse";
 
 const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
@@ -155,37 +156,7 @@ export default function TrackingDetailPage() {
     );
   }
 
-  // Extract service-specific sub-object (the API nests airport/inter-city/VTC fields).
-  // Try known keys first; fall back to any property whose value is a plain object containing
-  // booking-specific fields (vehicleType / scheduledDatetime / trajetAeroportId / trajetInterVilleId).
-  const knownSubKeys = [
-    "airportShuttle",
-    "interCity", "intercity", "interCityBooking",
-    "vtcHourly", "hourlyVtc", "vtcHourlyBooking", "vtcHourlyDetails",
-  ];
-  let sub: Record<string, unknown> = {};
-  for (const k of knownSubKeys) {
-    const v = (booking as Record<string, unknown>)[k];
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      sub = v as Record<string, unknown>;
-      break;
-    }
-  }
-  if (Object.keys(sub).length === 0) {
-    // Fallback: scan all booking properties for an object that smells like a service sub-object
-    for (const [, v] of Object.entries(booking as Record<string, unknown>)) {
-      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
-      const o = v as Record<string, unknown>;
-      const looksLikeSub = "vehicleType" in o || "scheduledDatetime" in o
-        || "trajetAeroportId" in o || "trajetInterVilleId" in o
-        || "trajetAeroport" in o || "trajetInterVille" in o
-        || "package" in o || "isOneWay" in o;
-      if (looksLikeSub) {
-        sub = o;
-        break;
-      }
-    }
-  }
+  const sub = extractBookingSub(booking as Record<string, unknown>);
   const trajet = (sub.trajetAeroport as Record<string, unknown> | undefined)
     || (sub.trajetInterVille as Record<string, unknown> | undefined)
     || (sub.trajet as Record<string, unknown> | undefined);

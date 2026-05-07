@@ -25,6 +25,11 @@ export default function EditAirportShuttleBookingPage() {
       : raw;
   const booking = unwrapped as (BookingResponse & Record<string, unknown>) | undefined;
 
+  if (booking && typeof window !== "undefined") {
+    console.log("[edit-airport-shuttle] booking response keys:", Object.keys(booking));
+    console.log("[edit-airport-shuttle] booking response:", booking);
+  }
+
   if (isNaN(id)) {
     return (
       <div className="container mx-auto p-6">

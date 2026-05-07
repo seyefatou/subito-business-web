@@ -273,7 +273,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               <X className="w-5 h-5" />
             </button>
             <button
-              className={`hidden lg:flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${sidebarCollapsed ? 'lg:absolute lg:-right-3 lg:top-7 lg:bg-white lg:border lg:border-slate-200 lg:shadow-sm lg:z-10' : ''}`}
+              className={`hidden lg:flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${sidebarCollapsed
+                ? 'lg:absolute lg:-right-3.5 lg:top-1/2 lg:-translate-y-1/2 lg:w-7 lg:h-7 lg:rounded-full lg:bg-white lg:border lg:border-slate-200 lg:shadow-sm lg:z-10'
+                : 'w-8 h-8 rounded-lg'}`}
               onClick={() => setSidebarCollapsed(c => !c)}
               aria-label={sidebarCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
             >
@@ -282,7 +284,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto sidebar-scroll">
+          <nav className={`flex-1 py-6 space-y-1 overflow-y-auto sidebar-scroll ${sidebarCollapsed ? 'px-4 lg:px-2' : 'px-4'}`}>
             {navigation.map((item) => {
               const active = isActive(item.href);
               return (
@@ -292,11 +294,15 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   onClick={() => setSidebarOpen(false)}
                   title={sidebarCollapsed ? item.name : undefined}
                   className={`
-                    relative flex items-center gap-3 rounded-xl text-sm
+                    relative flex items-center text-sm
                     transition-all duration-200
-                    ${sidebarCollapsed ? 'lg:justify-center lg:px-2 px-4 py-3' : 'px-4 py-3'}
+                    ${sidebarCollapsed
+                      ? 'gap-3 px-4 py-3 rounded-xl lg:gap-0 lg:p-0 lg:w-10 lg:h-10 lg:mx-auto lg:justify-center'
+                      : 'gap-3 px-4 py-3 rounded-xl'}
                     ${active
-                      ? 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3'
+                      ? sidebarCollapsed
+                        ? 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3 lg:bg-[#FEF2EE] lg:border-0 lg:pl-0 lg:shadow-none lg:rounded-xl'
+                        : 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3'
                       : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'
                     }
                   `}

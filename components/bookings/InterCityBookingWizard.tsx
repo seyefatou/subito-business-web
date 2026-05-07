@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, Ville, TrajetInterVille, CreateInterCityBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import type { BookingResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { extractBookingSub } from "@/lib/bookingResponse";
 type InterCityPaymentMethod = string;
 
 export interface InterCityBookingWizardProps {
@@ -137,9 +138,7 @@ export default function InterCityBookingWizard({
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
     const top = b as Record<string, unknown>;
-    const nested = (top.interCity as Record<string, unknown> | undefined)
-      || (top.intercity as Record<string, unknown> | undefined)
-      || {};
+    const nested = extractBookingSub(top);
     const pick = (key: string): unknown => {
       const fromNested = nested[key];
       if (fromNested !== null && fromNested !== undefined && fromNested !== '') return fromNested;

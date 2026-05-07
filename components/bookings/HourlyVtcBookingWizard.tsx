@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, CreateVtcHourlyBookingDto, VtcPricingGrid, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { extractBookingSub } from "@/lib/bookingResponse";
 import type { BookingResponse } from "@/lib/api";
 
 export interface HourlyVtcBookingWizardProps {
@@ -193,9 +194,7 @@ export default function HourlyVtcBookingWizard({
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
     const top = b as Record<string, unknown>;
-    const nested = (top.vtcHourly as Record<string, unknown> | undefined)
-      || (top.hourlyVtc as Record<string, unknown> | undefined)
-      || {};
+    const nested = extractBookingSub(top);
     const pick = (key: string): unknown => {
       const fromNested = nested[key];
       if (fromNested !== null && fromNested !== undefined && fromNested !== '') return fromNested;

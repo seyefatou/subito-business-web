@@ -60,6 +60,7 @@ import confetti from "canvas-confetti";
 import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
 import type { BookingResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { extractBookingSub } from "@/lib/bookingResponse";
 
 export interface AirportShuttleBookingWizardProps {
   mode?: 'create' | 'edit';
@@ -152,7 +153,7 @@ export default function AirportShuttleBookingWizard({
 
   const bookingResponseToFormData = (b: BookingResponse): Partial<FormData> => {
     const top = b as Record<string, unknown>;
-    const nested = (top.airportShuttle as Record<string, unknown> | undefined) || {};
+    const nested = extractBookingSub(top);
     // Prefer nested type-specific value, fall back to top-level (client info lives at top, type-specific in nested)
     const pick = (key: string): unknown => {
       const fromNested = nested[key];
