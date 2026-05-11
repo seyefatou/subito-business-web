@@ -2,13 +2,19 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   api,
   VehiculeLocation,
   InsuranceContractResponse,
   InsuranceSimulationResponse,
+  InsuranceReferenceItem,
+  CreateInsuranceSimulationDto,
+  CreateInsuranceContractDto,
+  InsurancePaymentStatusResponse,
+  InsurancePaymentCheckoutResponse,
+  InsuranceDirectPaymentResponse,
 } from "@/lib/api";
 import {
   Users,
@@ -51,21 +57,51 @@ const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2,
 
 // ==================== TYPES ====================
 type ContractType = "fleet" | "temporary" | "vtc";
-type Tier = "tiers" | "tiers_plus" | "tous_risques";
-type Payment = "company_account" | "card";
+type Payment = "checkout" | "mobile_money";
+
+interface AxaCoverage {
+  code: string;
+  capitalAmount: number;
+  label: string;
+}
 
 interface FormState {
   contractType: ContractType | "";
-  // vehicle
+  // vehicle (AXA codes go in brand/model; date replaces simple year)
   plate: string;
   brand: string;
   model: string;
-  year: string;
+  dateOfFirstRegistration: string;
   value: string;
-  // tier
-  tier: Tier;
+  // AXA technical fields
+  energyCode: string;
+  fiscalPower: number;
+  numberOfPlaces: number;
+  replacementCost: number;
+  carTypeCode: string;
+  // AXA product + coverages
+  productCode: string;
+  packCode: string;
+  axaCoverages: AxaCoverage[];
   // payment
   payment: Payment;
+  paymentPhone: string;
+  paymentOperator: string;
+  // customer (Step 5)
+  customerTitle: string;
+  customerLastName: string;
+  customerFirstName: string;
+  customerAddress: string;
+  customerMobile: string;
+  customerEmail: string;
+  customerCin: string;
+  customerBirthdate: string;
+  customerCity: string;
+  customerActivity: string;
+  customerCsp: string;
+  customerNationality: string;
+  customerNativeCountry: string;
+  // billing
   raisonSociale: string;
   siret: string;
   billingAddress: string;
@@ -77,10 +113,32 @@ const INITIAL: FormState = {
   plate: "",
   brand: "",
   model: "",
-  year: "",
+  dateOfFirstRegistration: "",
   value: "",
-  tier: "tous_risques",
-  payment: "company_account",
+  energyCode: "",
+  fiscalPower: 5,
+  numberOfPlaces: 5,
+  replacementCost: 0,
+  carTypeCode: "",
+  productCode: "",
+  packCode: "PACK_BASE",
+  axaCoverages: [],
+  payment: "mobile_money",
+  paymentPhone: "",
+  paymentOperator: "wave",
+  customerTitle: "",
+  customerLastName: "",
+  customerFirstName: "",
+  customerAddress: "",
+  customerMobile: "",
+  customerEmail: "",
+  customerCin: "",
+  customerBirthdate: "",
+  customerCity: "",
+  customerActivity: "",
+  customerCsp: "",
+  customerNationality: "221",
+  customerNativeCountry: "221",
   raisonSociale: "",
   siret: "",
   billingAddress: "",
@@ -92,8 +150,10 @@ const STEPS = [
   { id: 2, label: "Véhicule" },
   { id: 3, label: "Garanties" },
   { id: 4, label: "Paiement" },
-  { id: 5, label: "Confirmation" },
+  { id: 5, label: "Souscripteur" },
 ];
+
+const TOTAL_STEPS = STEPS.length;
 
 const CONTRACT_TYPES: {
   id: ContractType;
@@ -129,59 +189,15 @@ const CONTRACT_TYPES: {
   },
 ];
 
-const TIERS: {
-  id: Tier;
-  badge: string;
-  badgeColor: string;
-  title: string;
-  monthly: number;
-  features: { label: string; included: boolean; bold?: boolean }[];
-  recommended?: boolean;
-}[] = [
-  {
-    id: "tiers",
-    badge: "Essentiel",
-    badgeColor: "#dfe3e7",
-    title: "Tiers",
-    monthly: 24.9,
-    features: [
-      { label: "Responsabilité Civile", included: true },
-      { label: "Défense Pénale et Recours", included: true },
-      { label: "Assistance 0km", included: true },
-      { label: "Bris de Glace", included: false },
-      { label: "Vol & Incendie", included: false },
-    ],
-  },
-  {
-    id: "tous_risques",
-    badge: "Sérénité Totale",
-    badgeColor: "#ffdbd0",
-    title: "Tous Risques",
-    monthly: 52.5,
-    recommended: true,
-    features: [
-      { label: "Dommages Tous Accidents", included: true, bold: true },
-      { label: "Bris de Glace Intégral (Toit inclus)", included: true },
-      { label: "Vol, Incendie & Tempête", included: true },
-      { label: "Garantie Conducteur 1M€", included: true },
-      { label: "Véhicule de Remplacement", included: true },
-    ],
-  },
-  {
-    id: "tiers_plus",
-    badge: "Équilibré",
-    badgeColor: "#dfe3e7",
-    title: "Tiers Plus",
-    monthly: 38.15,
-    features: [
-      { label: "Responsabilité Civile", included: true },
-      { label: "Bris de Glace", included: true },
-      { label: "Vol & Incendie", included: true },
-      { label: "Catastrophes Naturelles", included: true },
-      { label: "Dommages Accidents", included: false },
-    ],
-  },
-];
+// Defensive unwrap: getReference returns ApiResponse<InsuranceReferenceItem[]> via the
+// envelope, but older endpoints occasionally return the array directly — tolerate both.
+function unwrapRef(response: unknown): InsuranceReferenceItem[] {
+  const r = response as { data?: unknown } | undefined;
+  const candidate = (r && 'data' in r ? r.data : r) as unknown;
+  if (Array.isArray(candidate)) return candidate as InsuranceReferenceItem[];
+  const inner = (candidate as { data?: unknown })?.data;
+  return Array.isArray(inner) ? (inner as InsuranceReferenceItem[]) : [];
+}
 
 // ==================== MAIN ====================
 export default function AssurancePage() {
@@ -222,44 +238,222 @@ export default function AssurancePage() {
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  // Demo: simulate contract creation locally — backend wiring kept light
-  const submitMutation = useMutation({
-    mutationFn: async () => {
-      await new Promise((r) => setTimeout(r, 800));
-      const ref = `KA-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`;
-      return { contractNumber: ref };
+  const queryClient = useQueryClient();
+
+  // ---- Real backend flow ----
+  const [simulationId, setSimulationId] = useState<number | null>(null);
+  const [simulationResult, setSimulationResult] = useState<InsuranceSimulationResponse | null>(null);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string>("");
+
+  const buildSimulationDto = (): CreateInsuranceSimulationDto => ({
+    productCode: form.productCode,
+    packCode: form.packCode || "PACK_BASE",
+    durationCode: "12M",
+    countryCode: "SN",
+    vehicle: {
+      energyCode: form.energyCode,
+      fiscalPower: form.fiscalPower,
+      numberOfPlaces: form.numberOfPlaces,
+      registrationNumber: form.plate,
+      replacementCost: form.replacementCost,
+      marketValue: Number(form.value) || 0,
+      dateOfFirstRegistration: form.dateOfFirstRegistration,
+      brandCode: form.brand,
+      modelCode: form.model,
+      carTypeCode: form.carTypeCode,
     },
-    onSuccess: (data) => {
-      setContractNumber(data.contractNumber);
+    coverages: form.axaCoverages.map((c) => ({ code: c.code, capitalAmount: c.capitalAmount })),
+  });
+
+  const simulationMutation = useMutation({
+    mutationFn: (dto: CreateInsuranceSimulationDto) => api.insurance.createSimulation(dto),
+    onSuccess: (response) => {
+      const sim = ((response as { data?: InsuranceSimulationResponse })?.data
+        ?? response) as InsuranceSimulationResponse;
+      if (!sim?.simulationId) {
+        toast.error("Réponse de simulation invalide");
+        return;
+      }
+      setSimulationId(sim.simulationId);
+      setSimulationResult(sim);
+      setStep(4);
+      queryClient.invalidateQueries({ queryKey: ["insurance-simulations"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Erreur lors de la simulation"),
+  });
+
+  const directPayMutation = useMutation({
+    mutationFn: (data: { simulationId: number; operator: string; phone: string }) =>
+      api.insurance.payDirect(data.simulationId, { operator: data.operator, phone: data.phone }),
+    onSuccess: (response) => {
+      const r = ((response as { data?: InsuranceDirectPaymentResponse })?.data
+        ?? response) as InsuranceDirectPaymentResponse;
+      setPaymentInitiated(true);
+      toast.success("Paiement Mobile Money envoyé — confirmez sur votre téléphone.");
+      if (r.chargeId) setPaymentReference(r.chargeId);
+    },
+    onError: (err: Error) => toast.error(err.message || "Échec de l'envoi du paiement"),
+  });
+
+  const checkoutPayMutation = useMutation({
+    mutationFn: (simId: number) => api.insurance.payCheckout(simId),
+    onSuccess: (response) => {
+      const r = ((response as { data?: InsurancePaymentCheckoutResponse })?.data
+        ?? response) as InsurancePaymentCheckoutResponse;
+      if (!r?.checkoutUrl) {
+        toast.error("URL de paiement absente — réessayez");
+        return;
+      }
+      setPaymentInitiated(true);
+      if (r.chargeId) setPaymentReference(r.chargeId);
+      window.open(r.checkoutUrl, "_blank", "noopener,noreferrer");
+      toast.info("Finalisez le paiement dans le nouvel onglet, puis revenez ici.");
+    },
+    onError: (err: Error) => toast.error(err.message || "Échec de l'initialisation du paiement"),
+  });
+
+  const paymentStatusQuery = useQuery({
+    queryKey: ["insurance-payment-status", simulationId],
+    queryFn: async () => {
+      if (!simulationId) return null;
+      const res = await api.insurance.getPaymentStatus(simulationId);
+      return ((res as { data?: InsurancePaymentStatusResponse })?.data
+        ?? res) as InsurancePaymentStatusResponse;
+    },
+    enabled: !!simulationId && paymentInitiated && step === 4 && !success,
+    refetchInterval: 4000,
+  });
+
+  // When payment status flips to a paid state, advance to Step 5.
+  useEffect(() => {
+    const status = paymentStatusQuery.data?.status?.toLowerCase();
+    if (!status) return;
+    if (["paid", "completed", "success", "succeeded"].includes(status)) {
+      const ref = paymentStatusQuery.data?.chargeId || paymentReference;
+      if (ref) setPaymentReference(ref);
+      toast.success("Paiement confirmé !");
+      setStep(5);
+    }
+    if (["failed", "canceled", "cancelled"].includes(status)) {
+      toast.error("Paiement échoué");
+      setPaymentInitiated(false);
+    }
+  }, [paymentStatusQuery.data, paymentReference]);
+
+  const contractMutation = useMutation({
+    mutationFn: (dto: CreateInsuranceContractDto) => api.insurance.createContract(dto),
+    onSuccess: (response) => {
+      const c = ((response as { data?: InsuranceContractResponse })?.data
+        ?? response) as InsuranceContractResponse;
+      if (!c?.contractNumber) {
+        toast.error("Numéro de contrat manquant dans la réponse");
+        return;
+      }
+      setContractNumber(c.contractNumber);
       setSuccess(true);
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      queryClient.invalidateQueries({ queryKey: ["insurance-contracts"] });
     },
-    onError: (e: Error) => toast.error(e.message || "Erreur lors de la souscription"),
+    onError: (err: Error) => toast.error(err.message || "Erreur lors de la création du contrat"),
   });
+
+  const submitContract = () => {
+    if (!simulationId) {
+      toast.error("Simulation manquante");
+      return;
+    }
+    if (!paymentReference) {
+      toast.error("Référence de paiement manquante");
+      return;
+    }
+    contractMutation.mutate({
+      simulationId,
+      referenceTrxPayment: paymentReference,
+      startDate: new Date().toISOString().slice(0, 10),
+      customer: {
+        title: form.customerTitle,
+        lastName: form.customerLastName,
+        firstName: form.customerFirstName,
+        address: form.customerAddress,
+        mobilePhone: form.customerMobile,
+        email: form.customerEmail,
+        cin: form.customerCin,
+        birthdate: form.customerBirthdate,
+        city: form.customerCity,
+        activity: form.customerActivity || undefined,
+        csp: form.customerCsp,
+        nationality: form.customerNationality,
+        nativeCountry: form.customerNativeCountry,
+      },
+    });
+  };
+
+  const triggerPayment = () => {
+    if (!simulationId) return;
+    if (form.payment === "mobile_money") {
+      if (!form.paymentPhone) return toast.error("Numéro de téléphone requis");
+      if (!form.paymentOperator) return toast.error("Opérateur requis");
+      directPayMutation.mutate({
+        simulationId,
+        operator: form.paymentOperator,
+        phone: form.paymentPhone,
+      });
+    } else {
+      checkoutPayMutation.mutate(simulationId);
+    }
+  };
 
   const validate = (s: number): boolean => {
     if (s === 1 && !form.contractType) return toast.error("Choisissez un type de contrat"), false;
     if (s === 2) {
       if (!form.brand || !form.model) return toast.error("Marque et modèle requis"), false;
-      if (!form.year) return toast.error("Année requise"), false;
-      if (!form.value) return toast.error("Valeur estimée requise"), false;
+      if (!form.dateOfFirstRegistration) return toast.error("Date de mise en circulation requise"), false;
+      if (!form.value || Number(form.value) <= 0) return toast.error("Valeur du véhicule requise"), false;
+      if (!form.replacementCost || form.replacementCost <= 0)
+        return toast.error("Valeur à neuf (replacement cost) requise"), false;
+      if (!form.energyCode) return toast.error("Énergie requise"), false;
+      if (!form.carTypeCode) return toast.error("Type de véhicule requis"), false;
+      if (!form.fiscalPower || form.fiscalPower <= 0) return toast.error("Puissance fiscale requise"), false;
+      if (!form.numberOfPlaces || form.numberOfPlaces <= 0) return toast.error("Nombre de places requis"), false;
+      if (!form.plate) return toast.error("Plaque requise"), false;
+    }
+    if (s === 3) {
+      if (!form.productCode) return toast.error("Choisissez un produit d'assurance"), false;
+      if (form.axaCoverages.length === 0) return toast.error("Sélectionnez au moins une garantie"), false;
+      const missingCapital = form.axaCoverages.find(c => !c.capitalAmount || c.capitalAmount <= 0);
+      if (missingCapital) return toast.error(`Renseignez un capital pour ${missingCapital.label}`), false;
     }
     if (s === 4) {
-      if (!form.raisonSociale.trim()) return toast.error("Raison sociale requise"), false;
+      if (form.payment === "mobile_money") {
+        if (!form.paymentPhone) return toast.error("Numéro de téléphone requis"), false;
+        if (!form.paymentOperator) return toast.error("Opérateur requis"), false;
+      }
+    }
+    if (s === 5) {
+      if (!form.customerTitle) return toast.error("Civilité requise"), false;
+      if (!form.customerLastName.trim()) return toast.error("Nom requis"), false;
+      if (!form.customerFirstName.trim()) return toast.error("Prénom requis"), false;
+      if (!form.customerEmail.trim()) return toast.error("Email requis"), false;
+      if (!form.customerMobile.trim()) return toast.error("Téléphone requis"), false;
+      if (!form.customerCin.trim()) return toast.error("CIN requis"), false;
+      if (!form.customerBirthdate) return toast.error("Date de naissance requise"), false;
+      if (!form.customerAddress.trim()) return toast.error("Adresse requise"), false;
+      if (!form.customerCity.trim()) return toast.error("Ville requise"), false;
+      if (!form.customerCsp) return toast.error("CSP requise"), false;
     }
     return true;
   };
   const next = () => {
     if (!validate(step)) return;
-    setStep((s) => Math.min(5, s + 1));
+    if (step === 3) {
+      // 3 → 4 fires the real AXA simulation; advance happens in the mutation onSuccess
+      simulationMutation.mutate(buildSimulationDto());
+      return;
+    }
+    setStep((s) => Math.min(TOTAL_STEPS, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
-
-  const selectedTier = TIERS.find((t) => t.id === form.tier)!;
-  const annualHT = selectedTier.monthly * 12;
-  const taxes = +(annualHT * 0.15).toFixed(2);
-  const totalTTC = +(annualHT + taxes).toFixed(2);
-  const monthly = +(totalTTC / 12).toFixed(2);
 
   if (success) {
     return (
@@ -301,21 +495,21 @@ export default function AssurancePage() {
             />
           )}
           {step === 2 && (
-            <Step2Vehicle form={form} update={update} vehicules={vehicules} />
+            <Step2Vehicle form={form} update={update} />
           )}
           {step === 3 && <Step3Coverage form={form} update={update} />}
           {step === 4 && (
             <Step4Payment
               form={form}
               update={update}
-              selectedTier={selectedTier}
-              annualHT={annualHT}
-              taxes={taxes}
-              totalTTC={totalTTC}
-              monthly={monthly}
               fallbackVehicleImage={fallbackVehicleImage}
+              simulation={simulationResult}
+              simulationId={simulationId}
+              paymentInitiated={paymentInitiated}
+              paymentStatus={paymentStatusQuery.data?.status}
             />
           )}
+          {step === 5 && <Step5Customer form={form} update={update} />}
         </motion.div>
       </AnimatePresence>
 
@@ -324,17 +518,17 @@ export default function AssurancePage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center px-6">
           <div className="flex items-center gap-4">
             <span className="text-xs font-medium text-[#5e6473]">
-              Étape {step} sur {STEPS.length}
+              Étape {step} sur {TOTAL_STEPS}
             </span>
             <div className="w-48 h-1 bg-[#dfe3e7] rounded-full overflow-hidden">
               <div
                 className="h-full transition-all"
-                style={{ width: `${(step / STEPS.length) * 100}%`, backgroundImage: KINETIC }}
+                style={{ width: `${(step / TOTAL_STEPS) * 100}%`, backgroundImage: KINETIC }}
               />
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {step > 1 && (
+            {step > 1 && step < 5 && (
               <button
                 onClick={back}
                 className="px-5 py-2 text-sm font-bold text-[#5e6473] hover:text-[#171c1f] transition-colors flex items-center gap-2"
@@ -343,10 +537,7 @@ export default function AssurancePage() {
                 Retour
               </button>
             )}
-            <button className="hidden lg:block px-5 py-2 text-sm font-bold text-[#5e6473] hover:text-[#171c1f] transition-colors">
-              Enregistrer pour plus tard
-            </button>
-            {step < 4 && (
+            {step < 3 && (
               <button
                 onClick={next}
                 className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group"
@@ -356,19 +547,70 @@ export default function AssurancePage() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             )}
-            {step === 4 && (
+            {step === 3 && (
               <button
-                onClick={() => submitMutation.mutate()}
-                disabled={submitMutation.isPending}
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group"
+                onClick={next}
+                disabled={simulationMutation.isPending}
+                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
                 style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
               >
-                {submitMutation.isPending ? (
+                {simulationMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Calcul du devis…
+                  </>
+                ) : (
+                  <>
+                    Calculer le devis
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
+            {step === 4 && !paymentInitiated && (
+              <button
+                onClick={() => {
+                  if (!validate(4)) return;
+                  triggerPayment();
+                }}
+                disabled={directPayMutation.isPending || checkoutPayMutation.isPending}
+                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
+                style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
+              >
+                {directPayMutation.isPending || checkoutPayMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Lock className="w-4 h-4" />
                 )}
-                Confirmer & Payer
+                Payer maintenant
+              </button>
+            )}
+            {step === 4 && paymentInitiated && (
+              <button
+                disabled
+                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 opacity-70"
+                style={{ backgroundImage: KINETIC }}
+              >
+                <Loader2 className="w-4 h-4 animate-spin" />
+                En attente de confirmation…
+              </button>
+            )}
+            {step === 5 && (
+              <button
+                onClick={() => {
+                  if (!validate(5)) return;
+                  submitContract();
+                }}
+                disabled={contractMutation.isPending}
+                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
+                style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
+              >
+                {contractMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Souscrire le contrat
               </button>
             )}
           </div>
@@ -677,7 +919,7 @@ function SimulationCard({
     }
   };
 
-  const simId = simulation.simulationId || simulation.id;
+  const simId = simulation.simulationId ?? simulation.id;
 
   const handleDownload = async () => {
     try {
@@ -1012,26 +1254,30 @@ function Step1ContractType({
 function Step2Vehicle({
   form,
   update,
-  vehicules,
 }: {
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
-  vehicules: VehiculeLocation[];
 }) {
-  const brands = useMemo(() => {
-    const set = new Set<string>();
-    vehicules.forEach((v) => v.marque && set.add(v.marque));
-    return Array.from(set).sort();
-  }, [vehicules]);
+  const brandsQuery = useQuery({
+    queryKey: ["insurance-ref-brands"],
+    queryFn: () => api.insurance.getReference("brands"),
+  });
+  const brands = unwrapRef(brandsQuery.data);
 
-  const modelsForBrand = useMemo(() => {
-    if (!form.brand) return [] as string[];
-    const set = new Set<string>();
-    vehicules.forEach((v) => {
-      if (v.marque === form.brand && v.modele) set.add(v.modele);
-    });
-    return Array.from(set).sort();
-  }, [vehicules, form.brand]);
+  const energiesQuery = useQuery({
+    queryKey: ["insurance-ref-energies"],
+    queryFn: () => api.insurance.getReference("energies"),
+  });
+  const energies = unwrapRef(energiesQuery.data);
+
+  const carTypesQuery = useQuery({
+    queryKey: ["insurance-ref-car-types"],
+    queryFn: () => api.insurance.getReference("car-types"),
+  });
+  const carTypes = unwrapRef(carTypesQuery.data);
+
+  const labelOf = (item: InsuranceReferenceItem) =>
+    item.label || item.name || item.description || item.code;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
       {/* Left intro */}
@@ -1122,100 +1368,125 @@ function Step2Vehicle({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-              {/* Brand */}
-              <div className="space-y-3">
-                <label
-                  className="block font-bold text-sm text-[#59413a]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  Marque du véhicule
-                </label>
+              {/* Brand (AXA codes) */}
+              <FieldGroup label="Marque (AXA)">
                 <div className="relative">
                   <select
                     value={form.brand}
-                    onChange={(e) => {
-                      update("brand", e.target.value);
-                      update("model", "");
-                    }}
+                    onChange={(e) => update("brand", e.target.value)}
                     className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer"
                   >
                     <option value="">
-                      {brands.length === 0 ? "Chargement..." : "Sélectionnez une marque"}
+                      {brandsQuery.isLoading ? "Chargement..." : "Sélectionnez une marque"}
                     </option>
                     {brands.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
+                      <option key={b.code} value={b.code}>
+                        {labelOf(b)}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
                 </div>
-              </div>
+              </FieldGroup>
 
-              {/* Model */}
-              <div className="space-y-3">
-                <label
-                  className="block font-bold text-sm text-[#59413a]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  Modèle exact
-                </label>
-                <div className="relative">
-                  <select
-                    value={form.model}
-                    onChange={(e) => update("model", e.target.value)}
-                    disabled={!form.brand || modelsForBrand.length === 0}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {!form.brand
-                        ? "Choisissez d'abord une marque"
-                        : modelsForBrand.length === 0
-                        ? "Aucun modèle disponible"
-                        : "Sélectionnez un modèle"}
-                    </option>
-                    {modelsForBrand.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Year */}
-              <div className="space-y-3">
-                <label
-                  className="block font-bold text-sm text-[#59413a]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  Année de mise en circulation
-                </label>
+              {/* Model — AXA n'expose pas de ref endpoint pour les modèles */}
+              <FieldGroup label="Modèle">
                 <input
-                  type="number"
-                  min={1950}
-                  max={new Date().getFullYear() + 1}
-                  placeholder="YYYY"
-                  value={form.year}
-                  onChange={(e) => update("year", e.target.value)}
+                  type="text"
+                  placeholder="Corolla, Sandero…"
+                  value={form.model}
+                  onChange={(e) => update("model", e.target.value)}
                   className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
                 />
-              </div>
+              </FieldGroup>
 
-              {/* Value */}
-              <div className="space-y-3">
-                <label
-                  className="block font-bold text-sm text-[#59413a]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  Valeur estimée du véhicule
-                </label>
+              {/* Date de première mise en circulation */}
+              <FieldGroup label="Date de mise en circulation">
+                <input
+                  type="date"
+                  value={form.dateOfFirstRegistration}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => update("dateOfFirstRegistration", e.target.value)}
+                  className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                />
+              </FieldGroup>
+
+              {/* Type de véhicule */}
+              <FieldGroup label="Type de véhicule">
+                <div className="relative">
+                  <select
+                    value={form.carTypeCode}
+                    onChange={(e) => update("carTypeCode", e.target.value)}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">
+                      {carTypesQuery.isLoading ? "Chargement..." : "Sélectionnez un type"}
+                    </option>
+                    {carTypes.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {labelOf(t)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
+                </div>
+              </FieldGroup>
+
+              {/* Énergie */}
+              <FieldGroup label="Énergie">
+                <div className="relative">
+                  <select
+                    value={form.energyCode}
+                    onChange={(e) => update("energyCode", e.target.value)}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">
+                      {energiesQuery.isLoading ? "Chargement..." : "Sélectionnez une énergie"}
+                    </option>
+                    {energies.map((e) => (
+                      <option key={e.code} value={e.code}>
+                        {labelOf(e)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
+                </div>
+              </FieldGroup>
+
+              {/* Puissance fiscale */}
+              <FieldGroup label="Puissance fiscale (CV)">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.fiscalPower || ""}
+                  onChange={(e) => update("fiscalPower", Number(e.target.value) || 0)}
+                  placeholder="5"
+                  className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                />
+              </FieldGroup>
+
+              {/* Nombre de places */}
+              <FieldGroup label="Nombre de places">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.numberOfPlaces || ""}
+                  onChange={(e) => update("numberOfPlaces", Number(e.target.value) || 0)}
+                  placeholder="5"
+                  className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                />
+              </FieldGroup>
+
+              {/* Valeur marché */}
+              <FieldGroup label="Valeur marché (FCFA)">
                 <div className="relative">
                   <input
                     type="number"
                     min={0}
-                    placeholder="0"
+                    step={100000}
+                    placeholder="4 000 000"
                     value={form.value}
                     onChange={(e) => update("value", e.target.value)}
                     className="w-full pl-4 pr-16 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
@@ -1224,7 +1495,25 @@ function Step2Vehicle({
                     FCFA
                   </span>
                 </div>
-              </div>
+              </FieldGroup>
+
+              {/* Valeur à neuf (replacement cost) */}
+              <FieldGroup label="Valeur à neuf / remplacement (FCFA)">
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    step={100000}
+                    placeholder="5 000 000"
+                    value={form.replacementCost || ""}
+                    onChange={(e) => update("replacementCost", Number(e.target.value) || 0)}
+                    className="w-full pl-4 pr-16 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-[#5e6473] text-sm">
+                    FCFA
+                  </span>
+                </div>
+              </FieldGroup>
             </div>
 
             <div className="p-5 bg-[#00acbb]/10 rounded-2xl border-l-4 border-[#006972] flex gap-3">
@@ -1282,6 +1571,41 @@ function Step3Coverage({
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
 }) {
+  const productsQuery = useQuery({
+    queryKey: ["insurance-ref-products"],
+    queryFn: () => api.insurance.getReference("products"),
+  });
+  const products = unwrapRef(productsQuery.data);
+
+  const coveragesQuery = useQuery({
+    queryKey: ["insurance-ref-coverages", form.productCode],
+    queryFn: () => api.insurance.getReference("coverages", { productCode: form.productCode }),
+    enabled: !!form.productCode,
+  });
+  const coverages = unwrapRef(coveragesQuery.data);
+
+  const labelOf = (item: InsuranceReferenceItem) =>
+    item.label || item.name || item.description || item.code;
+
+  const isSelected = (code: string) => form.axaCoverages.some((c) => c.code === code);
+  const capitalOf = (code: string) =>
+    form.axaCoverages.find((c) => c.code === code)?.capitalAmount ?? 0;
+
+  const toggleCoverage = (code: string, label: string) => {
+    if (isSelected(code)) {
+      update("axaCoverages", form.axaCoverages.filter((c) => c.code !== code));
+    } else {
+      update("axaCoverages", [...form.axaCoverages, { code, label, capitalAmount: 0 }]);
+    }
+  };
+
+  const setCapital = (code: string, amount: number) => {
+    update(
+      "axaCoverages",
+      form.axaCoverages.map((c) => (c.code === code ? { ...c, capitalAmount: amount } : c))
+    );
+  };
+
   return (
     <div>
       <header className="mb-12 text-center max-w-3xl mx-auto">
@@ -1292,186 +1616,148 @@ function Step3Coverage({
           Choisissez votre niveau de protection
         </h1>
         <p className="text-lg text-[#5e6473]">
-          Comparez nos formules conçues pour votre véhicule. Des garanties essentielles au confort
-          absolu du Tous Risques.
+          Sélectionnez le produit AXA et les garanties à inclure dans votre contrat. Le capital
+          assuré conditionne la prime.
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-7 items-start">
-        {TIERS.map((t) => {
-          const active = form.tier === t.id;
-          const isRecommended = !!t.recommended;
-          return (
-            <div
-              key={t.id}
-              onClick={() => update("tier", t.id)}
-              className={`relative p-7 lg:p-8 rounded-3xl cursor-pointer transition-all ${
-                isRecommended
-                  ? "bg-white shadow-2xl shadow-[#ac3509]/10 border-2 border-[#ac3509]/20 lg:-translate-y-4"
-                  : active
-                  ? "bg-white ring-2 ring-[#ac3509] shadow-xl"
-                  : "bg-white border border-transparent hover:shadow-xl hover:shadow-[#dfe3e7]/50"
-              }`}
-            >
-              {isRecommended && (
-                <div
-                  className="absolute -top-4 left-1/2 -translate-x-1/2 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg"
-                  style={{ backgroundImage: KINETIC }}
+      {/* Product picker */}
+      <section className="mb-12">
+        <h2
+          className="text-xl font-bold mb-5 text-[#171c1f]"
+          style={{ fontFamily: "Manrope, system-ui" }}
+        >
+          Produit d&apos;assurance
+        </h2>
+        {productsQuery.isLoading ? (
+          <div className="flex items-center gap-3 text-sm text-[#5e6473]">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Chargement des produits AXA…
+          </div>
+        ) : products.length === 0 ? (
+          <p className="text-sm text-[#5e6473]">Aucun produit disponible.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {products.map((p) => {
+              const active = form.productCode === p.code;
+              return (
+                <button
+                  key={p.code}
+                  type="button"
+                  onClick={() => update("productCode", p.code)}
+                  className={`text-left p-6 rounded-2xl transition-all ${
+                    active
+                      ? "bg-white ring-2 ring-[#ac3509] shadow-xl"
+                      : "bg-white border border-[#eaeef2] hover:shadow-lg"
+                  }`}
                 >
-                  RECOMMANDÉ
-                </div>
-              )}
-              <div className="mb-7">
-                <span
-                  className="text-xs font-bold tracking-widest uppercase text-[#5e6473] px-3 py-1 rounded-full"
-                  style={{ backgroundColor: t.badgeColor }}
-                >
-                  {t.badge}
-                </span>
-                <h3
-                  className="text-2xl font-bold mt-4 text-[#171c1f]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  {t.title}
-                </h3>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span
-                    className={`text-4xl lg:text-5xl font-extrabold ${
-                      isRecommended ? "text-[#ac3509]" : "text-[#171c1f]"
-                    }`}
-                    style={{ fontFamily: "Manrope, system-ui" }}
-                  >
-                    {fmt(t.monthly)} €
-                  </span>
-                  <span className="text-[#5e6473] text-sm">/mois</span>
-                </div>
-              </div>
-              <ul className="space-y-4 mb-8">
-                {t.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    {f.included ? (
-                      <CheckCircle2
-                        className="w-5 h-5 shrink-0"
-                        style={{ color: isRecommended ? "#ac3509" : "#006972" }}
-                      />
-                    ) : (
-                      <X className="w-5 h-5 text-[#8d7169]/40 shrink-0" />
-                    )}
-                    <span
-                      className={`text-sm ${
-                        f.included
-                          ? f.bold
-                            ? "font-semibold text-[#171c1f]"
-                            : "text-[#171c1f]"
-                          : "text-[#5e6473] line-through opacity-50"
-                      }`}
+                  <div className="flex items-start justify-between mb-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{
+                        backgroundColor: active ? "#ffdbd0" : "#f0f4f8",
+                        color: active ? "#ac3509" : "#5e6473",
+                      }}
                     >
-                      {f.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                className={`w-full py-4 rounded-2xl font-bold transition-all ${
-                  active || isRecommended
-                    ? "text-white shadow-xl"
-                    : "bg-[#dfe3e7] text-[#171c1f] hover:bg-[#e4e9ed]"
-                } ${isRecommended ? "py-5 text-lg" : ""}`}
-                style={
-                  active || isRecommended
-                    ? { backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.3)" }
-                    : undefined
-                }
-              >
-                {active ? "Sélectionné" : isRecommended ? `Sélectionner ${t.title}` : "Choisir cette offre"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                      <Shield className="w-5 h-5" />
+                    </div>
+                    {active && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#ac3509] bg-[#ffdbd0] px-2 py-0.5 rounded-full">
+                        Choisi
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-[#171c1f] mb-1">{labelOf(p)}</h3>
+                  <p className="text-xs font-mono text-[#5e6473]">{p.code}</p>
+                  {p.description && (
+                    <p className="text-sm text-[#5e6473] mt-2 leading-relaxed">{p.description}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
-      {/* Comparison table */}
-      <div className="mt-20 hidden lg:block overflow-hidden bg-[#f0f4f8] rounded-3xl p-1">
-        <div className="bg-white rounded-[1.4rem] overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#f0f4f8]/50">
-                <th
-                  className="py-7 px-7 font-bold text-lg text-[#171c1f]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  Garanties détaillées
-                </th>
-                <th className="py-7 px-7 text-center font-bold text-[#171c1f]">Tiers</th>
-                <th className="py-7 px-7 text-center font-bold text-[#171c1f]">Tiers Plus</th>
-                <th className="py-7 px-7 text-center font-bold bg-[#ffdbd0]/30 text-[#ac3509]">
-                  Tous Risques
-                </th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {[
-                { label: "Responsabilité Civile & Défense", a: "check", b: "check", c: "check" },
-                { label: "Assistance 24h/24 & 0km", a: "check", b: "check", c: "check" },
-                { label: "Protection du Conducteur (1M€)", a: "Option", b: "check", c: "check" },
-                { label: "Bris de Glace sans franchise", a: "—", b: "check", c: "check" },
-                { label: "Dommages Électriques (Câbles, Batterie)", a: "—", b: "—", c: "check" },
-                { label: "Effets personnels & Accessoires", a: "—", b: "Jusqu'à 500k FCFA", c: "Jusqu'à 3M FCFA" },
-              ].map((row, idx) => (
-                <tr key={idx} className={idx === 5 ? "" : "border-b border-[#eaeef2]"}>
-                  <td className="py-5 px-7 font-semibold text-[#171c1f]">{row.label}</td>
-                  <td className="py-5 px-7 text-center">
-                    {row.a === "check" ? (
-                      <Check className="w-5 h-5 text-[#006972] inline" />
-                    ) : (
-                      <span className="text-[#5e6473]">{row.a}</span>
-                    )}
-                  </td>
-                  <td className="py-5 px-7 text-center">
-                    {row.b === "check" ? (
-                      <Check className="w-5 h-5 text-[#006972] inline" />
-                    ) : (
-                      <span className="text-[#5e6473]">{row.b}</span>
-                    )}
-                  </td>
-                  <td className="py-5 px-7 text-center bg-[#ffdbd0]/10">
-                    {row.c === "check" ? (
-                      <Check className="w-5 h-5 text-[#ac3509] inline" />
-                    ) : (
-                      <span className="font-bold text-[#ac3509]">{row.c}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Upsell banner */}
-      <div className="mt-12 bg-[#e4e9ed] rounded-3xl p-7 flex flex-col md:flex-row items-center gap-7">
-        <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-[#171c1f] flex items-center justify-center">
-          <Zap className="w-10 h-10 text-[#ff7043]" />
-        </div>
-        <div className="flex-grow text-center md:text-left">
-          <h4
-            className="text-xl font-bold mb-1 text-[#171c1f]"
+      {/* Coverages */}
+      <section>
+        <div className="flex items-baseline justify-between mb-5">
+          <h2
+            className="text-xl font-bold text-[#171c1f]"
             style={{ fontFamily: "Manrope, system-ui" }}
           >
-            Spécial Véhicules Électriques
-          </h4>
-          <p className="text-[#5e6473] text-sm max-w-2xl">
-            Toutes nos formules incluent l&apos;assistance panne d&apos;énergie et la protection de
-            votre borne de recharge à domicile sans surcoût.
-          </p>
+            Garanties
+          </h2>
+          {form.axaCoverages.length > 0 && (
+            <span className="text-xs font-bold uppercase tracking-wider text-[#ac3509]">
+              {form.axaCoverages.length} sélectionnée{form.axaCoverages.length > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[10px] font-bold text-[#ac3509] border-2 border-white">
-            +4k
+
+        {!form.productCode ? (
+          <div className="p-7 bg-[#f0f4f8] rounded-2xl text-sm text-[#5e6473] flex items-center gap-3">
+            <Info className="w-5 h-5 text-[#5e6473]" />
+            Sélectionnez d&apos;abord un produit pour voir les garanties disponibles.
           </div>
-          <span className="text-xs font-bold text-[#59413a]">Déjà assurés chez nous</span>
-        </div>
-      </div>
+        ) : coveragesQuery.isLoading ? (
+          <div className="flex items-center gap-3 text-sm text-[#5e6473]">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Chargement des garanties…
+          </div>
+        ) : coverages.length === 0 ? (
+          <p className="text-sm text-[#5e6473]">Aucune garantie disponible pour ce produit.</p>
+        ) : (
+          <div className="space-y-3">
+            {coverages.map((c) => {
+              const selected = isSelected(c.code);
+              const label = labelOf(c);
+              return (
+                <div
+                  key={c.code}
+                  className={`flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-2xl border transition-all ${
+                    selected ? "bg-white border-[#ac3509]/40 shadow-sm" : "bg-white border-[#eaeef2]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleCoverage(c.code, label)}
+                    className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      selected ? "bg-[#ac3509] border-[#ac3509]" : "bg-white border-[#dfe3e7]"
+                    }`}
+                    aria-pressed={selected}
+                  >
+                    {selected && <Check className="w-4 h-4 text-white" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[#171c1f]">{label}</p>
+                    <p className="text-xs font-mono text-[#5e6473] mt-0.5">{c.code}</p>
+                    {c.description && (
+                      <p className="text-sm text-[#5e6473] mt-1 leading-relaxed">{c.description}</p>
+                    )}
+                  </div>
+                  {selected && (
+                    <div className="md:w-56">
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#59413a] mb-1">
+                        Capital assuré (FCFA)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100000}
+                        value={capitalOf(c.code) || ""}
+                        onChange={(e) => setCapital(c.code, Number(e.target.value) || 0)}
+                        placeholder="5 000 000"
+                        className="w-full bg-[#f0f4f8] border-0 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1480,22 +1766,37 @@ function Step3Coverage({
 function Step4Payment({
   form,
   update,
-  selectedTier,
-  annualHT,
-  taxes,
-  totalTTC,
-  monthly,
   fallbackVehicleImage,
+  simulation,
+  simulationId,
+  paymentInitiated,
+  paymentStatus,
 }: {
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
-  selectedTier: typeof TIERS[number];
-  annualHT: number;
-  taxes: number;
-  totalTTC: number;
-  monthly: number;
   fallbackVehicleImage?: string;
+  simulation: InsuranceSimulationResponse | null;
+  simulationId: number | null;
+  paymentInitiated: boolean;
+  paymentStatus?: string;
 }) {
+  const handleDownloadPdf = async () => {
+    if (!simulationId) return;
+    try {
+      const blob = await api.insurance.downloadSimulationPdf(simulationId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `devis-${simulationId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Impossible de télécharger le devis");
+    }
+  };
+
+  const totalPremium = simulation?.totalPremium ?? simulation?.totalPrime ?? 0;
+  const currency = simulation?.currency ?? "XOF";
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
       {/* Left form */}
@@ -1521,78 +1822,72 @@ function Step4Payment({
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <PayCard
-              active={form.payment === "company_account"}
-              onClick={() => update("payment", "company_account")}
-              icon={<Building2 className="w-7 h-7" />}
-              title="Compte Entreprise"
-              desc="Facturation centralisée pour votre flotte. Prélèvement Wave / OM automatique."
+              active={form.payment === "mobile_money"}
+              onClick={() => update("payment", "mobile_money")}
+              icon={<Phone className="w-7 h-7" />}
+              title="Mobile Money"
+              desc="Wave ou Orange Money — push direct sur votre téléphone."
             />
             <PayCard
-              active={form.payment === "card"}
-              onClick={() => update("payment", "card")}
+              active={form.payment === "checkout"}
+              onClick={() => update("payment", "checkout")}
               icon={<CreditCard className="w-7 h-7" />}
-              title="Carte Bancaire"
-              desc="Visa, Mastercard, Wave ou OM. Paiement sécurisé et instantané."
+              title="Carte / Checkout"
+              desc="Page de paiement sécurisée Bictorys (Visa, Mastercard, MM)."
             />
           </div>
-        </div>
 
-        <div className="p-7 bg-[#f0f4f8] rounded-2xl space-y-7">
-          <h2
-            className="text-xl font-bold text-[#171c1f]"
-            style={{ fontFamily: "Manrope, system-ui" }}
-          >
-            Informations de facturation
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-7 gap-y-5">
-            <FieldGroup label="Raison sociale">
-              <input
-                type="text"
-                placeholder="Velocity Dynamics SARL"
-                value={form.raisonSociale}
-                onChange={(e) => update("raisonSociale", e.target.value)}
-                className="w-full bg-white border-0 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#ac3509]/40 font-medium"
-              />
-            </FieldGroup>
-            <FieldGroup label="N° NINEA / RCCM">
-              <input
-                type="text"
-                placeholder="0040842901"
-                value={form.siret}
-                onChange={(e) => update("siret", e.target.value)}
-                className="w-full bg-white border-0 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#ac3509]/40 font-medium"
-              />
-            </FieldGroup>
-            <div className="md:col-span-2">
-              <FieldGroup label="Adresse de facturation">
+          {form.payment === "mobile_money" && (
+            <div className="p-6 bg-[#f0f4f8] rounded-2xl space-y-5">
+              <FieldGroup label="Opérateur">
+                <div className="flex gap-3">
+                  {[
+                    { value: "wave", label: "Wave" },
+                    { value: "orange", label: "Orange Money" },
+                    { value: "free", label: "Free Money" },
+                  ].map((op) => (
+                    <button
+                      key={op.value}
+                      type="button"
+                      onClick={() => update("paymentOperator", op.value)}
+                      className={`flex-1 py-3 rounded-xl text-sm font-bold transition-colors ${
+                        form.paymentOperator === op.value
+                          ? "bg-[#ac3509] text-white"
+                          : "bg-white text-[#171c1f] hover:bg-[#dfe3e7]"
+                      }`}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              </FieldGroup>
+              <FieldGroup label="Numéro de téléphone">
                 <input
-                  type="text"
-                  placeholder="Avenue Léopold Sédar Senghor, Dakar"
-                  value={form.billingAddress}
-                  onChange={(e) => update("billingAddress", e.target.value)}
+                  type="tel"
+                  placeholder="+221 77 123 45 67"
+                  value={form.paymentPhone}
+                  onChange={(e) => update("paymentPhone", e.target.value)}
                   className="w-full bg-white border-0 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#ac3509]/40 font-medium"
                 />
               </FieldGroup>
             </div>
-            <div className="md:col-span-2">
-              <FieldGroup label="Notes (optionnel)">
-                <Textarea
-                  placeholder="Préférences, instructions particulières..."
-                  value={form.notes}
-                  onChange={(e) => update("notes", e.target.value)}
-                  rows={2}
-                  className="bg-white border-0 rounded-xl focus-visible:ring-2 focus-visible:ring-[#ac3509]/40"
-                />
-              </FieldGroup>
+          )}
+
+          {paymentInitiated && (
+            <div className="p-5 bg-[#00acbb]/10 rounded-2xl border border-[#00acbb]/20 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-[#006972] shrink-0 animate-spin" />
+              <div>
+                <p className="text-sm font-bold text-[#003a3f]">
+                  Paiement en cours — statut : {paymentStatus || "en attente"}
+                </p>
+                <p className="text-xs text-[#003a3f]/70 mt-0.5">
+                  {form.payment === "mobile_money"
+                    ? "Validez la requête sur votre téléphone."
+                    : "Finalisez le paiement dans l'onglet Bictorys, on vérifie automatiquement toutes les 4 secondes."}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 p-4 bg-[#00acbb]/10 rounded-xl border border-[#00acbb]/20">
-            <ShieldCheck className="w-5 h-5 text-[#006972] shrink-0" />
-            <p className="text-sm font-medium text-[#003a3f]">
-              Vos factures seront envoyées chaque mois à l&apos;adresse email :{" "}
-              <span className="underline">facturation@entreprise.sn</span>
-            </p>
-          </div>
+          )}
         </div>
       </section>
 
@@ -1615,34 +1910,63 @@ function Step4Payment({
                 {form.brand && form.model ? `${form.brand} ${form.model}` : "Véhicule à assurer"}
               </p>
               <p className="text-xs font-medium text-[#ac3509]">
-                Formule {selectedTier.title}
+                {form.productCode || "Produit non sélectionné"}
               </p>
             </div>
           </div>
 
           <div className="space-y-3 mb-7">
-            <Row label="Prime annuelle HT" value={`${fmt(annualHT)} FCFA`} />
-            <Row label="Taxes & contributions (15%)" value={`${fmt(taxes)} FCFA`} />
-            <Row label="Frais de dossier" value="OFFERT" valueColor="#006972" bold />
-            <div className="pt-4 border-t border-dashed border-[#e0bfb6] flex justify-between items-end">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#59413a] mb-1">
-                  Total TTC / an
+            {(simulation?.coverages?.length ?? 0) > 0 ? (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#59413a]">
+                  Garanties (devis AXA)
                 </p>
-                <p
-                  className="text-3xl font-black text-[#171c1f]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  {fmt(totalTTC)} FCFA
+                {simulation!.coverages!.map((c) => (
+                  <Row
+                    key={c.code}
+                    label={c.label || c.code}
+                    value={`${fmt(c.premium ?? 0)} ${currency}`}
+                  />
+                ))}
+              </>
+            ) : form.axaCoverages.length > 0 ? (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#59413a]">
+                  Garanties choisies
                 </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-[#59413a]">Soit environ</p>
-                <p className="text-base font-bold text-[#ac3509]">
-                  {fmt(monthly)} <span className="text-xs font-normal text-[#171c1f]">FCFA/mois</span>
+                {form.axaCoverages.map((c) => (
+                  <Row key={c.code} label={c.label} value={`${fmt(c.capitalAmount)} FCFA`} />
+                ))}
+              </>
+            ) : (
+              <p className="text-sm text-[#5e6473]">Aucune garantie sélectionnée.</p>
+            )}
+            <div className="pt-4 border-t border-dashed border-[#e0bfb6]">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#59413a] mb-1">
+                Prime totale TTC
+              </p>
+              <p
+                className="text-3xl font-black text-[#171c1f]"
+                style={{ fontFamily: "Manrope, system-ui" }}
+              >
+                {totalPremium > 0 ? `${fmt(totalPremium)} ${currency}` : "—"}
+              </p>
+              {totalPremium === 0 && (
+                <p className="text-xs text-[#59413a] mt-1">
+                  Devis non disponible — retournez à l&apos;étape Garanties pour relancer.
                 </p>
-              </div>
+              )}
             </div>
+            {simulationId && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#f0f4f8] hover:bg-[#dfe3e7] text-[#171c1f] font-bold text-sm transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Télécharger le devis (PDF)
+              </button>
+            )}
           </div>
 
           <p className="text-center text-[10px] text-[#59413a]/60 leading-tight">
@@ -1740,6 +2064,248 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// ==================== STEP 5: CUSTOMER (SOUSCRIPTEUR) ====================
+function Step5Customer({
+  form,
+  update,
+}: {
+  form: FormState;
+  update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
+}) {
+  const titlesQuery = useQuery({
+    queryKey: ["insurance-ref-titles"],
+    queryFn: () => api.insurance.getReference("titles"),
+  });
+  const titles = unwrapRef(titlesQuery.data);
+
+  const cspsQuery = useQuery({
+    queryKey: ["insurance-ref-csps"],
+    queryFn: () => api.insurance.getReference("csps"),
+  });
+  const csps = unwrapRef(cspsQuery.data);
+
+  const activitiesQuery = useQuery({
+    queryKey: ["insurance-ref-activities"],
+    queryFn: () => api.insurance.getReference("activities"),
+  });
+  const activities = unwrapRef(activitiesQuery.data);
+
+  const countriesQuery = useQuery({
+    queryKey: ["insurance-ref-countries"],
+    queryFn: () => api.insurance.getReference("countries"),
+  });
+  const countries = unwrapRef(countriesQuery.data);
+
+  const labelOf = (item: InsuranceReferenceItem) =>
+    item.label || item.name || item.description || item.code;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="lg:col-span-4 space-y-7">
+        <h1
+          className="text-3xl lg:text-4xl font-extrabold tracking-tight text-[#171c1f]"
+          style={{ fontFamily: "Manrope, system-ui" }}
+        >
+          Identité du <span className="text-[#ac3509]">souscripteur</span>
+        </h1>
+        <p className="text-[#5e6473] leading-relaxed">
+          Le contrat AXA est nominatif. Renseignez les informations du titulaire qui figurera sur
+          l&apos;attestation.
+        </p>
+        <div className="p-5 bg-[#00acbb]/10 rounded-xl border-l-4 border-[#006972] flex gap-3">
+          <ShieldCheck className="w-5 h-5 text-[#006972] shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-[#003a3f]" style={{ fontFamily: "Manrope, system-ui" }}>
+              Données protégées
+            </h4>
+            <p className="text-sm text-[#003a3f]/80 mt-1">
+              Vos informations sont transmises chiffrées à AXA pour la création du contrat.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:col-span-8">
+        <div className="bg-white rounded-3xl p-7 lg:p-9 shadow-[0_8px_24px_rgba(23,28,31,0.04)] space-y-7">
+          {/* Identité */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <FieldGroup label="Civilité">
+              <div className="relative">
+                <select
+                  value={form.customerTitle}
+                  onChange={(e) => update("customerTitle", e.target.value)}
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40 appearance-none cursor-pointer"
+                >
+                  <option value="">{titlesQuery.isLoading ? "…" : "Choisir"}</option>
+                  {titles.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      {labelOf(t)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-4 h-4" />
+              </div>
+            </FieldGroup>
+
+            <FieldGroup label="Nom">
+              <input
+                type="text"
+                value={form.customerLastName}
+                onChange={(e) => update("customerLastName", e.target.value)}
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+
+            <FieldGroup label="Prénom">
+              <input
+                type="text"
+                value={form.customerFirstName}
+                onChange={(e) => update("customerFirstName", e.target.value)}
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FieldGroup label="Email">
+              <input
+                type="email"
+                value={form.customerEmail}
+                onChange={(e) => update("customerEmail", e.target.value)}
+                placeholder="souscripteur@email.com"
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+            <FieldGroup label="Téléphone mobile">
+              <input
+                type="tel"
+                value={form.customerMobile}
+                onChange={(e) => update("customerMobile", e.target.value)}
+                placeholder="770001122"
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+            <FieldGroup label="CIN">
+              <input
+                type="text"
+                value={form.customerCin}
+                onChange={(e) => update("customerCin", e.target.value)}
+                placeholder="1234567890123"
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+            <FieldGroup label="Date de naissance">
+              <input
+                type="date"
+                value={form.customerBirthdate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => update("customerBirthdate", e.target.value)}
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+          </div>
+
+          {/* Adresse */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="md:col-span-2">
+              <FieldGroup label="Adresse">
+                <input
+                  type="text"
+                  value={form.customerAddress}
+                  onChange={(e) => update("customerAddress", e.target.value)}
+                  placeholder="Avenue Léopold S. Senghor, Médina"
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+                />
+              </FieldGroup>
+            </div>
+            <FieldGroup label="Ville">
+              <input
+                type="text"
+                value={form.customerCity}
+                onChange={(e) => update("customerCity", e.target.value)}
+                placeholder="DAKAR"
+                className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40"
+              />
+            </FieldGroup>
+          </div>
+
+          {/* Profession + nationalité */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FieldGroup label="Catégorie socio-professionnelle (CSP)">
+              <div className="relative">
+                <select
+                  value={form.customerCsp}
+                  onChange={(e) => update("customerCsp", e.target.value)}
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40 appearance-none cursor-pointer"
+                >
+                  <option value="">{cspsQuery.isLoading ? "…" : "Choisir"}</option>
+                  {csps.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {labelOf(c)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-4 h-4" />
+              </div>
+            </FieldGroup>
+            <FieldGroup label="Activité (optionnel)">
+              <div className="relative">
+                <select
+                  value={form.customerActivity}
+                  onChange={(e) => update("customerActivity", e.target.value)}
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40 appearance-none cursor-pointer"
+                >
+                  <option value="">{activitiesQuery.isLoading ? "…" : "Aucune"}</option>
+                  {activities.map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {labelOf(a)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-4 h-4" />
+              </div>
+            </FieldGroup>
+            <FieldGroup label="Nationalité">
+              <div className="relative">
+                <select
+                  value={form.customerNationality}
+                  onChange={(e) => update("customerNationality", e.target.value)}
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40 appearance-none cursor-pointer"
+                >
+                  <option value="">{countriesQuery.isLoading ? "…" : "Choisir"}</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {labelOf(c)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-4 h-4" />
+              </div>
+            </FieldGroup>
+            <FieldGroup label="Pays de naissance">
+              <div className="relative">
+                <select
+                  value={form.customerNativeCountry}
+                  onChange={(e) => update("customerNativeCountry", e.target.value)}
+                  className="w-full px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/40 appearance-none cursor-pointer"
+                >
+                  <option value="">{countriesQuery.isLoading ? "…" : "Choisir"}</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {labelOf(c)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-4 h-4" />
+              </div>
+            </FieldGroup>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1854,12 +2420,45 @@ function SuccessScreen({
                 Vos documents
               </h4>
               <div className="space-y-3 flex-grow">
-                <DocCard icon={<FileText className="w-5 h-5" />} bg="#ffdbd0" color="#ac3509" title="Attestation Provisoire" meta="PDF • 1.2 MB" />
-                <DocCard icon={<Gavel className="w-5 h-5" />} bg="#dde2f3" color="#585e6c" title="Conditions Générales" meta="PDF • 4.8 MB" />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!contractNumber) return;
+                    try {
+                      const blob = await api.insurance.downloadContractDocuments(contractNumber);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `contrat-${contractNumber}.zip`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      toast.error("Téléchargement des documents impossible");
+                    }
+                  }}
+                  className="w-full text-left bg-white rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow"
+                >
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: "#ffdbd0", color: "#ac3509" }}
+                  >
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-grow">
+                    <p
+                      className="font-bold text-sm text-[#171c1f]"
+                      style={{ fontFamily: "Manrope, system-ui" }}
+                    >
+                      Documents AXA (attestation + CG + quittance)
+                    </p>
+                    <p className="text-[11px] text-[#5e6473]">ZIP signé</p>
+                  </div>
+                  <Download className="w-5 h-5 text-[#5e6473]" />
+                </button>
               </div>
               <div className="mt-7 pt-5 border-t border-[#dfe3e7]">
                 <p className="text-[11px] text-[#59413a] leading-relaxed italic">
-                  Une copie de ces documents vous a été envoyée par email.
+                  Une copie de ces documents est également envoyée par AXA à votre email.
                 </p>
               </div>
             </div>

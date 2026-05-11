@@ -1119,7 +1119,10 @@ export interface CreateInsuranceSimulationDto {
   };
   coverages: Array<{
     code: string;
-    option: string | null;
+    // Per swagger: AXA expects capitalAmount (number). The legacy `option` field
+    // is sent by the older /insurance form; keep both until that flow is rewritten.
+    capitalAmount?: number;
+    option?: string | null;
   }>;
   discountCode?: string;
   bonus?: number;
@@ -1129,21 +1132,30 @@ export interface CreateInsuranceSimulationDto {
 }
 
 export interface InsuranceSimulationResponse {
-  id: number;
   simulationId: number;
-  productCode: string;
-  packCode: string;
-  durationCode: string;
-  countryCode: string;
-  grossPrime: number;
-  taxe: number;
-  policyCost: number;
-  netPrime: number;
-  totalPrime: number;
-  status: string;
   createdAt: string;
+  id?: number;
+  productCode?: string;
+  packCode?: string;
+  durationCode?: string;
+  countryCode?: string;
+  totalPremium?: number;
+  currency?: string;
+  coverages?: Array<{
+    code: string;
+    label?: string;
+    premium?: number;
+    // Legacy field surfaced by the older /insurance UI; AXA's canonical response uses {label, premium}.
+    option?: string | null;
+  }>;
+  // Detailed breakdown — present in actual API responses though not in the swagger sample.
+  grossPrime?: number;
+  taxe?: number;
+  policyCost?: number;
+  netPrime?: number;
+  totalPrime?: number;
+  status?: string;
   vehicleData?: Record<string, unknown>;
-  coverages?: Array<{ code: string; option: string | null }>;
   [key: string]: unknown;
 }
 
@@ -1176,6 +1188,40 @@ export interface InsuranceContractResponse {
   status: string;
   totalPremium: number;
   currency: string;
+  [key: string]: unknown;
+}
+
+// Insurance payment — shapes inferred from the Bictorys pattern; tighten when the
+// AXA payment schema is confirmed.
+export interface InsurancePaymentCheckoutResponse {
+  chargeId?: string;
+  checkoutUrl: string;
+  status?: string;
+  amount?: number;
+  simulationId?: number;
+  [key: string]: unknown;
+}
+
+export interface InitiateInsuranceDirectPaymentDto {
+  operator: string;
+  phone: string;
+  [key: string]: unknown;
+}
+
+export interface InsuranceDirectPaymentResponse {
+  chargeId?: string;
+  status?: string;
+  amount?: number;
+  simulationId?: number;
+  [key: string]: unknown;
+}
+
+export interface InsurancePaymentStatusResponse {
+  simulationId?: number;
+  status: string;
+  paidAt?: string;
+  amount?: number;
+  chargeId?: string;
   [key: string]: unknown;
 }
 
@@ -1949,6 +1995,26 @@ class ApiClient {
     // 4. Télécharger le PDF du devis
     downloadSimulationPdf: (simulationId: number) =>
       this.authDownloadBlob(`/insurance/compagny/simulations/${simulationId}/pdf`),
+
+    // 4b. Initier le paiement checkout d'une simulation (URL hébergée)
+    payCheckout: (simulationId: number) =>
+      this.authPost<InsurancePaymentCheckoutResponse>(
+        `/insurance/compagny/simulations/${simulationId}/pay`,
+        {}
+      ),
+
+    // 4c. Initier le paiement mobile money direct (push USSD)
+    payDirect: (simulationId: number, data: InitiateInsuranceDirectPaymentDto) =>
+      this.authPost<InsuranceDirectPaymentResponse>(
+        `/insurance/compagny/simulations/${simulationId}/pay/direct`,
+        data
+      ),
+
+    // 4d. Statut de paiement d'une simulation
+    getPaymentStatus: (simulationId: number) =>
+      this.authGet<InsurancePaymentStatusResponse>(
+        `/insurance/compagny/simulations/${simulationId}/payment-status`
+      ),
 
     // 5. Créer un contrat d'assurance
     createContract: (data: CreateInsuranceContractDto) =>
