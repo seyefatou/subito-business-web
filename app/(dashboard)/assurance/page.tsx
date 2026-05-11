@@ -259,8 +259,13 @@ export default function AssurancePage() {
       replacementCost: form.replacementCost,
       marketValue: Number(form.value) || 0,
       dateOfFirstRegistration: form.dateOfFirstRegistration,
+      // Fleet brands/models are free strings — surface them via otherBrand/otherModel
+      // (AXA's free-text fallback). brandCode/modelCode mirror the same string so the
+      // required fields aren't empty; replace with AXA codes once a mapping is wired.
       brandCode: form.brand,
       modelCode: form.model,
+      otherBrand: form.brand,
+      otherModel: form.model,
       carTypeCode: form.carTypeCode,
     },
     coverages: form.axaCoverages.map((c) => ({ code: c.code, capitalAmount: c.capitalAmount })),
@@ -495,7 +500,7 @@ export default function AssurancePage() {
             />
           )}
           {step === 2 && (
-            <Step2Vehicle form={form} update={update} />
+            <Step2Vehicle form={form} update={update} vehicules={vehicules} />
           )}
           {step === 3 && <Step3Coverage form={form} update={update} />}
           {step === 4 && (
@@ -1254,30 +1259,52 @@ function Step1ContractType({
 function Step2Vehicle({
   form,
   update,
+  vehicules,
 }: {
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
+  vehicules: VehiculeLocation[];
 }) {
-  const brandsQuery = useQuery({
-    queryKey: ["insurance-ref-brands"],
-    queryFn: () => api.insurance.getReference("brands"),
-  });
-  const brands = unwrapRef(brandsQuery.data);
-
   const energiesQuery = useQuery({
     queryKey: ["insurance-ref-energies"],
     queryFn: () => api.insurance.getReference("energies"),
   });
   const energies = unwrapRef(energiesQuery.data);
 
-  const carTypesQuery = useQuery({
-    queryKey: ["insurance-ref-car-types"],
-    queryFn: () => api.insurance.getReference("car-types"),
-  });
-  const carTypes = unwrapRef(carTypesQuery.data);
-
   const labelOf = (item: InsuranceReferenceItem) =>
     item.label || item.name || item.description || item.code;
+
+  // Brand / model / car type dropdowns are derived from the company's fleet — AXA's
+  // /ref/brands sample exposes only {code,label} (no nested models) and /ref/car-types
+  // currently returns nothing. Trim + lowercase to dedupe variants like
+  // "Toyota" vs "Toyota " vs "TOYOTA".
+  const normalize = (s: string | null | undefined) => (s ?? "").trim();
+  const dedupKey = (s: string) => s.toLocaleLowerCase("fr");
+  const distinct = (values: Array<string | null | undefined>) => {
+    const seen = new Map<string, string>();
+    for (const v of values) {
+      const n = normalize(v);
+      if (!n) continue;
+      const key = dedupKey(n);
+      if (!seen.has(key)) seen.set(key, n);
+    }
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "fr"));
+  };
+
+  const fleetBrands = useMemo(() => distinct(vehicules.map((v) => v.marque)), [vehicules]);
+
+  const brandModels = useMemo(() => {
+    if (!form.brand) return [] as string[];
+    const target = dedupKey(form.brand);
+    return distinct(
+      vehicules
+        .filter((v) => dedupKey(normalize(v.marque)) === target)
+        .map((v) => v.modele)
+    );
+  }, [vehicules, form.brand]);
+
+  const fleetCarTypes = useMemo(() => distinct(vehicules.map((v) => v.type)), [vehicules]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
       {/* Left intro */}
@@ -1368,20 +1395,27 @@ function Step2Vehicle({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-              {/* Brand (AXA codes) */}
-              <FieldGroup label="Marque (AXA)">
+              {/* Brand — derived from the company's fleet */}
+              <FieldGroup label="Marque">
                 <div className="relative">
                   <select
                     value={form.brand}
-                    onChange={(e) => update("brand", e.target.value)}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer"
+                    onChange={(e) => {
+                      update("brand", e.target.value);
+                      // Reset model — the available models depend on the brand.
+                      update("model", "");
+                    }}
+                    disabled={fleetBrands.length === 0}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">
-                      {brandsQuery.isLoading ? "Chargement..." : "Sélectionnez une marque"}
+                      {fleetBrands.length === 0
+                        ? "Aucune marque disponible dans la flotte"
+                        : "Sélectionnez une marque"}
                     </option>
-                    {brands.map((b) => (
-                      <option key={b.code} value={b.code}>
-                        {labelOf(b)}
+                    {fleetBrands.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
                       </option>
                     ))}
                   </select>
@@ -1389,15 +1423,30 @@ function Step2Vehicle({
                 </div>
               </FieldGroup>
 
-              {/* Model — AXA n'expose pas de ref endpoint pour les modèles */}
+              {/* Model — filtered by the selected brand from the fleet */}
               <FieldGroup label="Modèle">
-                <input
-                  type="text"
-                  placeholder="Corolla, Sandero…"
-                  value={form.model}
-                  onChange={(e) => update("model", e.target.value)}
-                  className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
-                />
+                <div className="relative">
+                  <select
+                    value={form.model}
+                    onChange={(e) => update("model", e.target.value)}
+                    disabled={!form.brand || brandModels.length === 0}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {!form.brand
+                        ? "Choisissez d'abord une marque"
+                        : brandModels.length === 0
+                          ? "Aucun modèle disponible"
+                          : "Sélectionnez un modèle"}
+                    </option>
+                    {brandModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
+                </div>
               </FieldGroup>
 
               {/* Date de première mise en circulation */}
@@ -1411,20 +1460,23 @@ function Step2Vehicle({
                 />
               </FieldGroup>
 
-              {/* Type de véhicule */}
+              {/* Type de véhicule — derived from the fleet */}
               <FieldGroup label="Type de véhicule">
                 <div className="relative">
                   <select
                     value={form.carTypeCode}
                     onChange={(e) => update("carTypeCode", e.target.value)}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer"
+                    disabled={fleetCarTypes.length === 0}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">
-                      {carTypesQuery.isLoading ? "Chargement..." : "Sélectionnez un type"}
+                      {fleetCarTypes.length === 0
+                        ? "Aucun type disponible"
+                        : "Sélectionnez un type"}
                     </option>
-                    {carTypes.map((t) => (
-                      <option key={t.code} value={t.code}>
-                        {labelOf(t)}
+                    {fleetCarTypes.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
                       </option>
                     ))}
                   </select>
