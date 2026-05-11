@@ -472,7 +472,7 @@ export default function AssurancePage() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-10 lg:py-14 pb-32">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 lg:py-14 pb-36 sm:pb-32">
       {/* Mes assurances : contrats + simulations */}
       <MyInsurances
         contracts={contracts}
@@ -519,33 +519,34 @@ export default function AssurancePage() {
       </AnimatePresence>
 
       {/* Floating bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-[#e0bfb6]/20 p-4 z-40 hidden md:block">
-        <div className="max-w-7xl mx-auto flex justify-between items-center px-6">
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-medium text-[#5e6473]">
-              Étape {step} sur {TOTAL_STEPS}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-[#e0bfb6]/20 px-3 py-3 sm:p-4 z-40">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-4 sm:px-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span className="text-xs font-medium text-[#5e6473] whitespace-nowrap">
+              <span className="sm:hidden">{step}/{TOTAL_STEPS}</span>
+              <span className="hidden sm:inline">Étape {step} sur {TOTAL_STEPS}</span>
             </span>
-            <div className="w-48 h-1 bg-[#dfe3e7] rounded-full overflow-hidden">
+            <div className="flex-1 sm:w-48 h-1 bg-[#dfe3e7] rounded-full overflow-hidden">
               <div
                 className="h-full transition-all"
                 style={{ width: `${(step / TOTAL_STEPS) * 100}%`, backgroundImage: KINETIC }}
               />
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-end gap-2 sm:gap-3">
             {step > 1 && step < 5 && (
               <button
                 onClick={back}
-                className="px-5 py-2 text-sm font-bold text-[#5e6473] hover:text-[#171c1f] transition-colors flex items-center gap-2"
+                className="px-3 sm:px-5 py-2 text-sm font-bold text-[#5e6473] hover:text-[#171c1f] transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Retour
+                <span className="hidden sm:inline">Retour</span>
               </button>
             )}
             {step < 3 && (
               <button
                 onClick={next}
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group"
+                className="text-white px-5 sm:px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group"
                 style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
               >
                 Continuer
@@ -556,17 +557,19 @@ export default function AssurancePage() {
               <button
                 onClick={next}
                 disabled={simulationMutation.isPending}
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
+                className="text-white px-5 sm:px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
                 style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
               >
                 {simulationMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Calcul du devis…
+                    <span className="hidden sm:inline">Calcul du devis…</span>
+                    <span className="sm:hidden">Calcul…</span>
                   </>
                 ) : (
                   <>
-                    Calculer le devis
+                    <span className="hidden sm:inline">Calculer le devis</span>
+                    <span className="sm:hidden">Devis</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -579,7 +582,7 @@ export default function AssurancePage() {
                   triggerPayment();
                 }}
                 disabled={directPayMutation.isPending || checkoutPayMutation.isPending}
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
+                className="text-white px-5 sm:px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
                 style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
               >
                 {directPayMutation.isPending || checkoutPayMutation.isPending ? (
@@ -587,17 +590,19 @@ export default function AssurancePage() {
                 ) : (
                   <Lock className="w-4 h-4" />
                 )}
-                Payer maintenant
+                <span className="hidden sm:inline">Payer maintenant</span>
+                <span className="sm:hidden">Payer</span>
               </button>
             )}
             {step === 4 && paymentInitiated && (
               <button
                 disabled
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 opacity-70"
+                className="text-white px-5 sm:px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 opacity-70"
                 style={{ backgroundImage: KINETIC }}
               >
                 <Loader2 className="w-4 h-4 animate-spin" />
-                En attente de confirmation…
+                <span className="hidden sm:inline">En attente de confirmation…</span>
+                <span className="sm:hidden">En attente…</span>
               </button>
             )}
             {step === 5 && (
@@ -607,7 +612,7 @@ export default function AssurancePage() {
                   submitContract();
                 }}
                 disabled={contractMutation.isPending}
-                className="text-white px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
+                className="text-white px-5 sm:px-8 py-2.5 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 group disabled:opacity-60"
                 style={{ backgroundImage: KINETIC, boxShadow: "0 12px 24px rgba(172,53,9,0.2)" }}
               >
                 {contractMutation.isPending ? (
@@ -615,7 +620,8 @@ export default function AssurancePage() {
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
-                Souscrire le contrat
+                <span className="hidden sm:inline">Souscrire le contrat</span>
+                <span className="sm:hidden">Souscrire</span>
               </button>
             )}
           </div>
@@ -628,7 +634,7 @@ export default function AssurancePage() {
 // ==================== STEPPER ====================
 function Stepper({ step }: { step: number }) {
   return (
-    <div className="flex items-center gap-3 lg:gap-4 mb-12 overflow-x-auto pb-1">
+    <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 mb-8 sm:mb-12 overflow-x-auto pb-1">
       {STEPS.map((s, i) => {
         const active = s.id === step;
         const done = s.id < step;
@@ -638,10 +644,10 @@ function Stepper({ step }: { step: number }) {
               <span
                 className={`rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
                   active
-                    ? "w-10 h-10 text-white shadow-lg"
+                    ? "w-9 h-9 sm:w-10 sm:h-10 text-white shadow-lg"
                     : done
-                    ? "w-8 h-8 text-white bg-emerald-500"
-                    : "w-8 h-8 bg-[#dfe3e7] text-[#5e6473]"
+                    ? "w-7 h-7 sm:w-8 sm:h-8 text-white bg-emerald-500"
+                    : "w-7 h-7 sm:w-8 sm:h-8 bg-[#dfe3e7] text-[#5e6473]"
                 }`}
                 style={
                   active
@@ -651,9 +657,12 @@ function Stepper({ step }: { step: number }) {
               >
                 {done ? <Check className="w-4 h-4" /> : s.id}
               </span>
+              {/* Label: only the active step shows on mobile to save horizontal room */}
               <span
                 className={`text-xs lg:text-sm whitespace-nowrap transition-all ${
-                  active ? "font-bold text-[#ac3509]" : "font-medium text-[#5e6473]"
+                  active
+                    ? "font-bold text-[#ac3509] inline"
+                    : "font-medium text-[#5e6473] hidden sm:inline"
                 }`}
                 style={{ fontFamily: "Manrope, system-ui" }}
               >
@@ -661,7 +670,7 @@ function Stepper({ step }: { step: number }) {
               </span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className="h-[2px] w-8 lg:w-12 bg-[#dfe3e7] shrink-0" />
+              <div className="h-[2px] w-5 sm:w-8 lg:w-12 bg-[#dfe3e7] shrink-0" />
             )}
           </React.Fragment>
         );
@@ -1095,7 +1104,7 @@ function Step1ContractType({
       <div className="grid lg:grid-cols-12 gap-8 mb-12">
         <div className="lg:col-span-8">
           <h1
-            className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-[#171c1f]"
+            className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-[#171c1f]"
             style={{ fontFamily: "Manrope, system-ui" }}
           >
             Propulsez votre <span className="text-[#ac3509] italic">mobilité</span>.
@@ -1318,7 +1327,7 @@ function Step2Vehicle({
           </span>
         </div>
         <h1
-          className="text-4xl lg:text-5xl font-extrabold tracking-tight text-[#171c1f] leading-[1.1]"
+          className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#171c1f] leading-[1.1]"
           style={{ fontFamily: "Manrope, system-ui" }}
         >
           Détails du <span className="text-[#ac3509]">véhicule</span>
@@ -1362,7 +1371,7 @@ function Step2Vehicle({
 
       {/* Form */}
       <div className="lg:col-span-8">
-        <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-7 lg:p-10 shadow-2xl shadow-[#ac3509]/5">
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl sm:rounded-[2rem] p-5 sm:p-7 lg:p-10 shadow-2xl shadow-[#ac3509]/5">
           <div className="space-y-8">
             {/* Plate */}
             <div>
@@ -1662,7 +1671,7 @@ function Step3Coverage({
     <div>
       <header className="mb-12 text-center max-w-3xl mx-auto">
         <h1
-          className="text-4xl font-extrabold tracking-tight mb-3 text-[#171c1f]"
+          className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-[#171c1f]"
           style={{ fontFamily: "Manrope, system-ui" }}
         >
           Choisissez votre niveau de protection
@@ -2394,7 +2403,7 @@ function SuccessScreen({
           </motion.div>
           <div className="space-y-2">
             <h1
-              className="text-4xl md:text-5xl font-extrabold tracking-tight text-[#171c1f]"
+              className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-[#171c1f]"
               style={{ fontFamily: "Manrope, system-ui" }}
             >
               Contrat Actif
