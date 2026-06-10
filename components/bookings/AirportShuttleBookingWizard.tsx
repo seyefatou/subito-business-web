@@ -282,6 +282,9 @@ export default function AirportShuttleBookingWizard({
   const [ciSimpleOptions, setCiSimpleOptions] = useState<Record<number, number>>({});
   // optionId → liste d'adresses (pour les options ADDRESS)
   const [ciAddressOptions, setCiAddressOptions] = useState<Record<number, CIAdresseItem[]>>({});
+  // Options supplémentaires du RETOUR - indépendantes de l'aller
+  const [ciReturnSimpleOptions, setCiReturnSimpleOptions] = useState<Record<number, number>>({});
+  const [ciReturnAddressOptions, setCiReturnAddressOptions] = useState<Record<number, CIAdresseItem[]>>({});
   // Adresses CI confirmées (set uniquement via onSelect, non écrasées par onChange)
   const [ciDepartAddressDisplay, setCiDepartAddressDisplay] = useState('');
   const [ciArriveeAddressDisplay, setCiArriveeAddressDisplay] = useState('');
@@ -1750,14 +1753,14 @@ export default function AirportShuttleBookingWizard({
                     </div>
                   </div>
 
-                  {/* Options supplémentaires Retour (Simple + Address) */}
+                  {/* Options supplémentaires Retour (Simple + Address) - INDÉPENDANTES */}
                   {ciOptions.length > 0 && (
                     <div className="border-t border-slate-200 pt-4 space-y-3">
                       <p className="text-sm font-semibold text-slate-800">Options supplémentaires Retour</p>
                       <div className="space-y-3">
                         {ciOptions.map((opt) => {
                           if (opt.type === 'SIMPLE') {
-                            const qty = ciSimpleOptions[opt.id] ?? 0;
+                            const qty = ciReturnSimpleOptions[opt.id] ?? 0;
                             return (
                               <div key={opt.id} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
                                 <div className="flex-1 min-w-0">
@@ -1767,7 +1770,7 @@ export default function AirportShuttleBookingWizard({
                                 </div>
                                 <Select
                                   value={qty.toString()}
-                                  onValueChange={(v) => setCiSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
+                                  onValueChange={(v) => setCiReturnSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
                                 >
                                   <SelectTrigger className="w-20 shrink-0">
                                     <SelectValue />
@@ -1783,7 +1786,7 @@ export default function AirportShuttleBookingWizard({
                           }
 
                           if (opt.type === 'ADDRESS') {
-                            const adresses = ciAddressOptions[opt.id] ?? [];
+                            const adresses = ciReturnAddressOptions[opt.id] ?? [];
                             return (
                               <div key={opt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
                                 <div className="flex items-start justify-between gap-4">
@@ -1795,7 +1798,7 @@ export default function AirportShuttleBookingWizard({
                                   {adresses.length < opt.maxQuantite && (
                                     <button
                                       type="button"
-                                      onClick={() => setCiAddressOptions(prev => ({
+                                      onClick={() => setCiReturnAddressOptions(prev => ({
                                         ...prev,
                                         [opt.id]: [...(prev[opt.id] ?? []), { adresse: '', lat: null, lng: null, instructions: '', contactNom: '', contactTelephone: '' }],
                                       }))}
@@ -1811,7 +1814,7 @@ export default function AirportShuttleBookingWizard({
                                       <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arrêt {idx + 1}</span>
                                       <button
                                         type="button"
-                                        onClick={() => setCiAddressOptions(prev => ({
+                                        onClick={() => setCiReturnAddressOptions(prev => ({
                                           ...prev,
                                           [opt.id]: (prev[opt.id] ?? []).filter((_, i) => i !== idx),
                                         }))}
@@ -1823,12 +1826,12 @@ export default function AirportShuttleBookingWizard({
                                     <AddressAutocomplete
                                       placeholder="Adresse de l'arrêt"
                                       value={adr.adresse}
-                                      onChange={(val) => setCiAddressOptions(prev => {
+                                      onChange={(val) => setCiReturnAddressOptions(prev => {
                                         const list = [...(prev[opt.id] ?? [])];
                                         list[idx] = { ...list[idx], adresse: val, lat: null, lng: null };
                                         return { ...prev, [opt.id]: list };
                                       })}
-                                      onSelect={(address, lat, lng) => setCiAddressOptions(prev => {
+                                      onSelect={(address, lat, lng) => setCiReturnAddressOptions(prev => {
                                         const list = [...(prev[opt.id] ?? [])];
                                         list[idx] = { ...list[idx], adresse: address, lat, lng };
                                         return { ...prev, [opt.id]: list };
@@ -1839,7 +1842,7 @@ export default function AirportShuttleBookingWizard({
                                       <Input
                                         placeholder="Nom du contact (optionnel)"
                                         value={adr.contactNom}
-                                        onChange={(e) => setCiAddressOptions(prev => {
+                                        onChange={(e) => setCiReturnAddressOptions(prev => {
                                           const list = [...(prev[opt.id] ?? [])];
                                           list[idx] = { ...list[idx], contactNom: e.target.value };
                                           return { ...prev, [opt.id]: list };
@@ -1849,7 +1852,7 @@ export default function AirportShuttleBookingWizard({
                                       <Input
                                         placeholder="Téléphone contact (optionnel)"
                                         value={adr.contactTelephone}
-                                        onChange={(e) => setCiAddressOptions(prev => {
+                                        onChange={(e) => setCiReturnAddressOptions(prev => {
                                           const list = [...(prev[opt.id] ?? [])];
                                           list[idx] = { ...list[idx], contactTelephone: e.target.value };
                                           return { ...prev, [opt.id]: list };
@@ -1860,7 +1863,7 @@ export default function AirportShuttleBookingWizard({
                                     <Input
                                       placeholder="Instructions (optionnel)"
                                       value={adr.instructions}
-                                      onChange={(e) => setCiAddressOptions(prev => {
+                                      onChange={(e) => setCiReturnAddressOptions(prev => {
                                         const list = [...(prev[opt.id] ?? [])];
                                         list[idx] = { ...list[idx], instructions: e.target.value };
                                         return { ...prev, [opt.id]: list };
