@@ -142,7 +142,7 @@ export function ReservationWizard({
       clientPhone: clientData.telephone || '',
       clientEmail: clientData.email,
       dateDebut: state.dateDebut.toISOString().split('T')[0],
-      dateFin: state.dateFin.toISOString().split('T')[0],
+      dateFin: state.dateFin ? state.dateFin.toISOString().split('T')[0] : undefined,
       heureDebut: state.heureDebut,
       heureFin: state.heureFin,
       nombrePersonnes: state.nombrePersonnes,
