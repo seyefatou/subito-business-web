@@ -3,7 +3,28 @@
     "allow": [
       "Bash(node:*)",
       "Bash(npx next:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(find /c/Users/win/Documents/GitHub/subito-business/subito-business-web/components -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
+      "mcp__clickup__get_workspace_tasks",
+      "Bash(curl -s -H \"Authorization: pk_93883321_05Q3L0UELFK4JIIEVDZZO1KXXBH5N693\" \"https://api.clickup.com/api/v2/team/90121528892/task?assignees%5B%5D=93883321&include_closed=false&order_by=updated&reverse=true\")",
+      "Bash(npx tsc:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(python:*)",
+      "Bash(npm run:*)",
+      "Bash(git push:*)",
+      "Bash(xargs grep:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:app.base44.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(curl -s \"https://api.mysubito.net/v1/logements/1/avis?page=1&limit=5\")",
+      "Bash(curl -s \"https://api.mysubito.net/v1/activites/1/avis?page=1&limit=5\")",
+      "Bash(curl -s \"https://api.mysubito.net/v1/circuits/1/avis?page=1&limit=5\")",
+      "Bash(curl *)",
+      "Bash(python3 -c ' *)",
+      "WebFetch(domain:dev.api.mysubito.net)",
+      "Bash(python3 *e)"
     ]
   }
 }

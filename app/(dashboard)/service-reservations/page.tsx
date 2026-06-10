@@ -112,6 +112,7 @@ interface FormData {
   logementId: number | null;
   chambreId: number | null;
   vehiculeLocationId: number | null;
+  formule: string;
   clientName: string;
   clientPhone: string;
   clientEmail: string;
@@ -132,6 +133,7 @@ const initialFormData: FormData = {
   logementId: null,
   chambreId: null,
   vehiculeLocationId: null,
+  formule: 'base',
   clientName: '',
   clientPhone: '',
   clientEmail: '',
@@ -203,6 +205,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
     const circuitIdParam = searchParams.get('circuitId');
     const activiteIdParam = searchParams.get('activiteId');
     const selectedItemTypeParam = searchParams.get('selectedItemType') as 'circuit' | 'activite' | null;
+    const formuleParam = searchParams.get('formule');
     return {
       ...initialFormData,
       serviceType: defaultServiceType || '',
@@ -212,6 +215,7 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       circuitId: circuitIdParam ? Number(circuitIdParam) : null,
       activiteId: activiteIdParam ? Number(activiteIdParam) : null,
       selectedItemType: selectedItemTypeParam || null,
+      formule: formuleParam || 'base',
     };
   });
   // Si on revient d'une page détail avec un item déjà sélectionné, aller directement à l'étape client
@@ -439,18 +443,29 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
 
   const calculateTotal = (): number => {
     if (formData.serviceType === 'ACTIVITE' && selectedCircuit) {
-      return (selectedCircuit.prix || 0) * formData.nombrePersonnes;
+      const tf = selectedCircuit.type === 'activite'
+        ? (selectedCircuit.typeTarification || 'PAR_PERSONNE')
+        : 'PAR_PERSONNE';
+      return tf === 'PAR_PERSONNE'
+        ? (selectedCircuit.prix || 0) * formData.nombrePersonnes
+        : (selectedCircuit.prix || 0);
     }
     if (formData.serviceType === 'LOGEMENT' && selectedLogement) {
-      // Pour un hôtel, utiliser le prix de la chambre sélectionnée
-      const prixNuit = (isHotelType && selectedChambre) ? (selectedChambre.prixParNuit || 0) : (selectedLogement.prixParNuit || 0);
+      const baseObj = (isHotelType && selectedChambre) ? selectedChambre : selectedLogement;
+      const formulePrices: Record<string, number | null | undefined> = {
+        base: baseObj.prixParNuit,
+        petitDejeuner: baseObj.prixAvecPetitDejeuner,
+        demiPension: baseObj.prixDemiPension,
+        pensionComplete: baseObj.prixPensionComplete,
+      };
+      const prixNuit = formulePrices[formData.formule] ?? baseObj.prixParNuit ?? 0;
       if (formData.dateDebut && formData.dateFin) {
         const start = new Date(formData.dateDebut);
         const end = new Date(formData.dateFin);
         const nights = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-        return prixNuit * nights;
+        return (prixNuit || 0) * nights;
       }
-      return prixNuit;
+      return prixNuit || 0;
     }
     if (formData.serviceType === 'FLOTTE' && selectedVehicule) {
       if (formData.dateDebut && formData.dateFin) {
@@ -501,8 +516,6 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
   };
 
   const handleSubmit = () => {
-    const isCompanyPayment = formData.payment_method === 'company_account';
-
     const dto: CreateServiceReservationDto = {
       serviceType: formData.serviceType as ServiceType,
       clientName: formData.clientName,
@@ -510,12 +523,10 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
       clientEmail: formData.clientEmail || undefined,
       dateDebut: formData.dateDebut,
       dateFin: formData.dateFin || undefined,
-      totalPrice: calculateTotal(),
       employeeId: formData.employeeId || undefined,
       notes: formData.notes || undefined,
       nombrePersonnes: formData.serviceType === 'ACTIVITE' ? formData.nombrePersonnes : undefined,
       adresseLivraison: formData.serviceType === 'FLOTTE' ? formData.adresseLivraison : undefined,
-      paidBy: isCompanyPayment ? 'company' : 'client',
     };
     if (formData.serviceType === 'ACTIVITE') {
       if (formData.selectedItemType === 'activite') dto.activiteId = formData.activiteId!;
@@ -601,6 +612,111 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
         })()}
       </div>
 
+      {/* Selected logement preview — visible from step 3 onward */}
+      {currentStep >= 3 && formData.serviceType === 'LOGEMENT' && selectedLogement && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row"
+        >
+          <div className="md:w-2/5 relative shrink-0">
+            <div className="relative h-48 md:h-full bg-slate-100">
+              {selectedLogement.images?.[0] ? (
+                <img src={selectedLogement.images[0]} alt={selectedLogement.nom} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Hotel className="w-16 h-16 text-slate-300" />
+                </div>
+              )}
+              <span className="absolute top-4 left-4 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-blue-600 text-white">
+                Logement
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 p-5 md:p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vous réservez</p>
+              <h3 className="text-xl md:text-2xl font-extrabold text-[#171c1f] leading-tight" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                {selectedLogement.nom}
+              </h3>
+              <div className="flex items-center gap-3 text-xs text-[#585e6c] mt-2 flex-wrap">
+                {selectedLogement.ville && (
+                  <span className="flex items-center gap-1 font-medium"><MapPin className="w-3.5 h-3.5" />{selectedLogement.ville}</span>
+                )}
+                {selectedChambre && (
+                  <span className="flex items-center gap-1 font-medium"><Hotel className="w-3.5 h-3.5" />{selectedChambre.nom || selectedChambre.typeChambre}</span>
+                )}
+              </div>
+
+              {/* Formula selector */}
+              {(() => {
+                const baseObj = (isHotelType && selectedChambre) ? selectedChambre : selectedLogement;
+                const formules = [
+                  { key: 'base', label: 'Nuit simple', prix: baseObj.prixParNuit },
+                  { key: 'petitDejeuner', label: 'Petit-déjeuner', prix: baseObj.prixAvecPetitDejeuner },
+                  { key: 'demiPension', label: 'Demi-pension', prix: baseObj.prixDemiPension },
+                  { key: 'pensionComplete', label: 'Pension complète', prix: baseObj.prixPensionComplete },
+                ].filter(f => f.prix != null);
+                if (formules.length <= 1) return null;
+                return (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Formule</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {formules.map(f => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => handleChange('formule', f.key)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                            formData.formule === f.key
+                              ? 'bg-[#E04A1F] text-white shadow-md'
+                              : 'bg-[#f0f4f8] text-[#585e6c] hover:bg-slate-200'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {(() => {
+              const baseObj = (isHotelType && selectedChambre) ? selectedChambre : selectedLogement;
+              const formulePrices: Record<string, number | null | undefined> = {
+                base: baseObj.prixParNuit,
+                petitDejeuner: baseObj.prixAvecPetitDejeuner,
+                demiPension: baseObj.prixDemiPension,
+                pensionComplete: baseObj.prixPensionComplete,
+              };
+              const prix = formulePrices[formData.formule] ?? baseObj.prixParNuit;
+              if (!prix) return null;
+              const nights = (formData.dateDebut && formData.dateFin)
+                ? Math.max(1, Math.ceil((new Date(formData.dateFin).getTime() - new Date(formData.dateDebut).getTime()) / 86400000))
+                : null;
+              return (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Prix par nuit</p>
+                    <p className="text-2xl font-extrabold text-[#E04A1F]" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                      {prix.toLocaleString()} <span className="text-sm font-bold text-[#E04A1F]/80">FCFA</span>
+                    </p>
+                  </div>
+                  {nights && (
+                    <p className="text-xs text-[#585e6c] font-semibold">
+                      × {nights} nuit{nights > 1 ? 's' : ''} ={' '}
+                      <span className="text-[#171c1f] font-extrabold">{(prix * nights).toLocaleString()} FCFA</span>
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </motion.div>
+      )}
+
       {/* Selected activité/circuit preview — visible from step 3 onward to keep product images present during booking */}
       {currentStep >= 3 && formData.serviceType === 'ACTIVITE' && selectedCircuit && (
         <motion.div
@@ -679,30 +795,46 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                 {selectedCircuit.descriptionCourte}
               </p>
             )}
-            {selectedCircuit.prix != null && (
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
-                    Prix par personne
-                  </p>
-                  <p
-                    className="text-2xl font-extrabold text-[#E04A1F]"
-                    style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
-                  >
-                    {selectedCircuit.prix.toLocaleString()}{' '}
-                    <span className="text-sm font-bold text-[#E04A1F]/80">FCFA</span>
-                  </p>
+            {selectedCircuit.prix != null && (() => {
+              const tf = selectedCircuit.type === 'activite'
+                ? (selectedCircuit.typeTarification || 'PAR_PERSONNE')
+                : 'PAR_PERSONNE';
+              const isPerP = tf === 'PAR_PERSONNE';
+              const tfLabels: Record<string, string> = {
+                PAR_PERSONNE: 'Prix par personne',
+                PAR_GROUPE: 'Prix par groupe',
+                FORFAIT: 'Forfait',
+              };
+              const total = isPerP
+                ? selectedCircuit.prix * formData.nombrePersonnes
+                : selectedCircuit.prix;
+              return (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                      {tfLabels[tf] || 'Prix'}
+                    </p>
+                    <p
+                      className="text-2xl font-extrabold text-[#E04A1F]"
+                      style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}
+                    >
+                      {selectedCircuit.prix.toLocaleString()}{' '}
+                      <span className="text-sm font-bold text-[#E04A1F]/80">FCFA</span>
+                    </p>
+                  </div>
+                  {formData.nombrePersonnes > 0 && (
+                    <p className="text-xs text-[#585e6c] font-semibold">
+                      {isPerP
+                        ? `× ${formData.nombrePersonnes} pers. = `
+                        : `${formData.nombrePersonnes} pers. · `}
+                      <span className="text-[#171c1f] font-extrabold">
+                        {total.toLocaleString()} FCFA
+                      </span>
+                    </p>
+                  )}
                 </div>
-                {formData.nombrePersonnes > 0 && (
-                  <p className="text-xs text-[#585e6c] font-semibold">
-                    × {formData.nombrePersonnes} pers. ={' '}
-                    <span className="text-[#171c1f] font-extrabold">
-                      {(selectedCircuit.prix * formData.nombrePersonnes).toLocaleString()} FCFA
-                    </span>
-                  </p>
-                )}
-              </div>
-            )}
+              );
+            })()}
           </div>
         </motion.div>
       )}
@@ -777,15 +909,12 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                 <p className="text-slate-500">Selectionnez parmi les options disponibles</p>
               </div>
 
-              {/* Search — masqué pour LOGEMENT (barre de recherche dédiée) */}
-              {formData.serviceType !== 'LOGEMENT' && (
+              {/* Search — activités uniquement */}
+              {formData.serviceType === 'ACTIVITE' && (
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
-                    placeholder={
-                      formData.serviceType === 'ACTIVITE' ? 'Rechercher par nom, ville ou montant...' :
-                      'Rechercher un vehicule...'
-                    }
+                    placeholder="Rechercher par nom, ville ou montant..."
                     value={itemSearch}
                     onChange={(e) => setItemSearch(e.target.value)}
                     className="pl-9"
@@ -1380,6 +1509,25 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
               {/* Vehicules */}
               {formData.serviceType === 'FLOTTE' && (
                 <>
+                  {/* Barre de filtre optionnelle */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Filtrer par marque, modèle, type..."
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                    {itemSearch && (
+                      <button
+                        onClick={() => setItemSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center transition"
+                      >
+                        <X className="w-3 h-3 text-slate-600" />
+                      </button>
+                    )}
+                  </div>
+
                   {/* Filtre par nombre de places - editorial pill row */}
                   {!vehiculesLoading && vehicules.length > 0 && (() => {
                     const placesValues = Array.from(new Set(
@@ -1459,11 +1607,24 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                                   alt={`${vehicule.marque} ${vehicule.modele}`}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                 />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Car className="w-16 h-16 text-slate-300" />
-                                </div>
-                              )}
+                              ) : (() => {
+                                const palettes = [
+                                  { bg: 'from-slate-100 to-slate-200', text: 'text-slate-400' },
+                                  { bg: 'from-blue-50 to-blue-100', text: 'text-blue-300' },
+                                  { bg: 'from-orange-50 to-orange-100', text: 'text-orange-300' },
+                                  { bg: 'from-teal-50 to-teal-100', text: 'text-teal-300' },
+                                  { bg: 'from-violet-50 to-violet-100', text: 'text-violet-300' },
+                                ];
+                                const p = palettes[vehicule.id % palettes.length];
+                                return (
+                                  <div className={`w-full h-full bg-gradient-to-br ${p.bg} flex flex-col items-center justify-center gap-3`}>
+                                    <Car className={`w-16 h-16 ${p.text}`} />
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${p.text}`}>
+                                      {vehicule.marque || 'Véhicule'}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                               {vehicule.type && (
                                 <div className="absolute top-4 left-4">
                                   <span className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-orange-600">
@@ -1923,13 +2084,55 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                   </div>
                 )}
                 {formData.serviceType === 'LOGEMENT' && selectedLogement && (
-                  <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
-                    <p className="font-semibold text-slate-800">{selectedLogement.nom}</p>
-                    {selectedLogement.ville && <p className="text-sm text-slate-500">{selectedLogement.ville}</p>}
-                    {selectedLogement.type && <p className="text-sm text-slate-500">{selectedLogement.type}</p>}
-                    {selectedChambre && (
-                      <p className="text-sm text-slate-500">Chambre: {selectedChambre.nom || selectedChambre.typeChambre}</p>
-                    )}
+                  <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex flex-col md:flex-row">
+                    <div className="md:w-2/5 relative h-40 md:h-auto bg-slate-100 shrink-0">
+                      {selectedLogement.images?.[0] ? (
+                        <img src={selectedLogement.images[0]} alt={selectedLogement.nom} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Hotel className="w-12 h-12 text-slate-300" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 p-5 flex flex-col justify-center">
+                      <h3 className="text-lg font-extrabold text-[#171c1f]" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                        {selectedLogement.nom}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-[#585e6c] mt-1 flex-wrap">
+                        {selectedLogement.ville && (
+                          <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-[#E04A1F]" />{selectedLogement.ville}</span>
+                        )}
+                        {selectedChambre && (
+                          <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5 text-[#E04A1F]" />{selectedChambre.nom || selectedChambre.typeChambre}</span>
+                        )}
+                      </div>
+                      {(() => {
+                        const formuleLabels: Record<string, string> = {
+                          base: 'Nuit simple',
+                          petitDejeuner: 'Petit-déjeuner',
+                          demiPension: 'Demi-pension',
+                          pensionComplete: 'Pension complète',
+                        };
+                        const baseObj = (isHotelType && selectedChambre) ? selectedChambre : selectedLogement;
+                        const formulePrices: Record<string, number | null | undefined> = {
+                          base: baseObj.prixParNuit,
+                          petitDejeuner: baseObj.prixAvecPetitDejeuner,
+                          demiPension: baseObj.prixDemiPension,
+                          pensionComplete: baseObj.prixPensionComplete,
+                        };
+                        const prix = formulePrices[formData.formule] ?? baseObj.prixParNuit;
+                        return prix != null ? (
+                          <div className="mt-3 pt-3 border-t border-slate-100">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                              {formuleLabels[formData.formule] || 'Prix'}
+                            </p>
+                            <p className="text-xl font-extrabold text-[#E04A1F]" style={{ fontFamily: 'Manrope, system-ui, sans-serif' }}>
+                              {prix.toLocaleString()} <span className="text-sm font-bold text-[#E04A1F]/80">FCFA / nuit</span>
+                            </p>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                 )}
                 {formData.serviceType === 'FLOTTE' && selectedVehicule && (
@@ -1941,11 +2144,24 @@ function NewReservationForm({ onSuccess, defaultServiceType }: { onSuccess: () =
                           alt={`${selectedVehicule.marque} ${selectedVehicule.modele}`}
                           className="w-full h-full object-cover"
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Car className="w-16 h-16 text-slate-300" />
-                        </div>
-                      )}
+                      ) : (() => {
+                        const palettes = [
+                          { bg: 'from-slate-100 to-slate-200', text: 'text-slate-400' },
+                          { bg: 'from-blue-50 to-blue-100', text: 'text-blue-300' },
+                          { bg: 'from-orange-50 to-orange-100', text: 'text-orange-300' },
+                          { bg: 'from-teal-50 to-teal-100', text: 'text-teal-300' },
+                          { bg: 'from-violet-50 to-violet-100', text: 'text-violet-300' },
+                        ];
+                        const p = palettes[selectedVehicule.id % palettes.length];
+                        return (
+                          <div className={`w-full h-full bg-gradient-to-br ${p.bg} flex flex-col items-center justify-center gap-3`}>
+                            <Car className={`w-14 h-14 ${p.text}`} />
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${p.text}`}>
+                              {selectedVehicule.marque || 'Véhicule'}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {selectedVehicule.type && (
                         <div className="absolute top-4 left-4">
                           <span className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-orange-600">
@@ -2127,7 +2343,7 @@ function ReservationsList() {
     if (Array.isArray(payload)) return payload as unknown as ServiceReservationResponse[];
     return [];
   })();
-  const totalCount = Number(payload?.total ?? reservations.length);
+  const totalCount = Number(rawData?.total ?? (payload as any)?.total ?? reservations.length);
   const totalPages = Math.ceil(totalCount / limit) || 1;
 
   // Fetch detail

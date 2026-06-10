@@ -1998,7 +1998,7 @@ class ApiClient {
         this.request<NavetteCICategory[]>('/bookings/airport-shuttle/ci/categories'),
       getOptions: () =>
         this.request<NavetteCIOption[]>('/bookings/airport-shuttle/ci/options'),
-      getQuote: (data: { departLat: number; departLng: number; arriveeLat: number; arriveeLng: number; pax: number; bagages23: number; bagages10: number }) =>
+      getQuote: (data: { departLat: number; departLng: number; arriveeLat: number; arriveeLng: number; pax: number; bagages23: number; bagages10: number; isRoundTrip?: boolean }) =>
         this.authPost<NavetteCIQuoteResponse>('/bookings/airport-shuttle/ci/quote', data),
       create: (data: CreateNavetteCIBookingDto) =>
         this.authPost<BookingResponse>('/bookings/airport-shuttle/ci/compagny/create', data),

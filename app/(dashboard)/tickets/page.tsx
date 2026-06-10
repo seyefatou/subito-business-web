@@ -66,11 +66,9 @@ export default function TicketsPage() {
   const limit = 10;
 
   const { data: ticketsResponse, isLoading, error } = useQuery({
-    queryKey: ['tickets', page, statusFilter],
+    queryKey: ['tickets', statusFilter],
     queryFn: () =>
       api.tickets.list({
-        page,
-        limit,
         statut: statusFilter !== 'all' ? statusFilter : undefined,
       }),
   });
@@ -93,8 +91,6 @@ export default function TicketsPage() {
   const raw = ticketsResponse as any;
   const tickets: TicketResponse[] =
     raw?.data?.data || raw?.data?.items || raw?.data || raw?.items || [];
-  const total: number = raw?.data?.total ?? raw?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const sortedTickets = [...tickets].sort(
     (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
@@ -106,6 +102,10 @@ export default function TicketsPage() {
         t.id.toString().includes(searchQuery)
       )
     : sortedTickets;
+
+  const total = filteredTickets.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const paginatedTickets = filteredTickets.slice((page - 1) * limit, page * limit);
 
   const handleCreateTicket = () => {
     if (!newTicket.sujet.trim() || !newTicket.description.trim()) {
@@ -123,7 +123,7 @@ export default function TicketsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6">
+    <div className="-m-2 md:-m-4 lg:-m-6">
       {/* Hero Header */}
       <div className="mb-8">
         <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
@@ -280,7 +280,7 @@ export default function TicketsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredTickets.map((ticket: TicketResponse, idx: number) => {
+          {paginatedTickets.map((ticket: TicketResponse, idx: number) => {
             const messagesCount =
               (ticket as any)._count?.messages ?? ticket.messages?.length ?? 0;
             return (

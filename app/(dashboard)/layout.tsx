@@ -55,11 +55,12 @@ interface NavigationItem {
   name: string;
   href: string;
   icon: LucideIcon;
+  children?: { name: string; href: string; icon: LucideIcon }[];
 }
 
 const navigation: NavigationItem[] = [
   { name: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Notifications", href: "/notifications", icon: Bell },
+  { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
   { name: "Navette Aéroport", href: "/airport-shuttle", icon: MapPin },
   { name: "Livraisons de courrier", href: "/deliveries", icon: Package },
   { name: "VTC à l'Heure", href: "/hourly-vtc", icon: Clock },
@@ -69,17 +70,11 @@ const navigation: NavigationItem[] = [
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
   { name: "Location de vehicule", href: "/location-vehicule", icon: Car },
   { name: "Assurance", href: "/assurance", icon: Shield },
-  { name: "Tickets", href: "/tickets", icon: MessageSquare },
-  { name: "Prises en charge", href: "/pending-validations", icon: ClipboardCheck },
-  // { name: "Flotte", href: "/fleet", icon: Car },
-  // { name: "Carburant", href: "/fuel-management", icon: Fuel },
-  // { name: "Devis Entretien", href: "/maintenance-quotes", icon: Wrench },
   { name: "Suivi commandes", href: "/tracking", icon: MapPin },
   { name: "Rapports", href: "/reports", icon: FileText },
   { name: "Facturation", href: "/billing", icon: CreditCard },
-  // { name: "Automatisations", href: "/automation", icon: Zap },
-  { name: "Employés", href: "/employees", icon: Users },
-  { name: "Départements", href: "/departments", icon: Building2 },
+  { name: "Organisation", href: "/organisation", icon: Users },
+  { name: "Tickets", href: "/tickets", icon: MessageSquare },
 ];
 
 interface DashboardLayoutProps {
@@ -97,6 +92,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarHovered, setSidebarHovered] = useState<boolean>(false);
+  const isCollapsed = sidebarCollapsed && !sidebarHovered;
 
   // Hydrate collapsed state from localStorage after mount (avoids SSR mismatch)
   useEffect(() => {
@@ -120,6 +117,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadTickets, setUnreadTickets] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -150,9 +149,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     if (!isAuthenticated) return;
     const fetchTickets = async () => {
       try {
-        const response = await api.tickets.list({ page: 1, limit: 50 });
+        const response = await api.tickets.list();
         const raw = response as any;
-        const tickets = raw?.data?.data || raw?.data || [];
+        const tickets = raw?.data || [];
         if (!Array.isArray(tickets)) { setUnreadTickets(0); return; }
         const count = tickets.filter((t: any) =>
           t.messages?.some((m: any) => m.senderType === 'manager' && !m.lu)
@@ -245,23 +244,27 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       )}
 
       {/* Sidebar */}
-      <aside className={`
-        fixed top-0 left-0 z-50 h-full bg-white border-r border-slate-200
-        transform transition-all duration-300 ease-in-out
-        lg:translate-x-0
-        ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'}
-        ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
-      `}>
+      <aside
+        className={`
+          fixed top-0 left-0 z-50 h-full bg-white border-r border-slate-200
+          transform transition-all duration-300 ease-in-out
+          lg:translate-x-0
+          ${sidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'}
+          ${isCollapsed ? 'lg:w-16' : 'lg:w-64'}
+        `}
+        onMouseEnter={() => sidebarCollapsed && setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className={`h-20 flex items-center border-b border-slate-100 relative ${sidebarCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'}`}>
-            <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'lg:gap-0' : ''}`}>
+          <div className={`h-20 flex items-center border-b border-slate-100 relative ${isCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between px-6'}`}>
+            <div className={`flex items-center gap-3 ${isCollapsed ? 'lg:gap-0' : ''}`}>
               <img
                 src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo-subito.jpeg`}
                 alt="Subito"
                 className="h-10 w-auto"
               />
-              <div className={sidebarCollapsed ? 'lg:hidden' : ''}>
+              <div className={isCollapsed ? 'lg:hidden' : ''}>
                 <span className="font-bold text-xl text-slate-800">Subito</span>
                 <span className="block text-xs text-slate-500 font-medium -mt-1">Business</span>
               </div>
@@ -273,34 +276,83 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
               <X className="w-5 h-5" />
             </button>
             <button
-              className={`hidden lg:flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${sidebarCollapsed
+              className={`hidden lg:flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors ${isCollapsed
                 ? 'lg:absolute lg:-right-3.5 lg:top-1/2 lg:-translate-y-1/2 lg:w-7 lg:h-7 lg:rounded-full lg:bg-white lg:border lg:border-slate-200 lg:shadow-sm lg:z-10'
                 : 'w-8 h-8 rounded-lg'}`}
-              onClick={() => setSidebarCollapsed(c => !c)}
-              aria-label={sidebarCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
+              onClick={() => { setSidebarCollapsed(c => !c); setSidebarHovered(false); }}
+              aria-label={isCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'}
             >
-              {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 py-6 space-y-1 overflow-y-auto sidebar-scroll ${sidebarCollapsed ? 'px-4 lg:px-2' : 'px-4'}`}>
+          <nav className={`flex-1 py-6 space-y-1 overflow-y-auto sidebar-scroll ${isCollapsed ? 'px-4 lg:px-2' : 'px-4'}`}>
             {navigation.map((item) => {
+              // Group item (accordion)
+              if (item.children) {
+                const isGroupActive = item.children.some(c => isActive(c.href));
+                const isOpen = openGroups.has(item.name) || isGroupActive;
+                return (
+                  <div key={item.name}>
+                    <button
+                      onClick={() => setOpenGroups(prev => {
+                        const next = new Set(prev);
+                        if (next.has(item.name)) next.delete(item.name); else next.add(item.name);
+                        return next;
+                      })}
+                      title={isCollapsed ? item.name : undefined}
+                      className={`w-full relative flex items-center text-sm transition-all duration-200 rounded-xl
+                        ${isCollapsed ? 'gap-3 px-4 py-3 lg:gap-0 lg:p-0 lg:w-10 lg:h-10 lg:mx-auto lg:justify-center' : 'gap-3 px-4 py-3'}
+                        ${isGroupActive ? 'text-[#E04A1F] font-semibold' : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'}
+                      `}
+                    >
+                      <item.icon className={`w-5 h-5 shrink-0 ${isGroupActive ? 'text-[#E04A1F]' : ''}`} />
+                      <span className={isCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
+                      <ChevronDown className={`w-4 h-4 ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isCollapsed ? 'lg:hidden' : ''}`} />
+                    </button>
+                    {isOpen && (
+                      <div className={`mt-1 space-y-1 border-l-2 border-slate-100 ml-6 pl-2 ${isCollapsed ? 'lg:hidden' : ''}`}>
+                        {item.children.map(child => {
+                          const childActive = isActive(child.href);
+                          return (
+                            <Link
+                              key={child.name}
+                              href={child.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200
+                                ${childActive
+                                  ? 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-2'
+                                  : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'}
+                              `}
+                            >
+                              <child.icon className={`w-4 h-4 shrink-0 ${childActive ? 'text-[#E04A1F]' : ''}`} />
+                              {child.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Regular item
               const active = isActive(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  title={sidebarCollapsed ? item.name : undefined}
+                  title={isCollapsed ? item.name : undefined}
                   className={`
                     relative flex items-center text-sm
                     transition-all duration-200
-                    ${sidebarCollapsed
+                    ${isCollapsed
                       ? 'gap-3 px-4 py-3 rounded-xl lg:gap-0 lg:p-0 lg:w-10 lg:h-10 lg:mx-auto lg:justify-center'
                       : 'gap-3 px-4 py-3 rounded-xl'}
                     ${active
-                      ? sidebarCollapsed
+                      ? isCollapsed
                         ? 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3 lg:bg-[#FEF2EE] lg:border-0 lg:pl-0 lg:shadow-none lg:rounded-xl'
                         : 'bg-white border-l-4 border-[#E04A1F] text-[#E04A1F] font-semibold shadow-sm pl-3'
                       : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'
@@ -308,14 +360,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                   `}
                 >
                   <item.icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#E04A1F]' : ''}`} />
-                  <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
-                  {item.href === '/notifications' && unreadCount > 0 && (
-                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white bg-red-500 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
+                  <span className={isCollapsed ? 'lg:hidden' : ''}>{item.name}</span>
                   {item.href === '/tickets' && unreadTickets > 0 && (
-                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse bg-orange-500 ${sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
+                    <span className={`min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white animate-pulse bg-orange-500 ${isCollapsed ? 'lg:absolute lg:top-1 lg:right-1 lg:min-w-[16px] lg:h-4 lg:px-1 lg:text-[9px] ml-auto' : 'ml-auto'}`}>
                       {unreadTickets > 99 ? '99+' : unreadTickets}
                     </span>
                   )}
@@ -325,7 +372,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           </nav>
 
           {/* Bottom section */}
-          <div className={`p-4 border-t border-slate-100 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+          <div className={`p-4 border-t border-slate-100 ${isCollapsed ? 'lg:hidden' : ''}`}>
             <div className="rounded-xl gradient-subito p-4 text-white">
               <p className="text-sm font-medium mb-1">Besoin d&apos;aide ?</p>
               <p className="text-xs opacity-90 mb-3">Support disponible 24/7</p>
@@ -358,6 +405,14 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                 <Search className="w-4 h-4 text-slate-400" />
                 <input
                   type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
+                      router.push(`/tracking?search=${encodeURIComponent(searchQuery.trim())}`);
+                      setSearchQuery('');
+                    }
+                  }}
                   placeholder="Rechercher une commande, un employé..."
                   className="bg-transparent border-none outline-none text-sm text-slate-600 placeholder:text-slate-400 w-full"
                 />

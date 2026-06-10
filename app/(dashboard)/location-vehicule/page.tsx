@@ -134,11 +134,10 @@ const initialState: FormState = {
 };
 
 const STEPS = [
-  { id: 1, label: "Recherche" },
-  { id: 2, label: "Véhicule" },
-  { id: 3, label: "Options" },
-  { id: 4, label: "Conducteur" },
-  { id: 5, label: "Récapitulatif" },
+  { id: 1, label: "Véhicule" },
+  { id: 2, label: "Options" },
+  { id: 3, label: "Conducteur" },
+  { id: 4, label: "Récapitulatif" },
 ];
 
 const PROTECTION_TIERS: {
@@ -229,7 +228,7 @@ export default function LocationVehiculePage() {
   const { user } = useAuth();
 
   const presetVehiculeId = searchParams.get("vehiculeLocationId");
-  const [step, setStep] = useState<number>(presetVehiculeId ? 3 : 1);
+  const [step, setStep] = useState<number>(presetVehiculeId ? 2 : 1);
   const [form, setForm] = useState<FormState>({
     ...initialState,
     vehiculeId: presetVehiculeId ? Number(presetVehiculeId) : null,
@@ -376,13 +375,10 @@ export default function LocationVehiculePage() {
     if (s === 1) {
       if (!form.pickupLocation.trim()) return toast.error("Lieu de prise en charge requis"), false;
       if (!form.pickupDate) return toast.error("Date de prise en charge requise"), false;
-      return true;
-    }
-    if (s === 2) {
       if (!form.vehiculeId) return toast.error("Sélectionnez un véhicule"), false;
       return true;
     }
-    if (s === 4) {
+    if (s === 3) {
       if (!form.driverFirstName.trim()) return toast.error("Prénom du conducteur requis"), false;
       if (!form.driverLastName.trim()) return toast.error("Nom du conducteur requis"), false;
       if (!form.driverPhone.trim() || !isValidPhone(form.driverPhone))
@@ -394,7 +390,7 @@ export default function LocationVehiculePage() {
 
   const next = () => {
     if (!validateStep(step)) return;
-    setStep((s) => Math.min(5, s + 1));
+    setStep((s) => Math.min(4, s + 1));
   };
   const back = () => setStep((s) => Math.max(1, s - 1));
 
@@ -403,7 +399,6 @@ export default function LocationVehiculePage() {
       toast.error("Aucun véhicule sélectionné");
       return;
     }
-    const isCompany = form.payment === "company_account";
     const extrasNotes = EXTRAS_CATALOG.filter((e) => form.extras[e.key]).map((e) => e.label);
     const composedNotes = [
       form.notes,
@@ -426,11 +421,9 @@ export default function LocationVehiculePage() {
       clientEmail: form.driverEmail || undefined,
       dateDebut: startISO,
       dateFin: endISO || undefined,
-      totalPrice: total,
       employeeId: form.employeeId || undefined,
       adresseLivraison: form.pickupLocation,
       notes: composedNotes || undefined,
-      paidBy: isCompany ? "company" : "client",
     };
     createMutation.mutate(dto);
   };
@@ -497,9 +490,6 @@ export default function LocationVehiculePage() {
       className={`${manrope.variable} text-[#171c1f]`}
       style={{ fontFamily: "Inter, system-ui, sans-serif" }}
     >
-      {/* Hero header (only on step 1) */}
-      {step === 1 && <Hero />}
-
       {/* Progress */}
       <ProgressBar step={step} />
 
@@ -513,19 +503,11 @@ export default function LocationVehiculePage() {
           transition={{ duration: 0.25 }}
         >
           {step === 1 && (
-            <SearchStep
+            <SearchAndVehicleStep
               form={form}
               update={update}
-              onContinue={next}
-              fallbackVehicleImage={fallbackVehicleImage}
-            />
-          )}
-          {step === 2 && (
-            <VehicleSelectionStep
               vehicules={vehicules}
               loading={vehiculesLoading}
-              selectedId={form.vehiculeId}
-              onSelect={(id) => update("vehiculeId", id)}
               transmissionFilter={transmissionFilter}
               setTransmissionFilter={setTransmissionFilter}
               seatsFilter={seatsFilter}
@@ -533,7 +515,7 @@ export default function LocationVehiculePage() {
               fallbackVehicleImage={fallbackVehicleImage}
             />
           )}
-          {step === 3 && (
+          {step === 2 && (
             <OptionsStep
               form={form}
               update={update}
@@ -549,7 +531,7 @@ export default function LocationVehiculePage() {
               fallbackVehicleImage={fallbackVehicleImage}
             />
           )}
-          {step === 4 && (
+          {step === 3 && (
             <DriverPaymentStep
               form={form}
               update={update}
@@ -568,7 +550,7 @@ export default function LocationVehiculePage() {
               fallbackVehicleImage={fallbackVehicleImage}
             />
           )}
-          {step === 5 && (
+          {step === 4 && (
             <RecapStep
               form={form}
               selectedVehicule={selectedVehicule}
@@ -597,7 +579,7 @@ export default function LocationVehiculePage() {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Retour
         </Button>
-        {step < 5 ? (
+        {step < 4 ? (
           <Button
             onClick={next}
             className="rounded-xl h-12 px-8 text-white border-0 font-bold"
@@ -643,6 +625,242 @@ export default function LocationVehiculePage() {
           />
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ==================== STEP 1: SEARCH + VEHICLE (COMBINED) ====================
+function SearchAndVehicleStep({
+  form,
+  update,
+  vehicules,
+  loading,
+  transmissionFilter,
+  setTransmissionFilter,
+  seatsFilter,
+  setSeatsFilter,
+  fallbackVehicleImage,
+}: {
+  form: FormState;
+  update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
+  vehicules: VehiculeLocation[];
+  loading: boolean;
+  transmissionFilter: "all" | "Manuelle" | "Automatique";
+  setTransmissionFilter: (v: "all" | "Manuelle" | "Automatique") => void;
+  seatsFilter: number | null;
+  setSeatsFilter: (v: number | null) => void;
+  fallbackVehicleImage?: string;
+}) {
+  const seatOptions = useMemo(() => {
+    const set = new Set<number>();
+    vehicules.forEach((v) => v.places && set.add(v.places));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [vehicules]);
+
+  const filtered = useMemo(
+    () =>
+      vehicules.filter((v) => {
+        if (transmissionFilter !== "all" && v.transmission !== transmissionFilter) return false;
+        if (seatsFilter !== null && v.places !== seatsFilter) return false;
+        return true;
+      }),
+    [vehicules, transmissionFilter, seatsFilter]
+  );
+
+  const PAGE_SIZE = 6;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => { setPage(1); }, [transmissionFilter, seatsFilter]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page]
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Hero */}
+      <div className="mb-2">
+        <p className="text-[#ac3509] font-bold tracking-widest uppercase text-xs mb-3">
+          Location de véhicule premium
+        </p>
+        <h1
+          className="text-4xl md:text-5xl font-black leading-tight max-w-2xl text-[#171c1f]"
+          style={{ fontFamily: "var(--font-velocity-headline), system-ui" }}
+        >
+          Là où la précision rencontre la{" "}
+          <span className="bg-clip-text text-transparent" style={{ backgroundImage: KINETIC_GRADIENT }}>
+            vélocité
+          </span>
+          .
+        </h1>
+        <p className="text-[#585e6c] mt-4 text-lg max-w-xl">
+          Accélérez vos opérations. Réservez en quelques clics un véhicule adapté à votre mission.
+        </p>
+      </div>
+
+      {/* Compact search bar */}
+      <div className="bg-white rounded-3xl p-6 shadow-[0_8px_24px_rgba(23,28,31,0.06)]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <FieldGroup label="Lieu de prise en charge" icon={<MapPin className="w-5 h-5" />}>
+            <JolofAddressInput
+              value={form.pickupLocation}
+              onChange={(val) => update("pickupLocation", val)}
+              placeholder="Ville, aéroport, adresse"
+            />
+          </FieldGroup>
+          <FieldGroup label="Date de prise en charge" icon={<CalendarIcon className="w-5 h-5" />}>
+            <input
+              type="date"
+              value={form.pickupDate}
+              onChange={(e) => update("pickupDate", e.target.value)}
+              className="w-full pl-12 pr-2 py-4 bg-[#f0f4f8] border-none rounded-2xl focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+            />
+          </FieldGroup>
+          <FieldGroup label="Heure" icon={<Clock className="w-5 h-5" />}>
+            <input
+              type="time"
+              value={form.pickupTime}
+              onChange={(e) => update("pickupTime", e.target.value)}
+              className="w-full pl-12 pr-2 py-4 bg-[#f0f4f8] border-none rounded-2xl focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+            />
+          </FieldGroup>
+        </div>
+      </div>
+
+      {/* Vehicle selection */}
+      <div className="flex flex-col lg:flex-row gap-10">
+        {/* Filters sidebar */}
+        <aside className="w-full lg:w-72 shrink-0 space-y-8">
+          <div>
+            <h3 className="font-extrabold text-xl mb-6 text-[#171c1f]" style={{ fontFamily: "var(--font-velocity-headline), system-ui" }}>
+              Filtres
+            </h3>
+            <div className="space-y-4 mb-8">
+              <label className="text-xs font-black uppercase tracking-tighter text-[#59413a]">Transmission</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["Manuelle", "Automatique"] as const).map((t) => {
+                  const active = transmissionFilter === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setTransmissionFilter(active ? "all" : t)}
+                      className={`py-3 px-3 rounded-xl text-sm font-bold transition-all ${active ? "text-white shadow-md" : "bg-white text-[#171c1f] hover:bg-[#eaeef2]"}`}
+                      style={active ? { backgroundImage: KINETIC_GRADIENT } : undefined}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {seatOptions.length > 0 && (
+              <div className="space-y-4">
+                <label className="text-xs font-black uppercase tracking-tighter text-[#59413a]">Nombre de places</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSeatsFilter(null)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${seatsFilter === null ? "text-white" : "bg-white text-[#171c1f] hover:bg-[#eaeef2]"}`}
+                    style={seatsFilter === null ? { backgroundImage: KINETIC_GRADIENT } : undefined}
+                  >
+                    Toutes
+                  </button>
+                  {seatOptions.map((n) => {
+                    const active = seatsFilter === n;
+                    return (
+                      <button
+                        key={n}
+                        onClick={() => setSeatsFilter(active ? null : n)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${active ? "text-white" : "bg-white text-[#171c1f] hover:bg-[#eaeef2]"}`}
+                        style={active ? { backgroundImage: KINETIC_GRADIENT } : undefined}
+                      >
+                        {n} places
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-6 rounded-3xl bg-[#f0f4f8]">
+            <h4 className="font-bold text-[#171c1f] mb-2" style={{ fontFamily: "var(--font-velocity-headline), system-ui" }}>
+              Besoin d&apos;aide ?
+            </h4>
+            <p className="text-sm text-[#59413a] mb-3">Notre concierge est dispo 24/7.</p>
+            <button className="text-[#ac3509] font-bold text-sm flex items-center gap-2">
+              Contacter le support <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </aside>
+
+        {/* Vehicle grid */}
+        <div className="flex-1">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="font-black text-3xl text-[#171c1f] tracking-tight" style={{ fontFamily: "var(--font-velocity-headline), system-ui" }}>
+                Flotte disponible
+              </h2>
+              <p className="text-[#59413a] mt-1 text-sm">
+                {loading ? "Chargement..." : `${filtered.length} véhicule${filtered.length > 1 ? "s" : ""} pour votre trajet.`}
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-[2rem] overflow-hidden animate-pulse h-96">
+                  <div className="h-48 bg-[#eaeef2]" />
+                  <div className="p-6 space-y-3">
+                    <div className="h-4 bg-[#eaeef2] rounded w-3/4" />
+                    <div className="h-4 bg-[#eaeef2] rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-white rounded-[2rem] p-12 text-center">
+              <Car className="w-16 h-16 text-[#dfe3e7] mx-auto mb-4" />
+              <p className="font-bold text-[#171c1f]">Aucun véhicule ne correspond</p>
+              <p className="text-sm text-[#585e6c] mt-1">Essayez d&apos;élargir vos filtres.</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {paginated.map((v) => (
+                  <VehicleCard
+                    key={v.id}
+                    vehicule={v}
+                    selected={v.id === form.vehiculeId}
+                    onSelect={() => update("vehiculeId", v.id)}
+                    fallbackVehicleImage={fallbackVehicleImage}
+                  />
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-between">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-[#171c1f] font-bold text-sm hover:bg-[#eaeef2] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Précédent
+                  </button>
+                  <span className="text-sm font-bold text-[#59413a]">Page {page} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-bold text-sm shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    style={{ backgroundImage: KINETIC_GRADIENT }}
+                  >
+                    Suivant <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

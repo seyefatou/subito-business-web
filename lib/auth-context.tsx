@@ -18,6 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'subito_compagny_token';
+const REFRESH_TOKEN_KEY = 'subito_compagny_refresh_token';
 const USER_KEY = 'subito_compagny_user';
 const COOKIE_NAME = 'subito_token';
 
@@ -54,6 +55,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // We have a token — validate it by calling the profile endpoint
+        // Try refresh if we have a stored refresh token but no valid access token
+        const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+
         try {
           console.log('[AUTH] Validating token via profile endpoint...');
           const profileResponse = await api.authCompagny.getProfile(storedToken);
@@ -73,17 +77,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             localStorage.removeItem(USER_KEY);
             removeTokenCookie();
           }
-        } catch {
-          // Token expired — try refresh before clearing auth
+        } catch (profileErr) {
+          const errMsg = (profileErr as Error)?.message || '';
+          const isServerError = errMsg.includes('indisponible') || errMsg.includes('500');
+
+          if (isServerError && storedUser) {
+            // 500 = bug backend, pas token expiré — on garde la session avec les données stockées
+            console.warn('[AUTH] Profile 500 (bug backend) — session maintenue avec données localStorage');
+            try {
+              setToken(storedToken);
+              setUser(JSON.parse(storedUser));
+              setTokenCookie(storedToken);
+            } catch { /* JSON corrompu, continuer vers refresh */ }
+            return;
+          }
+
+          // Token expiré (401) — essayer refresh avant de déconnecter
           console.warn('[AUTH] Token validation failed, trying refresh...');
           try {
-            const refreshResponse = await api.authCompagny.refreshToken(storedToken);
-            const refreshData = refreshResponse.data || refreshResponse;
-            const newToken = (refreshData as Record<string, unknown>).access_token as string;
+            const refreshToken = storedRefresh || storedToken;
+            const refreshResponse = await api.authCompagny.refreshToken(refreshToken);
+            const refreshData = (refreshResponse as unknown as Record<string, unknown>)?.data ?? refreshResponse;
+            const rd = refreshData as Record<string, unknown>;
+            const newToken = (rd.accessToken || rd.access_token) as string;
+            const newRefresh = (rd.refreshToken || rd.refresh_token) as string | undefined;
 
             if (newToken) {
               console.log('[AUTH] Token refreshed successfully on mount');
               localStorage.setItem(TOKEN_KEY, newToken);
+              if (newRefresh) localStorage.setItem(REFRESH_TOKEN_KEY, newRefresh);
               setTokenCookie(newToken);
 
               // Validate the new token
@@ -123,9 +145,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Handle both wrapped { data: {...} } and direct response formats
     const data = response.data || response;
 
-    // Extract token - handle both { access_token } and { token } formats
+    // Extract token — handle access_token (snake), accessToken (camel), token
     const rawData = data as unknown as Record<string, unknown>;
-    const accessToken = (rawData.access_token || rawData.token) as string;
+    const accessToken = (rawData.accessToken || rawData.access_token || rawData.token) as string;
+    const refreshToken = (rawData.refreshToken || rawData.refresh_token) as string | undefined;
     if (!accessToken) {
       console.error('[AUTH] NO TOKEN in response! Full response:', JSON.stringify(response));
       throw new Error('Token non recu du serveur');
@@ -134,6 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log(`[AUTH] Token received: ${accessToken.substring(0, 30)}...`);
     setToken(accessToken);
     localStorage.setItem(TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     setTokenCookie(accessToken);
 
     // If user data is in the login response, use it temporarily
@@ -185,6 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(null);
       setUser(null);
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       removeTokenCookie();
       router.push('/login');

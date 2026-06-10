@@ -138,8 +138,13 @@ export default function LogementDetailPage() {
   const logementId = Number(params.id);
   const returnTo = searchParams.get("returnTo") || "/service-reservations?type=LOGEMENT";
 
+  type Formule = 'base' | 'petitDejeuner' | 'demiPension' | 'pensionComplete';
+
   const [avisPage, setAvisPage] = useState(1);
+  // avis calls removed — kept as stub so JSX references remain valid
+  const avisData = undefined as AvisResponse | undefined;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [formule, setFormule] = useState<Formule>('base');
 
   const { data: logementResponse, isLoading } = useQuery({
     queryKey: ["logement-public", logementId],
@@ -148,18 +153,6 @@ export default function LogementDetailPage() {
   });
 
   const logement: Logement | undefined = logementResponse?.data;
-
-  const { data: avisResponse } = useQuery({
-    queryKey: ["logement-avis", logementId, avisPage],
-    queryFn: () => api.avis.logement(logementId, avisPage, 10),
-    enabled: !!logementId,
-  });
-
-  const avisData: AvisResponse | undefined = (avisResponse?.data as AvisResponse)?.moyennes
-    ? avisResponse?.data
-    : (avisResponse as unknown as AvisResponse)?.moyennes
-      ? (avisResponse as unknown as AvisResponse)
-      : undefined;
 
   if (isLoading) {
     return (
@@ -188,7 +181,16 @@ export default function LogementDetailPage() {
     );
   }
 
-  const handleReserve = () => router.push(`${returnTo}&logementId=${logement.id}`);
+  const formulesConfig = [
+    { key: 'base' as Formule, label: 'Nuit simple', prixNuit: logement.prixParNuit, prixWeekend: logement.prixWeekend },
+    { key: 'petitDejeuner' as Formule, label: 'Petit-déjeuner', prixNuit: logement.prixAvecPetitDejeuner, prixWeekend: logement.prixWeekendAvecPetitDejeuner },
+    { key: 'demiPension' as Formule, label: 'Demi-pension', prixNuit: logement.prixDemiPension, prixWeekend: logement.prixWeekendDemiPension },
+    { key: 'pensionComplete' as Formule, label: 'Pension complète', prixNuit: logement.prixPensionComplete, prixWeekend: logement.prixWeekendPensionComplete },
+  ];
+  const availableFormules = formulesConfig.filter(f => f.prixNuit != null);
+  const activeFormule = formulesConfig.find(f => f.key === formule) ?? formulesConfig[0];
+
+  const handleReserve = () => router.push(`/service-reservations/logement/${logementId}/wizard`);
   const handleCancel = () => router.push(returnTo);
 
   const images = logement.images || [];
@@ -200,7 +202,7 @@ export default function LogementDetailPage() {
   const categoryLabel = logement.type || (isHotel ? "Hôtel" : "Logement");
 
   return (
-    <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 pb-24 lg:pb-10">
+    <div className="max-w-7xl mx-auto -m-2 md:-m-4 lg:-m-6 pb-24 lg:pb-10">
       {/* Hero Header */}
       <div className="mb-8">
         <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
@@ -424,6 +426,82 @@ export default function LogementDetailPage() {
             </motion.div>
           )}
 
+          {/* Options tarifaires - Affichage informatif */}
+          {logement.priceOptions && logement.priceOptions.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.4 }}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100"
+            >
+              <h3 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
+                Options supplémentaires
+              </h3>
+              <div className="space-y-3">
+                {logement.priceOptions.map((option) => (
+                  <div key={option.id} className="flex items-center gap-3 p-3 bg-[#f0f4f8] rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-[#171c1f]">{option.titre || option.code}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {option.description && <p className="text-xs text-[#585e6c]">{option.description}</p>}
+                        {option.pricingMode && (
+                          <span className="text-xs text-[#E04A1F] font-bold uppercase">
+                            {option.pricingMode === 'PER_NUIT' ? 'par nuit' : option.pricingMode === 'PER_QUANTITE' ? 'par quantité' : option.pricingMode}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {option.prix != null && (
+                      <p className="text-sm font-bold text-[#E04A1F] shrink-0">+{option.prix.toLocaleString()} FCFA</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.section>
+          )}
+
+          {/* Options de repas - Affichage informatif */}
+          {logement.pensions && logement.pensions.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.4 }}
+              className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100"
+            >
+              <h3 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
+                Options de repas
+              </h3>
+              <div className="space-y-3">
+                {logement.pensions.map((pension) => {
+                  const formuleLabelMap: Record<string, string> = {
+                    'PENSION_COMPLETE': 'Pension complète',
+                    'DEMI_PENSION': 'Demi-pension',
+                    'PETIT_DEJEUNER': 'Petit-déjeuner',
+                    'NUIT_SIMPLE': 'Nuit simple',
+                  };
+                  const label = formuleLabelMap[pension.formule || ''] || pension.formule || 'Option de repas';
+                  return (
+                    <div key={pension.id} className="flex items-center gap-3 p-3 bg-[#f0f4f8] rounded-xl">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#171c1f]">{label}</p>
+                        {pension.prixWeekend != null && (
+                          <p className="text-xs text-[#585e6c] mt-1">
+                            Weekend : {pension.prixWeekend.toLocaleString()} FCFA
+                          </p>
+                        )}
+                      </div>
+                      {pension.prix != null && (
+                        <p className="text-sm font-bold text-[#E04A1F] shrink-0">{pension.prix === 0 ? 'Gratuit' : `${pension.prix.toLocaleString()} FCFA`}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
+          )}
+
           {/* Instructions d'accès */}
           {logement.instructionsAcces && (
             <SectionCard
@@ -598,68 +676,52 @@ export default function LogementDetailPage() {
           )}
         </div>
 
-        {/* ReserveCard sticky */}
-        <aside className="hidden lg:block lg:col-span-4 sticky top-24 bg-white rounded-3xl shadow-xl shadow-black/5 border border-slate-100 p-6 space-y-5">
-          <div>
-            {logement.prixParNuit != null && (
+        {/* ReserveCard sticky - Version simple (détails sur la page checkout) */}
+        <aside className="hidden lg:block lg:col-span-4 sticky top-24 bg-white rounded-3xl shadow-xl shadow-black/5 border border-slate-100 p-6 space-y-5" onClick={() => router.push(`/service-reservations/logement/${logementId}/wizard`)}>
+          <div className="space-y-4">
+            {/* Prix de base */}
+            <div>
+              <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest mb-2">
+                À partir de
+              </p>
               <p className="text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
-                {logement.prixParNuit.toLocaleString()}{" "}
+                {logement.prixParNuit?.toLocaleString()}{" "}
                 <span className="text-base font-medium text-[#585e6c]">FCFA</span>
               </p>
-            )}
-            <p className="text-sm text-[#585e6c]">par nuit</p>
-            {logement.prixWeekend != null && (
-              <p className="text-xs text-[#585e6c] mt-1">
-                Weekend : <span className="font-bold text-[#171c1f]">{logement.prixWeekend.toLocaleString()} FCFA</span>
-              </p>
-            )}
+              <p className="text-sm text-[#585e6c]">par nuit</p>
+            </div>
+
+            {/* Rating */}
             {logement.averageRating != null && logement.totalAvis != null && logement.totalAvis > 0 && (
-              <div className="flex items-center gap-1 mt-3 text-sm">
+              <div className="flex items-center gap-1 text-sm">
                 <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
                 <span className="font-bold text-[#171c1f]">{logement.averageRating.toFixed(1)}</span>
                 <span className="text-[#585e6c]">·</span>
                 <span className="text-[#585e6c]">{logement.totalAvis} avis</span>
               </div>
             )}
-          </div>
 
-          <div
-            onClick={handleReserve}
-            className="grid grid-cols-2 border border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-[#E04A1F] transition"
-          >
-            <div className="p-3 border-r border-slate-200">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-[#585e6c]">
-                Arrivée
-              </p>
-              <p className="text-sm text-[#171c1f] mt-0.5 font-medium">Sélectionner</p>
+            {/* Infos */}
+            <div className="space-y-2 pt-2">
+              {logement.capacite != null && (
+                <div className="flex items-center gap-2 text-sm text-[#585e6c]">
+                  <Users className="w-4 h-4 text-[#E04A1F]" />
+                  <span>{logement.capacite} personne{logement.capacite > 1 ? "s" : ""} max</span>
+                </div>
+              )}
+              {logement.nbreChambres != null && (
+                <div className="flex items-center gap-2 text-sm text-[#585e6c]">
+                  <Bed className="w-4 h-4 text-[#E04A1F]" />
+                  <span>{logement.nbreChambres} chambre{logement.nbreChambres > 1 ? "s" : ""}</span>
+                </div>
+              )}
+              {logement.salleDeBain != null && (
+                <div className="flex items-center gap-2 text-sm text-[#585e6c]">
+                  <Bath className="w-4 h-4 text-[#E04A1F]" />
+                  <span>{logement.salleDeBain} salle{logement.salleDeBain > 1 ? "s" : ""} de bain</span>
+                </div>
+              )}
             </div>
-            <div className="p-3">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-[#585e6c]">
-                Départ
-              </p>
-              <p className="text-sm text-[#171c1f] mt-0.5 font-medium">Sélectionner</p>
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            {logement.capacite != null && (
-              <div className="flex items-center gap-2 text-sm text-[#585e6c]">
-                <Users className="w-4 h-4 text-[#E04A1F]" />
-                <span>{logement.capacite} personne{logement.capacite > 1 ? "s" : ""} max</span>
-              </div>
-            )}
-            {logement.nbreChambres != null && (
-              <div className="flex items-center gap-2 text-sm text-[#585e6c]">
-                <Bed className="w-4 h-4 text-[#E04A1F]" />
-                <span>{logement.nbreChambres} chambre{logement.nbreChambres > 1 ? "s" : ""}</span>
-              </div>
-            )}
-            {logement.salleDeBain != null && (
-              <div className="flex items-center gap-2 text-sm text-[#585e6c]">
-                <Bath className="w-4 h-4 text-[#E04A1F]" />
-                <span>{logement.salleDeBain} salle{logement.salleDeBain > 1 ? "s" : ""} de bain</span>
-              </div>
-            )}
           </div>
 
           <div className="border-t border-slate-100" />
@@ -822,11 +884,14 @@ export default function LogementDetailPage() {
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
-            {logement.prixParNuit != null && (
+            {activeFormule.prixNuit != null && (
               <p className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
-                {logement.prixParNuit.toLocaleString()} FCFA
+                {activeFormule.prixNuit.toLocaleString()} FCFA
                 <span className="text-xs font-medium text-[#585e6c]"> / nuit</span>
               </p>
+            )}
+            {availableFormules.length > 1 && (
+              <p className="text-xs text-[#E04A1F] font-bold">{activeFormule.label}</p>
             )}
             {logement.averageRating != null && logement.totalAvis != null && logement.totalAvis > 0 && (
               <div className="flex items-center gap-1 text-xs text-[#585e6c]">

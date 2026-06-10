@@ -16,6 +16,7 @@ const SUB_FIELD_HINTS = [
   "trajetAeroport", "trajetInterVille",
   "pickupDateAller", "pickupDateRetour",
   "adressePriseEnCharge", "adressePriseEnChargeDepartAller",
+  "departAddress", "arriveeAddress", "navetteCategoryCode",
 ];
 
 export function extractBookingSub(booking: Record<string, unknown>): Record<string, unknown> {

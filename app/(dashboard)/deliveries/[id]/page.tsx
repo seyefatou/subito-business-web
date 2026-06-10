@@ -29,6 +29,7 @@ import {
   Hash,
   History,
   FileText,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +112,10 @@ export default function DeliveryDetailPage() {
   }
 
   const statusKey = (deliveryDetail.status || "").toLowerCase();
+  const isPending = statusKey === "pending";
+  const isConfirmed = statusKey === "confirmed";
+  const isDelivered = statusKey === "delivered";
+  const isActiveTracking = ["assigned", "picked_up", "in_transit"].includes(statusKey);
   const trackSteps = [
     { id: "assigned", label: "Assigne" },
     { id: "picked_up", label: "Recupere" },
@@ -173,7 +178,7 @@ export default function DeliveryDetailPage() {
       </div>
 
       {/* Tracking stepper */}
-      {!isCancelled && (
+      {!isCancelled && !isPending && !isConfirmed && (
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center w-full">
             {trackSteps.map((step, i) => {
@@ -224,60 +229,113 @@ export default function DeliveryDetailPage() {
 
       {/* Map + Right column */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Map placeholder */}
+        {/* Map / Status area */}
         <div className="lg:col-span-8">
-          <div className="relative h-[400px] bg-gradient-to-br from-[#171c1f] via-[#1a2030] to-[#0a1428] rounded-3xl overflow-hidden shadow-xl">
-            <div
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
-                backgroundSize: "32px 32px",
-              }}
-            />
-            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 800 400" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#00acbb" />
-                  <stop offset="100%" stopColor="#E04A1F" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M 80 320 Q 250 280 380 240 T 720 80"
-                stroke="url(#routeGrad)"
-                strokeWidth="3"
-                fill="none"
-                strokeDasharray="8 8"
-              />
-            </svg>
-            <div className="absolute left-[8%] bottom-[18%] flex flex-col items-center">
-              <div className="w-3 h-3 rounded-full bg-[#00acbb] ring-4 ring-[#00acbb]/30" />
-              <div className="text-[10px] font-bold text-[#00acbb] mt-1 uppercase tracking-widest bg-white/10 backdrop-blur-md px-2 py-0.5 rounded">
-                Depart
+          {isPending ? (
+            <div className="h-[400px] bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200 rounded-3xl flex flex-col items-center justify-center gap-5 shadow-sm">
+              <div className="w-20 h-20 rounded-2xl bg-yellow-100 flex items-center justify-center">
+                <Clock className="w-10 h-10 text-yellow-600" />
               </div>
+              <div className="text-center px-6">
+                <p className="font-extrabold text-[#171c1f] text-xl" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  En attente de confirmation
+                </p>
+                <p className="text-sm text-slate-500 mt-2 max-w-sm">
+                  Votre commande est en cours de traitement. Elle sera confirmee avant l&apos;attribution d&apos;un livreur.
+                </p>
+              </div>
+              <span className="px-4 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
+                En attente
+              </span>
             </div>
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          ) : isConfirmed ? (
+            <div className="h-[400px] bg-gradient-to-br from-[#171c1f] via-[#1a2030] to-[#0a1428] rounded-3xl flex flex-col items-center justify-center gap-5 shadow-xl">
               <div className="relative">
-                <div className="absolute inset-0 bg-[#E04A1F]/30 animate-ping rounded-full scale-150" />
-                <div className="w-12 h-12 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-2xl shadow-[#E04A1F]/50 relative">
-                  <Truck className="w-5 h-5 text-white" />
+                <div className="absolute inset-0 bg-[#E04A1F]/30 animate-ping rounded-full scale-[1.8]" />
+                <div className="w-20 h-20 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-2xl shadow-[#E04A1F]/50 relative">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
                 </div>
               </div>
-            </div>
-            <div className="absolute right-[8%] top-[15%] flex flex-col items-center">
-              <MapPin className="w-8 h-8 text-[#E04A1F] drop-shadow-lg" fill="#E04A1F" />
-              <div className="text-[10px] font-bold text-white mt-1 uppercase tracking-widest bg-[#E04A1F]/80 backdrop-blur-md px-2 py-0.5 rounded">
-                Arrivee
+              <div className="text-center px-6">
+                <p className="font-extrabold text-white text-xl" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  Recherche d&apos;un livreur
+                </p>
+                <p className="text-sm text-white/60 mt-2 max-w-sm">
+                  Notre algorithme selectionne le meilleur coursier disponible pour votre colis.
+                </p>
               </div>
             </div>
-            <div className="absolute top-4 left-4 flex flex-col gap-1 bg-white/10 backdrop-blur-md rounded-xl p-1">
-              <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">+</button>
-              <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">−</button>
+          ) : isDelivered ? (
+            <div className="h-[400px] bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-3xl flex flex-col items-center justify-center gap-5 shadow-sm">
+              <div className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-200">
+                <Check className="w-10 h-10 text-white" strokeWidth={3} />
+              </div>
+              <div className="text-center px-6">
+                <p className="font-extrabold text-[#171c1f] text-xl" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  Livraison effectuee
+                </p>
+                <p className="text-sm text-slate-500 mt-2">
+                  Le colis a ete remis avec succes au destinataire.
+                </p>
+              </div>
+              <span className="px-4 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                Livre
+              </span>
             </div>
-            <button className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/10 backdrop-blur-md text-white text-xs font-bold rounded-lg flex items-center gap-1.5 hover:bg-white/20">
-              <ArrowRight className="w-3 h-3" /> Agrandir
-            </button>
-          </div>
+          ) : isActiveTracking ? (
+            <div className="relative h-[400px] bg-gradient-to-br from-[#171c1f] via-[#1a2030] to-[#0a1428] rounded-3xl overflow-hidden shadow-xl">
+              <div
+                className="absolute inset-0 opacity-20"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+                  backgroundSize: "32px 32px",
+                }}
+              />
+              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 800 400" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#00acbb" />
+                    <stop offset="100%" stopColor="#E04A1F" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M 80 320 Q 250 280 380 240 T 720 80"
+                  stroke="url(#routeGrad)"
+                  strokeWidth="3"
+                  fill="none"
+                  strokeDasharray="8 8"
+                />
+              </svg>
+              <div className="absolute left-[8%] bottom-[18%] flex flex-col items-center">
+                <div className="w-3 h-3 rounded-full bg-[#00acbb] ring-4 ring-[#00acbb]/30" />
+                <div className="text-[10px] font-bold text-[#00acbb] mt-1 uppercase tracking-widest bg-white/10 backdrop-blur-md px-2 py-0.5 rounded">
+                  Depart
+                </div>
+              </div>
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-[#E04A1F]/30 animate-ping rounded-full scale-150" />
+                  <div className="w-12 h-12 rounded-full bg-[#E04A1F] flex items-center justify-center shadow-2xl shadow-[#E04A1F]/50 relative">
+                    <Truck className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+              </div>
+              <div className="absolute right-[8%] top-[15%] flex flex-col items-center">
+                <MapPin className="w-8 h-8 text-[#E04A1F] drop-shadow-lg" fill="#E04A1F" />
+                <div className="text-[10px] font-bold text-white mt-1 uppercase tracking-widest bg-[#E04A1F]/80 backdrop-blur-md px-2 py-0.5 rounded">
+                  Arrivee
+                </div>
+              </div>
+              <div className="absolute top-4 left-4 flex flex-col gap-1 bg-white/10 backdrop-blur-md rounded-xl p-1">
+                <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">+</button>
+                <button className="w-8 h-8 rounded-lg hover:bg-white/10 text-white flex items-center justify-center font-bold">−</button>
+              </div>
+              <button className="absolute bottom-4 right-4 px-3 py-1.5 bg-white/10 backdrop-blur-md text-white text-xs font-bold rounded-lg flex items-center gap-1.5 hover:bg-white/20">
+                <ArrowRight className="w-3 h-3" /> Agrandir
+              </button>
+            </div>
+          ) : null}
 
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-4 mt-6">
@@ -326,7 +384,19 @@ export default function DeliveryDetailPage() {
         {/* Right column */}
         <div className="lg:col-span-4 space-y-4">
           {/* Courier card */}
-          {deliveryDetail.livreur ? (
+          {isPending ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-yellow-100 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-[#171c1f]">Commande en attente</p>
+                  <p className="text-xs text-slate-500 mt-0.5">En attente de confirmation par notre equipe</p>
+                </div>
+              </div>
+            </div>
+          ) : deliveryDetail.livreur ? (
             <div className="bg-white rounded-2xl p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E04A1F] to-[#ff7043] flex items-center justify-center text-white font-bold">
@@ -376,17 +446,17 @@ export default function DeliveryDetailPage() {
                 </a>
               )}
             </div>
-          ) : (
+          ) : isConfirmed ? (
             <div className="bg-[#171c1f] text-white rounded-2xl p-5">
               <div className="flex items-center gap-3 mb-2">
                 <Loader2 className="w-5 h-5 animate-spin text-[#E04A1F]" />
                 <p className="font-bold">Recherche d&apos;un livreur</p>
               </div>
               <p className="text-xs text-white/60">
-                Notre algorithme selectionne le meilleur courier disponible pour votre colis.
+                Notre algorithme selectionne le meilleur coursier disponible pour votre colis.
               </p>
             </div>
-          )}
+          ) : null}
 
           {/* Pickup / Delivery details */}
           <div className="bg-white rounded-2xl p-5 shadow-sm">
@@ -482,29 +552,6 @@ export default function DeliveryDetailPage() {
             )}
           </div>
 
-          {/* Share Link */}
-          <div className="bg-[#E04A1F] rounded-2xl p-5 text-white relative overflow-hidden">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/70 mb-2">
-              Lien de suivi
-            </p>
-            <p className="text-sm font-medium mb-3">
-              Partagez le suivi avec votre client en temps reel.
-            </p>
-            <button
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  const link = `${window.location.origin}/track/${deliveryDetail.reference || deliveryDetail.id}`;
-                  navigator.clipboard.writeText(link);
-                  toast.success("Lien copie");
-                }
-              }}
-              className="w-full py-2 bg-white text-[#E04A1F] text-sm font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90"
-            >
-              <Copy className="w-4 h-4" />
-              Copier le lien
-            </button>
-            <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
-          </div>
 
           {statusKey === "pending" && (
             <Button

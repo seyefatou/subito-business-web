@@ -63,13 +63,15 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   rejected: { label: "Rejetée", color: "bg-red-100 text-red-700" },
 };
 
-// Map API step status -> timeline index (1..4)
+// Map API step status -> timeline index (1..5)
+// 1=En attente, 2=Confirmé, 3=Chauffeur assigné, 4=Prise en charge, 5=Course terminée
 function stepIndexFromStatus(status: string): number {
   const k = (status || "").toLowerCase();
-  if (k === "completed") return 4;
-  if (k === "in_progress" || k === "started" || k === "coordonnees_chauffeur_arrivee") return 3;
-  if (k === "assigned") return 2;
-  if (k === "confirmed") return 1;
+  if (k === "completed") return 5;
+  if (k === "in_progress" || k === "started" || k === "coordonnees_chauffeur_arrivee") return 4;
+  if (k === "assigned") return 3;
+  if (k === "confirmed") return 2;
+  if (k === "pending") return 1;
   return 1;
 }
 
@@ -89,7 +91,12 @@ export default function TrackingDetailPage() {
 
   const { data, isLoading, error } = useQuery<unknown>({
     queryKey: ["booking-detail-page", id, serviceType],
-    queryFn: () => api.bookings.get(id),
+    queryFn: () => {
+      const t = (serviceType || "").toLowerCase();
+      if (t === "inter_city" || t === "intercity") return api.bookings.interCity.get(id);
+      if (t === "vtc_hourly") return api.bookings.vtcHourly.get(id);
+      return api.bookings.airportShuttle.get(id);
+    },
     enabled: !isNaN(id),
   });
 
@@ -238,8 +245,9 @@ export default function TrackingDetailPage() {
     return airportKeywords.test(pickup) ? "from_airport" : "to_airport";
   };
   const direction = explicitDirection || inferDirection();
-  const isToAirport = direction === "to_airport";
-  const isFromAirport = direction === "from_airport";
+  // CI uses "city_to_airport" / "airport_to_city" — map to the SN convention
+  const isToAirport = direction === "to_airport" || direction === "city_to_airport";
+  const isFromAirport = direction === "from_airport" || direction === "airport_to_city";
 
   // Identify which ville is the airport vs the city
   const trajetAirportVille = villeDepartTrajet?.isAeroport ? villeDepartTrajet
@@ -372,12 +380,13 @@ export default function TrackingDetailPage() {
 
       {/* Timeline */}
       <section className="bg-[#f0f4f8] p-6 md:p-8 rounded-3xl">
-        <div className="flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-6 relative">
+        <div className="flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-3 relative">
           <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-[#ffdbd0] hidden md:block -translate-y-1/2 z-0" />
-          <TimelineStep n={1} label="Confirmé" current={stepIndex >= 1} active={stepIndex === 1} icon={CheckCircle2} />
-          <TimelineStep n={2} label="Chauffeur assigné" current={stepIndex >= 2} active={stepIndex === 2} icon={Car} />
-          <TimelineStep n={3} label="Prise en charge" current={stepIndex >= 3} active={stepIndex === 3} icon={Clock} />
-          <TimelineStep n={4} label="Course terminée" current={stepIndex >= 4} active={stepIndex === 4} icon={Flag} />
+          <TimelineStep n={1} label="En attente" current={stepIndex >= 1} active={stepIndex === 1} icon={Clock} />
+          <TimelineStep n={2} label="Confirmé" current={stepIndex >= 2} active={stepIndex === 2} icon={CheckCircle2} />
+          <TimelineStep n={3} label="Chauffeur assigné" current={stepIndex >= 3} active={stepIndex === 3} icon={Car} />
+          <TimelineStep n={4} label="Prise en charge" current={stepIndex >= 4} active={stepIndex === 4} icon={MapPin} />
+          <TimelineStep n={5} label="Course terminée" current={stepIndex >= 5} active={stepIndex === 5} icon={Flag} />
         </div>
       </section>
 
@@ -426,62 +435,24 @@ export default function TrackingDetailPage() {
         )}
       </div>
 
-      {/* Bento Grid */}
+      {/* Bento Grid — 1 grande card réservation + sidebar paiement */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Service + Passenger + Route */}
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-3 md:items-start">
-          {/* Service Information Card */}
-          <ServiceInfoCard
-            booking={d}
-            serviceType={d.serviceType || serviceType}
-            showFlightNumber={showFlightNumber}
-          />
 
-          {/* Passenger / Client Details */}
-          <article className="bg-white p-4 md:p-5 rounded-2xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] mb-2.5">Informations client</p>
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-9 h-9 rounded-lg gradient-subito flex items-center justify-center text-white font-bold text-xs shrink-0">
-                {(d.clientName || "C").substring(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="font-bold text-sm text-[#171c1f] truncate leading-tight">{d.clientName || "—"}</p>
-                {d.canal ? <p className="text-slate-500 text-[10px] leading-tight mt-0.5">Canal : {d.canal}</p> : null}
-              </div>
-            </div>
-            <dl className="space-y-1.5 text-xs">
-              {d.clientPhone ? (
-                <KeyValueRow label="Téléphone">
-                  <a href={`tel:${d.clientPhone}`} className="font-bold text-[#171c1f] hover:text-[#E04A1F] transition-colors flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" />
-                    {d.clientPhone}
-                  </a>
-                </KeyValueRow>
-              ) : null}
-              {d.clientEmail ? (
-                <KeyValueRow label="Email">
-                  <a href={`mailto:${d.clientEmail}`} className="font-bold text-[#171c1f] hover:text-[#E04A1F] transition-colors truncate flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{d.clientEmail}</span>
-                  </a>
-                </KeyValueRow>
-              ) : null}
-              {d.clientAddress ? (
-                <KeyValueRow label="Adresse">
-                  <span className="font-bold text-[#171c1f]">{d.clientAddress}</span>
-                </KeyValueRow>
-              ) : null}
-              {(d.passengers as number | undefined) ? (
-                <KeyValueRow label="Passagers">
-                  <span className="font-bold text-[#171c1f]">{d.passengers as number}</span>
-                </KeyValueRow>
-              ) : null}
-            </dl>
-          </article>
+        {/* ── Card principale : tout ce qui concerne la réservation ── */}
+        <article className="lg:col-span-8 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden divide-y divide-slate-100">
 
-          {/* Itinéraire visuel */}
-          <article className="md:col-span-2 bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 overflow-hidden">
-            <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
+          {/* ── Détails service ── */}
+          <div className="p-6 md:p-8">
+            <ServiceInfoCard
+              booking={d}
+              serviceType={d.serviceType || serviceType}
+              showFlightNumber={showFlightNumber}
+            />
+          </div>
+
+          {/* ── Itinéraire ── */}
+          <div className="p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
               <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">Itinéraire</p>
               <Badge className={`border-0 text-xs px-3 py-1 ${isOneWay ? "bg-slate-100 text-slate-700" : "bg-blue-100 text-blue-700"}`}>
                 {isOneWay ? "Aller simple" : "Aller-retour"}
@@ -489,8 +460,8 @@ export default function TrackingDetailPage() {
             </div>
 
             {/* Aller */}
-            <div className="p-6 md:p-8">
-              <div className="flex items-center gap-2 mb-5">
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
                 {d.serviceType === "airport_shuttle" ? (
                   <PlaneTakeoff className="w-4 h-4 text-[#E04A1F]" />
                 ) : (
@@ -498,51 +469,36 @@ export default function TrackingDetailPage() {
                 )}
                 <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">Aller</p>
                 {dateAller ? (
-                  <span className="ml-auto text-sm font-medium text-slate-600">
+                  <span className="ml-auto text-sm font-semibold text-slate-700">
                     {format(new Date(dateAller), "dd MMM yyyy", { locale: fr })}
                     {heureAller ? ` à ${heureAller}` : ""}
                     {(d.arrivalTime as string | undefined) ? (
-                      <span className="text-slate-400"> → arr. {d.arrivalTime as string}</span>
+                      <span className="text-slate-400 font-normal"> → arr. {d.arrivalTime as string}</span>
                     ) : null}
                   </span>
                 ) : null}
               </div>
               <ItineraryTimeline
                 origin={isToAirport
-                  ? ((d.adressePriseEnChargeAller as string)
-                      || (d.adressePriseEnCharge as string)
-                      || departVille
-                      || "—")
+                  ? ((d.adressePriseEnChargeAller as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")
                   : isFromAirport
-                  ? (departVille
-                      || (d.adressePriseEnChargeAller as string)
-                      || "—")
-                  : ((d.adressePriseEnChargeAller as string)
-                      || (d.adressePriseEnChargeDepartAller as string)
-                      || (d.pickupAddress as string)
-                      || (d.adressePriseEnCharge as string)
-                      || departVille
-                      || "—")}
+                  ? (departVille || (d.adressePriseEnChargeAller as string) || (d.departAddress as string) || "—")
+                  : ((d.adressePriseEnChargeAller as string) || (d.adressePriseEnChargeDepartAller as string) || (d.pickupAddress as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")}
                 originLabel={departVille ? `Départ — ${departVille}` : "Prise en charge"}
                 destination={isToAirport
-                  ? (arriveeVille || "—")
+                  ? ((d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
                   : isFromAirport
-                  ? ((d.adressePriseEnChargeAller as string)
-                      || arriveeVille
-                      || "—")
-                  : ((d.adressePriseEnChargeArriveeAller as string)
-                      || arriveeVille
-                      || (d.adresseDestination as string)
-                      || "—")}
+                  ? ((d.adressePriseEnChargeAller as string) || (d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
+                  : ((d.adressePriseEnChargeArriveeAller as string) || (d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || (d.adresseDestination as string) || "—")}
                 destinationLabel={arriveeVille ? `Arrivée — ${arriveeVille}` : "Destination"}
-                flightNumber={showFlightNumber ? (d.flightNumber as string | undefined) : undefined}
+                flightNumber={showFlightNumber ? ((d.flightNumber as string) || (d.flightNumber as string) || undefined) : undefined}
               />
             </div>
 
             {/* Retour */}
             {!isOneWay && (
-              <div className="px-6 md:px-8 pb-6 md:pb-8 border-t border-slate-100 pt-6">
-                <div className="flex items-center gap-2 mb-5">
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <div className="flex items-center gap-2 mb-4">
                   {d.serviceType === "airport_shuttle" ? (
                     <PlaneLanding className="w-4 h-4 text-blue-600" />
                   ) : (
@@ -550,39 +506,108 @@ export default function TrackingDetailPage() {
                   )}
                   <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Retour</p>
                   {d.pickupDateRetour ? (
-                    <span className="ml-auto text-sm font-medium text-slate-600">
+                    <span className="ml-auto text-sm font-semibold text-slate-700">
                       {format(new Date(d.pickupDateRetour as string), "dd MMM yyyy", { locale: fr })}
                       {d.pickupTimeRetour ? ` à ${d.pickupTimeRetour}` : ""}
-                      {(d.arrivalTimeRetour as string | undefined) ? (
-                        <span className="text-slate-400"> → arr. {d.arrivalTimeRetour as string}</span>
-                      ) : null}
                     </span>
                   ) : null}
                 </div>
                 <ItineraryTimeline
-                  origin={(d.adressePriseEnChargeRetour as string)
-                    || (d.adressePriseEnChargeDepartRetour as string)
-                    || arriveeVille
-                    || "—"}
+                  origin={(d.adressePriseEnChargeRetour as string) || (d.adressePriseEnChargeDepartRetour as string) || arriveeVille || "—"}
                   originLabel={arriveeVille ? `Départ retour — ${arriveeVille}` : "Prise en charge retour"}
-                  destination={(d.adressePriseEnChargeArriveeRetour as string)
-                    || departVille
-                    || "—"}
+                  destination={(d.adressePriseEnChargeArriveeRetour as string) || departVille || "—"}
                   destinationLabel={departVille ? `Arrivée retour — ${departVille}` : "Destination retour"}
                   flightNumber={isToAirport ? (d.flightNumber as string | undefined) : undefined}
                   variant="return"
                 />
               </div>
             )}
-          </article>
-        </div>
+          </div>
 
-        {/* Right Sidebar: Driver + Pricing */}
+          {/* ── Informations client ── */}
+          <div className="p-6 md:p-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-4">Informations client</p>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl gradient-subito flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {(d.clientName || "C").substring(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-[#171c1f] truncate">{d.clientName || "—"}</p>
+                {d.canal ? <p className="text-slate-400 text-xs mt-0.5">Via {d.canal}</p> : null}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {d.clientPhone ? (
+                <a href={`tel:${d.clientPhone}`} className="flex items-center gap-2 text-[#171c1f] hover:text-[#E04A1F] font-medium transition-colors">
+                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                  {d.clientPhone as string}
+                </a>
+              ) : null}
+              {d.clientEmail ? (
+                <a href={`mailto:${d.clientEmail}`} className="flex items-center gap-2 text-[#171c1f] hover:text-[#E04A1F] font-medium transition-colors truncate">
+                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="truncate">{d.clientEmail as string}</span>
+                </a>
+              ) : null}
+              {d.clientAddress ? (
+                <div className="flex items-start gap-2 sm:col-span-2 text-slate-600">
+                  <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                  {d.clientAddress as string}
+                </div>
+              ) : null}
+              {d.paidBy ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">Payé par :</span>
+                  <Badge className={`border-0 text-xs ${d.paidBy === "company" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}>
+                    {d.paidBy === "company" ? "Entreprise" : "Client"}
+                  </Badge>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+
+          {/* ── Métadonnées ── */}
+          <div className="p-6 md:p-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Informations de la commande</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {d.createdAt ? (
+                <KeyValueRow label="Créée le">
+                  <span className="font-bold text-[#171c1f]">
+                    {format(new Date(d.createdAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                  </span>
+                </KeyValueRow>
+              ) : null}
+              {d.updatedAt ? (
+                <KeyValueRow label="Mise à jour">
+                  <span className="font-bold text-[#171c1f]">
+                    {format(new Date(d.updatedAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                  </span>
+                </KeyValueRow>
+              ) : null}
+              {bookingCode ? (
+                <KeyValueRow label="Référence">
+                  <span className="font-mono font-bold text-[#E04A1F]">{bookingCode}</span>
+                </KeyValueRow>
+              ) : null}
+              {d.companyCode ? (
+                <KeyValueRow label="Code entreprise">
+                  <span className="font-mono font-bold text-[#171c1f]">{d.companyCode as string}</span>
+                </KeyValueRow>
+              ) : null}
+              {d.tag ? (
+                <KeyValueRow label="Tag">
+                  <Badge className="bg-purple-100 text-purple-700 border-0">{d.tag as string}</Badge>
+                </KeyValueRow>
+              ) : null}
+            </div>
+          </div>
+        </article>
+
+        {/* ── Sidebar : Paiement + Chauffeur ── */}
         <aside className="lg:col-span-4 flex flex-col gap-6">
-          {/* Driver / Vehicle Card */}
-          <DriverVehicleCard driver={driver} vehicule={vehicule} hasDriver={hasDriver} />
 
-          {/* Price Summary */}
+          {/* Paiement */}
           <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Récapitulatif paiement</p>
             <div className="space-y-3">
@@ -603,7 +628,6 @@ export default function TrackingDetailPage() {
                 <span className="text-base font-bold text-[#171c1f]">Total</span>
                 <span className="text-2xl font-black text-[#E04A1F]">{FORMAT_FCFA(totalPrice)}</span>
               </div>
-
               {d.paymentMethod ? (
                 <div className="flex justify-between items-center text-sm pt-3">
                   <span className="text-slate-500">Mode de paiement</span>
@@ -616,7 +640,6 @@ export default function TrackingDetailPage() {
                   </span>
                 </div>
               ) : null}
-
               {isPaid && (
                 <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex items-start gap-3 mt-4">
                   <ShieldCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -625,7 +648,6 @@ export default function TrackingDetailPage() {
                   </p>
                 </div>
               )}
-
               {canPay && (
                 <Button
                   variant="gradient"
@@ -639,36 +661,18 @@ export default function TrackingDetailPage() {
             </div>
           </article>
 
-          {/* Métadonnées */}
-          <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Métadonnées</p>
-            <dl className="space-y-3">
-              {d.createdAt ? (
-                <KeyValueRow label="Créée le">
-                  <span className="font-bold text-[#171c1f]">
-                    {format(new Date(d.createdAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
-                  </span>
-                </KeyValueRow>
-              ) : null}
-              {d.updatedAt ? (
-                <KeyValueRow label="Modifiée le">
-                  <span className="font-bold text-[#171c1f]">
-                    {format(new Date(d.updatedAt), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
-                  </span>
-                </KeyValueRow>
-              ) : null}
-              {d.tag ? (
-                <KeyValueRow label="Tag">
-                  <Badge className="bg-purple-100 text-purple-700 border-0">{d.tag as string}</Badge>
-                </KeyValueRow>
-              ) : null}
-              {d.companyCode ? (
-                <KeyValueRow label="Code entreprise">
-                  <span className="font-mono font-bold text-[#171c1f]">{d.companyCode as string}</span>
-                </KeyValueRow>
-              ) : null}
-            </dl>
-          </article>
+          {/* Véhicule prévu */}
+          {vehicule && !hasDriver && (
+            <article className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] mb-4">Véhicule prévu</p>
+              <VehiculeShowcase vehicule={vehicule} />
+            </article>
+          )}
+
+          {/* Chauffeur (si assigné) */}
+          {hasDriver && (
+            <DriverVehicleCard driver={driver} vehicule={vehicule} hasDriver={hasDriver} />
+          )}
         </aside>
       </div>
 

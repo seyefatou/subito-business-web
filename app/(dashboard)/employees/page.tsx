@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, EmployeeResponse, DepartmentResponse } from "@/lib/api";
 import { motion } from "framer-motion";
@@ -49,6 +49,7 @@ const formatFCFA = (n?: number) =>
 
 export default function Employees() {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDept, setFilterDept] = useState<string>("all");
@@ -137,11 +138,11 @@ export default function Employees() {
   );
 
   const handleEdit = (employee: EmployeeResponse) => {
-    router.push(`/employees/${employee.id}/edit`);
+    router.push(`/employees/${employee.id}/edit?returnTo=${encodeURIComponent(pathname)}`);
   };
 
   const handleAdd = () => {
-    router.push("/employees/new");
+    router.push(`/employees/new?returnTo=${encodeURIComponent(pathname)}`);
   };
 
   return (

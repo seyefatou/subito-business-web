@@ -15,6 +15,8 @@ import {
   Mail,
   Search,
   Hash,
+  Eye,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,7 @@ export default function Departments() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DepartmentResponse | null>(null);
+  const [detailDepartment, setDetailDepartment] = useState<DepartmentResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState<FormData>({
     nom: "",
@@ -63,10 +66,30 @@ export default function Departments() {
   });
 
   const departments: DepartmentResponse[] = useMemo(() => {
-    const deptData = departmentsResponse?.data;
-    if (Array.isArray(deptData)) return deptData;
-    return (deptData as any)?.items || (deptData as any)?.list || (deptData as any)?.data || [];
+    const raw = departmentsResponse as any;
+    if (Array.isArray(raw)) return raw;
+    const inner = raw?.data;
+    if (Array.isArray(inner)) return inner;
+    return inner?.items || inner?.list || inner?.data || [];
   }, [departmentsResponse]);
+
+  // Fetch employees to count per department (API ne retourne pas _count)
+  const { data: employeesResponse } = useQuery({
+    queryKey: ['employees-all'],
+    queryFn: () => api.employees.list({ page: 1, limit: 500 }),
+  });
+
+  const employeeCountByDept = useMemo<Record<number, number>>(() => {
+    const raw = employeesResponse as any;
+    const inner = raw?.data;
+    const list: any[] = inner?.data || inner?.items || inner?.list || (Array.isArray(inner) ? inner : []);
+    const counts: Record<number, number> = {};
+    for (const emp of list) {
+      const deptId = emp.departementId;
+      if (deptId) counts[deptId] = (counts[deptId] || 0) + 1;
+    }
+    return counts;
+  }, [employeesResponse]);
 
   const filteredDepartments = useMemo(() => {
     if (!searchQuery.trim()) return departments;
@@ -156,7 +179,7 @@ export default function Departments() {
 
   // Overall stats
   const totalBudget = departments.reduce((sum, d) => sum + (Number(d.budgetMensuel) || 0), 0);
-  const totalEmployees = departments.reduce((sum, d) => sum + (d._count?.employees || 0), 0);
+  const totalEmployees = departments.reduce((sum, d) => sum + (employeeCountByDept[d.id] || 0), 0);
 
   return (
     <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 space-y-6">
@@ -324,6 +347,13 @@ export default function Departments() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-xl">
                       <DropdownMenuItem
+                        onClick={() => setDetailDepartment(department)}
+                        className="cursor-pointer"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Détails
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         onClick={() => handleEdit(department)}
                         className="cursor-pointer"
                       >
@@ -345,7 +375,7 @@ export default function Departments() {
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Membres</p>
                     <p className="text-2xl font-extrabold text-[#171c1f] mt-1" style={MANROPE}>
-                      {department._count?.employees || 0}
+                      {employeeCountByDept[department.id] || 0}
                     </p>
                   </div>
                   <div>
@@ -457,6 +487,94 @@ export default function Departments() {
               className="rounded-xl bg-[#E04A1F] hover:bg-[#C8330F] text-white font-bold shadow-md shadow-[#E04A1F]/20"
             >
               {editingDepartment ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Details dialog */}
+      <Dialog open={!!detailDepartment} onOpenChange={(open) => !open && setDetailDepartment(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-extrabold text-[#171c1f]" style={MANROPE}>
+              Détails du département
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailDepartment && (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-[#ffdbd0] flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6 text-[#E04A1F]" />
+                </div>
+                <div>
+                  <p className="text-xl font-extrabold text-[#171c1f]" style={MANROPE}>
+                    {detailDepartment.nom}
+                  </p>
+                  {detailDepartment.centreDeCouts && (
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Hash className="w-3 h-3" />
+                      {detailDepartment.centreDeCouts}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 p-4 bg-[#f0f4f8] rounded-2xl">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Membres</p>
+                  <p className="text-2xl font-extrabold text-[#171c1f] mt-1" style={MANROPE}>
+                    {employeeCountByDept[detailDepartment.id] || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Budget mensuel</p>
+                  <p className="text-xl font-extrabold text-[#E04A1F] mt-1" style={MANROPE}>
+                    {(detailDepartment.budgetMensuel || 0).toLocaleString('fr-FR')}
+                    <span className="text-xs font-bold text-[#585e6c] ml-1">FCFA</span>
+                  </p>
+                </div>
+              </div>
+
+              {detailDepartment.emailResponsable && (
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                  <Mail className="w-4 h-4 text-[#585e6c] shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Responsable</p>
+                    <p className="text-sm font-bold text-[#171c1f]">{detailDepartment.emailResponsable}</p>
+                  </div>
+                </div>
+              )}
+
+              {detailDepartment.createdAt && (
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                  <Calendar className="w-4 h-4 text-[#585e6c] shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#585e6c]">Créé le</p>
+                    <p className="text-sm font-bold text-[#171c1f]">
+                      {new Date(detailDepartment.createdAt).toLocaleDateString('fr-FR', {
+                        day: '2-digit', month: 'long', year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDetailDepartment(null)}
+              className="rounded-xl border-slate-200 text-[#585e6c] font-bold"
+            >
+              Fermer
+            </Button>
+            <Button
+              onClick={() => { setDetailDepartment(null); handleEdit(detailDepartment!); }}
+              className="rounded-xl bg-[#E04A1F] hover:bg-[#C8330F] text-white font-bold"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Modifier
             </Button>
           </DialogFooter>
         </DialogContent>

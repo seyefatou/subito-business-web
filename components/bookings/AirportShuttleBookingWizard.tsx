@@ -442,7 +442,7 @@ export default function AirportShuttleBookingWizard({
     && formData.returnAddressLat != null && formData.returnAddressLng != null;
 
   const { data: ciQuoteRaw, isLoading: ciQuoteLoading, isError: ciQuoteError } = useQuery({
-    queryKey: ['navette-ci-quote', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10],
+    queryKey: ['navette-ci-quote', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip],
     queryFn: () => api.bookings.navetteCI.getQuote({
       departLat: formData.addressLat!,
       departLng: formData.addressLng!,
@@ -451,6 +451,7 @@ export default function AirportShuttleBookingWizard({
       pax: formData.passengers,
       bagages23: ciBagages23,
       bagages10: ciBagages10,
+      isRoundTrip: formData.is_round_trip,
     }),
     enabled: canFetchCIQuote,
   });
@@ -1251,7 +1252,7 @@ export default function AirportShuttleBookingWizard({
                         const lng = airport?.longitude ?? null;
                         setCiArriveeAddressDisplay(val);
                         setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
-                        // Auto-remplir SEULEMENT l'aéroport de départ du retour (pas la ville)
+                        // Auto-remplir l'aéroport de départ du retour
                         setCiReturnDepartAddress(val);
                         setCiReturnDepartAddressLat(lat);
                         setCiReturnDepartAddressLng(lng);
@@ -1276,10 +1277,6 @@ export default function AirportShuttleBookingWizard({
                       onSelect={(address, lat, lng) => {
                         setCiArriveeAddressDisplay(address);
                         setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
-                        // Auto-remplir SEULEMENT l'aéroport de départ du retour (pas la ville)
-                        setCiReturnDepartAddress(address);
-                        setCiReturnDepartAddressLat(lat);
-                        setCiReturnDepartAddressLng(lng);
                       }}
                       iconColor="text-blue-500"
                       countryCode="CI"

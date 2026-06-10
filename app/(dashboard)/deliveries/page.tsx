@@ -80,10 +80,9 @@ interface StepDef {
 const steps: StepDef[] = [
   { id: 1, title: "Livraison", icon: Package },
   { id: 2, title: "Adresses", icon: MapPin },
-  { id: 3, title: "Expediteur", icon: User },
-  { id: 4, title: "Destinataire", icon: User },
-  { id: 5, title: "Details", icon: FileText },
-  { id: 6, title: "Confirmation", icon: Check },
+  { id: 3, title: "Contacts", icon: User },
+  { id: 4, title: "Details", icon: FileText },
+  { id: 5, title: "Confirmation", icon: Check },
 ];
 
 interface FormData {
@@ -317,9 +316,8 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
     switch (currentStep) {
       case 1: return !!formData.deliveryTypeId && !!formData.deliveryDate && !!formData.deliveryTime;
       case 2: return !!formData.pickupAddress && !!formData.dropoffAddress && !!formData.pickupLat && !!formData.dropoffLat;
-      case 3: return !!formData.expediteurNom && !!formData.expediteurTelephone;
-      case 4: return !!formData.destinataireNom && !!formData.destinataireTelephone;
-      case 5: return true;
+      case 3: return !!formData.expediteurNom && !!formData.expediteurTelephone && !!formData.destinataireNom && !!formData.destinataireTelephone;
+      case 4: return true;
       default: return true;
     }
   };
@@ -630,7 +628,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
               <p className="text-sm text-slate-500 mt-1">Renseignez les points de collecte et de destination.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
               {/* Pickup */}
               <section className="bg-slate-50 p-6 md:p-8 rounded-[2rem] flex flex-col gap-6">
                 <div className="flex items-center justify-between">
@@ -702,18 +700,20 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                   )}
                 </div>
 
-                <div className="bg-[#ffdbd0]/40 p-5 rounded-2xl flex items-start gap-4">
-                  <div className="shrink-0 w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#E04A1F]">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-orange-900">Optimisation du trajet</p>
-                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      Le prix final sera calcule automatiquement selon la distance Google Maps.
-                    </p>
-                  </div>
-                </div>
               </section>
+            </div>
+
+            {/* Optimisation du trajet — pleine largeur sous les deux cards */}
+            <div className="flex items-center gap-4 px-1">
+              <div className="shrink-0 w-8 h-8 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-orange-900">Optimisation du trajet</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Le prix final sera calcule automatiquement selon la distance Google Maps.
+                </p>
+              </div>
             </div>
 
             {/* Estimation du prix — visible dès que les deux adresses sont geolocalisees */}
@@ -792,179 +792,163 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* Step 3: Expediteur */}
         {currentStep === 3 && (
-          <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <h3 className="text-lg font-semibold text-slate-800">Informations expediteur</h3>
+          <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
 
-            <div className="space-y-2">
-              <Label>Nom de l&apos;expediteur *</Label>
-              <Input
-                placeholder="Nom complet"
-                value={formData.expediteurNom}
-                onChange={(e) => setFormData(prev => ({ ...prev, expediteurNom: e.target.value, employeeId: null, expediteurTelephone: '', expediteurEmail: '' }))}
-              />
-            </div>
+            {/* Expéditeur */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center">
+                  <User className="w-4 h-4 text-[#E04A1F]" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">Expediteur</h3>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Telephone *</Label>
-              <PhoneInput
-                value={formData.expediteurTelephone}
-                onChange={(val) => setFormData(prev => ({ ...prev, expediteurTelephone: val || '' }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Email (optionnel)</Label>
-              <Input
-                type="email"
-                placeholder="email@exemple.com"
-                value={formData.expediteurEmail}
-                onChange={(e) => setFormData(prev => ({ ...prev, expediteurEmail: e.target.value }))}
-              />
-            </div>
-
-            {/* Employee selector */}
-            <div className="space-y-2">
-              <Label>Employe (optionnel)</Label>
-              <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <User className="mr-2 h-4 w-4" />
-                    {selectedEmployee
-                      ? `${selectedEmployee.prenom || ''} ${selectedEmployee.nom || ''}`.trim()
-                      : 'Selectionner un employe'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Rechercher..."
-                      value={employeeSearch}
-                      onValueChange={setEmployeeSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        <div className="p-2 text-center">
-                          <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
-                          <Button size="sm" variant="outline" onClick={() => { setEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
-                            <UserPlus className="w-4 h-4 mr-1" /> Ajouter
-                          </Button>
-                        </div>
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {filteredEmployees.map(emp => (
-                          <CommandItem
-                            key={emp.id}
-                            onSelect={() => {
+              <div className="space-y-2">
+                <Label>Nom *</Label>
+                <Input
+                  placeholder="Nom complet"
+                  value={formData.expediteurNom}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expediteurNom: e.target.value, employeeId: null, expediteurTelephone: '', expediteurEmail: '' }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telephone *</Label>
+                <PhoneInput
+                  value={formData.expediteurTelephone}
+                  onChange={(val) => setFormData(prev => ({ ...prev, expediteurTelephone: val || '' }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email (optionnel)</Label>
+                <Input
+                  type="email"
+                  placeholder="email@exemple.com"
+                  value={formData.expediteurEmail}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expediteurEmail: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Employe (optionnel)</Label>
+                <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <User className="mr-2 h-4 w-4" />
+                      {selectedEmployee
+                        ? `${selectedEmployee.prenom || ''} ${selectedEmployee.nom || ''}`.trim()
+                        : 'Selectionner un employe'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Rechercher..." value={employeeSearch} onValueChange={setEmployeeSearch} />
+                      <CommandList>
+                        <CommandEmpty>
+                          <div className="p-2 text-center">
+                            <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                            <Button size="sm" variant="outline" onClick={() => { setEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
+                              <UserPlus className="w-4 h-4 mr-1" /> Ajouter
+                            </Button>
+                          </div>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredEmployees.map(emp => (
+                            <CommandItem key={emp.id} onSelect={() => {
                               setFormData(prev => ({
                                 ...prev,
                                 employeeId: emp.id,
                                 expediteurNom: `${emp.prenom || ''} ${emp.nom || ''}`.trim(),
                                 expediteurTelephone: emp.telephone || prev.expediteurTelephone,
                                 expediteurEmail: emp.email || prev.expediteurEmail,
-                                // Si le meme employe etait deja selectionne comme destinataire, on le retire
-                                ...(prev.destinataireEmployeeId === emp.id ? {
-                                  destinataireEmployeeId: null,
-                                  destinataireNom: '',
-                                  destinataireTelephone: '',
-                                  destinataireEmail: '',
-                                } : {}),
+                                ...(prev.destinataireEmployeeId === emp.id ? { destinataireEmployeeId: null, destinataireNom: '', destinataireTelephone: '', destinataireEmail: '' } : {}),
                               }));
                               setEmployeePopoverOpen(false);
-                            }}
-                          >
-                            <div>
-                              <p className="font-medium">{emp.prenom} {emp.nom}</p>
-                              <p className="text-xs text-slate-500">{emp.email || emp.telephone}</p>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 4: Destinataire */}
-        {currentStep === 4 && (
-          <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <h3 className="text-lg font-semibold text-slate-800">Informations destinataire</h3>
-
-            <div className="space-y-2">
-              <Label>Nom du destinataire *</Label>
-              <Input
-                placeholder="Nom complet"
-                value={formData.destinataireNom}
-                onChange={(e) => setFormData(prev => ({ ...prev, destinataireNom: e.target.value, destinataireEmployeeId: null, destinataireTelephone: '', destinataireEmail: '' }))}
-              />
+                            }}>
+                              <div>
+                                <p className="font-medium">{emp.prenom} {emp.nom}</p>
+                                <p className="text-xs text-slate-500">{emp.email || emp.telephone}</p>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Telephone *</Label>
-              <PhoneInput
-                value={formData.destinataireTelephone}
-                onChange={(val) => setFormData(prev => ({ ...prev, destinataireTelephone: val || '' }))}
-              />
-            </div>
+            {/* Destinataire */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-600" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">Destinataire</h3>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Email (optionnel)</Label>
-              <Input
-                type="email"
-                placeholder="email@exemple.com"
-                value={formData.destinataireEmail}
-                onChange={(e) => setFormData(prev => ({ ...prev, destinataireEmail: e.target.value }))}
-              />
-            </div>
-
-            {/* Employee selector for destinataire */}
-            <div className="space-y-2">
-              <Label>Employe (optionnel)</Label>
-              <Popover open={destEmployeePopoverOpen} onOpenChange={setDestEmployeePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <User className="mr-2 h-4 w-4" />
-                    {selectedDestEmployee
-                      ? `${selectedDestEmployee.prenom || ''} ${selectedDestEmployee.nom || ''}`.trim()
-                      : 'Selectionner un employe'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Rechercher..."
-                      value={destEmployeeSearch}
-                      onValueChange={setDestEmployeeSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        <div className="p-2 text-center">
-                          {(() => {
-                            const isSearchingForSender = formData.employeeId && destEmployeeSearch.trim() && employees.some(e =>
-                              e.id === formData.employeeId &&
-                              `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
-                            );
-                            if (isSearchingForSender) {
-                              return <p className="text-sm text-[#E04A1F]">Cet employe est deja selectionne comme expediteur</p>;
-                            }
-                            return (
-                              <>
-                                <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
-                                <Button size="sm" variant="outline" onClick={() => { setDestEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
-                                  <UserPlus className="w-4 h-4 mr-1" /> Ajouter
-                                </Button>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {filteredDestEmployees.map(emp => (
-                          <CommandItem
-                            key={emp.id}
-                            onSelect={() => {
+              <div className="space-y-2">
+                <Label>Nom *</Label>
+                <Input
+                  placeholder="Nom complet"
+                  value={formData.destinataireNom}
+                  onChange={(e) => setFormData(prev => ({ ...prev, destinataireNom: e.target.value, destinataireEmployeeId: null, destinataireTelephone: '', destinataireEmail: '' }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telephone *</Label>
+                <PhoneInput
+                  value={formData.destinataireTelephone}
+                  onChange={(val) => setFormData(prev => ({ ...prev, destinataireTelephone: val || '' }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email (optionnel)</Label>
+                <Input
+                  type="email"
+                  placeholder="email@exemple.com"
+                  value={formData.destinataireEmail}
+                  onChange={(e) => setFormData(prev => ({ ...prev, destinataireEmail: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Employe (optionnel)</Label>
+                <Popover open={destEmployeePopoverOpen} onOpenChange={setDestEmployeePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <User className="mr-2 h-4 w-4" />
+                      {selectedDestEmployee
+                        ? `${selectedDestEmployee.prenom || ''} ${selectedDestEmployee.nom || ''}`.trim()
+                        : 'Selectionner un employe'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Rechercher..." value={destEmployeeSearch} onValueChange={setDestEmployeeSearch} />
+                      <CommandList>
+                        <CommandEmpty>
+                          <div className="p-2 text-center">
+                            {(() => {
+                              const isSearchingForSender = formData.employeeId && destEmployeeSearch.trim() && employees.some(e =>
+                                e.id === formData.employeeId &&
+                                `${e.nom || ''} ${e.prenom || ''}`.toLowerCase().includes(destEmployeeSearch.toLowerCase())
+                              );
+                              if (isSearchingForSender) {
+                                return <p className="text-sm text-[#E04A1F]">Cet employe est deja selectionne comme expediteur</p>;
+                              }
+                              return (
+                                <>
+                                  <p className="text-sm text-slate-500 mb-2">Aucun employe trouve</p>
+                                  <Button size="sm" variant="outline" onClick={() => { setDestEmployeePopoverOpen(false); setShowAddEmployee(true); }}>
+                                    <UserPlus className="w-4 h-4 mr-1" /> Ajouter
+                                  </Button>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredDestEmployees.map(emp => (
+                            <CommandItem key={emp.id} onSelect={() => {
                               setFormData(prev => ({
                                 ...prev,
                                 destinataireEmployeeId: emp.id,
@@ -973,26 +957,27 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
                                 destinataireEmail: emp.email || prev.destinataireEmail,
                               }));
                               setDestEmployeePopoverOpen(false);
-                            }}
-                          >
-                            <div>
-                              <p className="font-medium">{emp.prenom} {emp.nom}</p>
-                              <p className="text-xs text-slate-500">{emp.email || emp.telephone}</p>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                            }}>
+                              <div>
+                                <p className="font-medium">{emp.prenom} {emp.nom}</p>
+                                <p className="text-xs text-slate-500">{emp.email || emp.telephone}</p>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
+
           </motion.div>
         )}
 
-        {/* Step 5: Description & Notes */}
-        {currentStep === 5 && (
-          <motion.div key="step5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+        {/* Step 4: Description & Notes */}
+        {currentStep === 4 && (
+          <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <h3 className="text-lg font-semibold text-slate-800">Details de la livraison</h3>
 
             <div className="space-y-2">
@@ -1047,8 +1032,8 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
         )}
 
         {/* Step 6: Confirmation */}
-        {currentStep === 6 && (
-          <motion.div key="step6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+        {currentStep === 5 && (
+          <motion.div key="step5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <h3 className="text-lg font-semibold text-slate-800">Recapitulatif de la livraison</h3>
 
             {/* Addresses */}
@@ -1177,7 +1162,7 @@ function NewDeliveryForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Right column: contextual side panel */}
       <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-24 self-start">
-        {currentStep === 6 ? null : currentStep === 1 ? (
+        {currentStep === 5 ? null : currentStep === 1 ? (
           <>
             {/* Delivery Schedule promo */}
             <div className="bg-[#ffdbd0] rounded-[2rem] p-6 relative overflow-hidden">

@@ -22,7 +22,7 @@ import {
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import LiveMap from "@/components/dashboard/LiveMap";
+import { SpendingByService, TopTravelers } from "@/components/dashboard/BusinessInsights";
 import ServiceUsageChart from "@/components/dashboard/ServiceUsageChart";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 
@@ -388,19 +388,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Main Layout Grid */}
+      {/* Main Layout Grid — 2 rangées équilibrées */}
       <div className="grid grid-cols-12 gap-6">
-        {/* Left: Map */}
-        <div className="col-span-12 lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-[2rem] overflow-hidden shadow-[0_8px_24px_rgba(23,28,31,0.04)]">
-            <LiveMap orders={orders} />
-          </div>
-        </div>
 
-        {/* Right: Quick Actions + Service Distribution */}
-        <div className="col-span-12 lg:col-span-4 space-y-6">
-          <section>
-            <h4 className="text-sm font-bold text-[#585e6c] uppercase tracking-widest mb-4 px-2">
+        {/* Rangée 1 : Actions rapides (gauche) | Dépenses par service (droite) */}
+        <div className="col-span-12 lg:col-span-4">
+          <div className="bg-white rounded-[2rem] shadow-[0_8px_24px_rgba(23,28,31,0.04)] p-6 md:p-8 h-full">
+            <h4 className="text-sm font-bold text-[#585e6c] uppercase tracking-widest mb-5">
               Actions rapides
             </h4>
             <div className="space-y-3">
@@ -409,7 +403,7 @@ export default function Dashboard() {
                   <motion.button
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className="w-full flex items-center justify-between p-4 bg-white hover:bg-orange-50 rounded-2xl border border-transparent hover:border-orange-200 transition-all group"
+                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-orange-50 rounded-2xl border border-transparent hover:border-orange-200 transition-all group"
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl ${a.iconBg} ${a.iconColor} flex items-center justify-center`}>
@@ -427,10 +421,22 @@ export default function Dashboard() {
                 </Link>
               ))}
             </div>
-          </section>
+          </div>
+        </div>
 
+        <div className="col-span-12 lg:col-span-8">
+          <SpendingByService serviceDistribution={serviceMap} />
+        </div>
+
+        {/* Rangée 2 : Top voyageurs (gauche) | Services utilisés (droite) */}
+        <div className="col-span-12 lg:col-span-8">
+          <TopTravelers orders={orders} />
+        </div>
+
+        <div className="col-span-12 lg:col-span-4">
           <ServiceUsageChart serviceDistribution={serviceMap} />
         </div>
+
       </div>
 
       {/* Recent Activity */}

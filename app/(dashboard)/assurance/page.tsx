@@ -50,6 +50,9 @@ import {
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Search } from "lucide-react";
 
 // ==================== TOKENS ====================
 const KINETIC = "linear-gradient(135deg, #FF7842 0%, #DC3F1A 100%)";
@@ -63,6 +66,8 @@ interface AxaCoverage {
   code: string;
   capitalAmount: number;
   label: string;
+  option?: string;      // pour les garanties avec options non-numériques (ex: Assistance AA)
+  hasOption?: boolean;  // true dès qu'un option ou capital a été sélectionné (même si = 0)
 }
 
 interface FormState {
@@ -79,9 +84,14 @@ interface FormState {
   numberOfPlaces: number;
   replacementCost: number;
   carTypeCode: string;
+  // marque/modèle libre (quand "AUTRES" sélectionné)
+  otherBrand: string;
+  otherModel: string;
   // AXA product + coverages
   productCode: string;
   packCode: string;
+  durationCode: string;
+  countryCode: string;
   axaCoverages: AxaCoverage[];
   // payment
   payment: Payment;
@@ -120,8 +130,12 @@ const INITIAL: FormState = {
   numberOfPlaces: 5,
   replacementCost: 0,
   carTypeCode: "",
+  otherBrand: "",
+  otherModel: "",
   productCode: "",
   packCode: "PACK_BASE",
+  durationCode: "",
+  countryCode: "SN",
   axaCoverages: [],
   payment: "mobile_money",
   paymentPhone: "",
@@ -249,8 +263,8 @@ export default function AssurancePage() {
   const buildSimulationDto = (): CreateInsuranceSimulationDto => ({
     productCode: form.productCode,
     packCode: form.packCode || "PACK_BASE",
-    durationCode: "12M",
-    countryCode: "SN",
+    durationCode: form.durationCode || "12M",
+    countryCode: form.countryCode || "SN",
     vehicle: {
       energyCode: form.energyCode,
       fiscalPower: form.fiscalPower,
@@ -263,12 +277,15 @@ export default function AssurancePage() {
       // (AXA's free-text fallback). brandCode/modelCode mirror the same string so the
       // required fields aren't empty; replace with AXA codes once a mapping is wired.
       brandCode: form.brand,
-      modelCode: form.model,
-      otherBrand: form.brand,
-      otherModel: form.model,
+      modelCode: form.brand === "ZZ" ? "999" : form.model,
+      otherBrand: form.brand === "ZZ" ? form.otherBrand : form.brand,
+      otherModel: form.brand === "ZZ" ? form.otherModel : form.model,
       carTypeCode: form.carTypeCode,
     },
-    coverages: form.axaCoverages.map((c) => ({ code: c.code, capitalAmount: c.capitalAmount })),
+    coverages: form.axaCoverages.map((c) => ({
+      code: c.code,
+      ...(c.option ? { option: c.option } : c.capitalAmount > 0 ? { capitalAmount: c.capitalAmount } : {}),
+    })),
   });
 
   const simulationMutation = useMutation({
@@ -410,9 +427,14 @@ export default function AssurancePage() {
   };
 
   const validate = (s: number): boolean => {
-    if (s === 1 && !form.contractType) return toast.error("Choisissez un type de contrat"), false;
+    if (s === 1) {
+      if (!form.productCode) return toast.error("Choisissez une catégorie et un produit"), false;
+      if (!form.durationCode) return toast.error("Choisissez une durée de contrat"), false;
+    }
     if (s === 2) {
-      if (!form.brand || !form.model) return toast.error("Marque et modèle requis"), false;
+      if (!form.brand) return toast.error("Marque requise"), false;
+      if (form.brand === "ZZ" && (!form.otherBrand || !form.otherModel)) return toast.error("Saisissez la marque et le modèle"), false;
+      if (form.brand !== "ZZ" && !form.model) return toast.error("Modèle requis"), false;
       if (!form.dateOfFirstRegistration) return toast.error("Date de mise en circulation requise"), false;
       if (!form.value || Number(form.value) <= 0) return toast.error("Valeur du véhicule requise"), false;
       if (!form.replacementCost || form.replacementCost <= 0)
@@ -426,7 +448,9 @@ export default function AssurancePage() {
     if (s === 3) {
       if (!form.productCode) return toast.error("Choisissez un produit d'assurance"), false;
       if (form.axaCoverages.length === 0) return toast.error("Sélectionnez au moins une garantie"), false;
-      const missingCapital = form.axaCoverages.find(c => !c.capitalAmount || c.capitalAmount <= 0);
+      const missingCapital = form.axaCoverages.find(c =>
+        !MANDATORY_COVERAGE_CODES.includes(c.code) && !c.hasOption && !c.option && c.capitalAmount <= 0
+      );
       if (missingCapital) return toast.error(`Renseignez un capital pour ${missingCapital.label}`), false;
     }
     if (s === 4) {
@@ -500,7 +524,7 @@ export default function AssurancePage() {
             />
           )}
           {step === 2 && (
-            <Step2Vehicle form={form} update={update} vehicules={vehicules} />
+            <Step2Vehicle form={form} update={update} />
           )}
           {step === 3 && <Step3Coverage form={form} update={update} />}
           {step === 4 && (
@@ -1093,174 +1117,243 @@ function AssuranceVehicleImage({ fallbackVehicleImage }: { fallbackVehicleImage?
 function Step1ContractType({
   form,
   update,
-  fallbackVehicleImage,
 }: {
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
   fallbackVehicleImage?: string;
 }) {
+  const [selectedCatCode, setSelectedCatCode] = React.useState<string>(
+    form.productCode ? form.productCode : ""
+  );
+  const [selectedCatId, setSelectedCatId] = React.useState<string>("");
+  const [durationOpen, setDurationOpen] = React.useState(false);
+
+  const categoriesQuery = useQuery({
+    queryKey: ["insurance-ref-categories"],
+    queryFn: () => api.insurance.getReference("categories"),
+  });
+  const categories = unwrapRef(categoriesQuery.data);
+
+  const productsQuery = useQuery({
+    queryKey: ["insurance-ref-products-by-cat", selectedCatId],
+    queryFn: () => api.insurance.getReference("products", { categoryCode: selectedCatId }),
+    enabled: !!selectedCatId,
+  });
+  const products = unwrapRef(productsQuery.data);
+
+  // Les codes retournés par /ref/durations sont des codes internes AXA invalides pour la simulation.
+  // On utilise les codes standards acceptés par l'API.
+  const DURATION_OPTIONS = [
+    { code: "1M", label: "1 mois" },
+    { code: "3M", label: "3 mois" },
+    { code: "6M", label: "6 mois" },
+    { code: "12M", label: "12 mois" },
+  ];
+
+  const labelOf = (item: InsuranceReferenceItem) => {
+    const raw = item as Record<string, unknown>;
+    return (
+      item.kindLabel || item.label || item.productLabel || item.libelle || item.nom ||
+      item.designation || item.name || item.description ||
+      item.code || item.productCode ||
+      (item.id != null ? String(item.id) : '') ||
+      (Object.values(raw).find((v) => typeof v === 'string' && v.length > 0) as string | undefined) ||
+      '—'
+    );
+  };
+
+  const gradients = [
+    "from-[#E04A1F] to-[#C8330F]",
+    "from-emerald-500 to-teal-600",
+    "from-blue-500 to-indigo-600",
+    "from-purple-500 to-violet-600",
+    "from-amber-500 to-orange-600",
+  ];
+
   return (
-    <>
-      <div className="grid lg:grid-cols-12 gap-8 mb-12">
-        <div className="lg:col-span-8">
-          <h1
-            className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-[#171c1f]"
-            style={{ fontFamily: "Manrope, system-ui" }}
-          >
-            Propulsez votre <span className="text-[#ac3509] italic">mobilité</span>.
-          </h1>
-          <p className="text-lg text-[#5e6473] max-w-2xl leading-relaxed">
-            Sélectionnez le type de couverture adapté à vos besoins. Que vous gériez une flotte
-            d&apos;entreprise ou votre propre activité de transport, nos solutions s&apos;ajustent
-            à votre cinétique.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-8">
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {CONTRACT_TYPES.map((c) => {
-          const Icon = c.icon;
-          const active = form.contractType === c.id;
-          const accentColor =
-            c.accent === "primary" ? "#ac3509" : c.accent === "tertiary" ? "#006972" : "#5e6473";
-          return (
-            <div
-              key={c.id}
-              onClick={() => update("contractType", c.id)}
-              className={`group relative bg-white rounded-[1.5rem] p-7 flex flex-col justify-between overflow-hidden transition-all duration-300 cursor-pointer ${
-                active
-                  ? "ring-2 ring-[#ac3509] shadow-[0_24px_48px_rgba(172,53,9,0.15)]"
-                  : "hover:shadow-[0_8px_24px_rgba(23,28,31,0.06)]"
-              }`}
-            >
-              <div
-                className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"
-                style={{ color: accentColor }}
-              >
-                <Icon className="w-24 h-24" />
-              </div>
-              <div className="relative">
+      {/* Catégories */}
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800 mb-1" style={{ fontFamily: "Manrope, system-ui" }}>
+          Choisissez une catégorie
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">Sélectionnez le type de couverture adapté à vos besoins.</p>
+
+        {categoriesQuery.isLoading ? (
+          <div className="flex items-center gap-3 py-10 text-sm text-slate-500">
+            <Loader2 className="w-5 h-5 animate-spin text-[#E04A1F]" />
+            Chargement des catégories…
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="py-10 text-center text-sm text-slate-500">Aucune catégorie disponible.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {categories.map((cat, idx) => {
+              const active = selectedCatCode === cat.code;
+              const label = labelOf(cat);
+              return (
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 transition-transform group-hover:scale-110"
-                  style={{ backgroundColor: `${accentColor}1a`, color: accentColor }}
+                  key={cat.code}
+                  onClick={() => {
+                    setSelectedCatCode(cat.code ?? '');
+                    setSelectedCatId(String(cat.id ?? cat.code));
+                    update("productCode", "");
+                    update("axaCoverages", []);
+                  }}
+                  className={`group relative bg-white rounded-3xl p-6 flex flex-col gap-4 cursor-pointer transition-all duration-200 border-2 ${
+                    active
+                      ? "border-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
+                      : "border-slate-100 hover:border-slate-200 hover:shadow-md"
+                  }`}
                 >
-                  <Icon className="w-7 h-7" />
+                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradients[idx % gradients.length]} flex items-center justify-center shadow-md shrink-0`}>
+                    <Shield className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{cat.code}</p>
+                    <h3 className="text-base font-extrabold text-slate-800 mb-2" style={{ fontFamily: "Manrope, system-ui" }}>
+                      {label}
+                    </h3>
+                    {cat.description && cat.description !== label && (
+                      <p className="text-sm text-slate-500 leading-relaxed">{cat.description}</p>
+                    )}
+                  </div>
+                  <div className={`w-full py-2.5 rounded-xl text-sm font-bold text-center transition-all ${
+                    active ? "bg-[#E04A1F] text-white" : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                  }`}>
+                    {active ? <span className="flex items-center justify-center gap-2"><Check className="w-4 h-4" /> Sélectionné</span> : "Sélectionner"}
+                  </div>
+                  {active && (
+                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
+                      <Check className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  )}
                 </div>
-                <h3
-                  className="text-xl font-bold mb-3 text-[#171c1f]"
-                  style={{ fontFamily: "Manrope, system-ui" }}
-                >
-                  {c.title}
-                </h3>
-                <p className="text-[#5e6473] text-sm leading-relaxed mb-5">{c.desc}</p>
-                <ul className="space-y-2.5 mb-7">
-                  {c.features.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-xs font-medium text-[#171c1f]">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: accentColor }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-300 ${
-                  active ? "text-white" : "bg-[#e4e9ed] text-[#171c1f] group-hover:text-white"
-                }`}
-                style={
-                  active
-                    ? { backgroundImage: KINETIC }
-                    : { transition: "all 0.3s ease" }
-                }
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    if (c.accent === "primary") e.currentTarget.style.backgroundImage = KINETIC;
-                    else if (c.accent === "tertiary") e.currentTarget.style.backgroundColor = "#006972";
-                    else e.currentTarget.style.backgroundColor = "#5e6473";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundImage = "";
-                    e.currentTarget.style.backgroundColor = "";
-                  }
-                }}
-              >
-                {active ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Sélectionné
-                  </span>
-                ) : (
-                  "Choisir ce contrat"
-                )}
-              </button>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Help section */}
-      <div className="mt-20 grid lg:grid-cols-2 gap-10 items-center">
-        <div className="relative rounded-[2rem] overflow-hidden aspect-video shadow-2xl bg-[#eaeef2]">
-          <AssuranceVehicleImage fallbackVehicleImage={fallbackVehicleImage} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-7">
-            <div className="bg-white/80 backdrop-blur-md p-6 rounded-2xl w-full max-w-sm">
-              <p
-                className="text-sm font-bold mb-1 text-[#171c1f]"
-                style={{ fontFamily: "Manrope, system-ui" }}
-              >
-                Besoin d&apos;aide ?
-              </p>
-              <p className="text-xs text-[#5e6473] mb-3">
-                Nos experts Flotte sont disponibles pour une étude personnalisée de vos besoins.
-              </p>
-              <button className="flex items-center gap-2 text-xs font-bold text-[#ac3509]">
-                Prendre rendez-vous <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+      {/* Produits — s'affichent quand une catégorie est choisie */}
+      {selectedCatCode && (
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800 mb-1" style={{ fontFamily: "Manrope, system-ui" }}>
+            Produits disponibles
+          </h2>
+          <p className="text-slate-500 text-sm mb-4">Choisissez le produit pour cette catégorie.</p>
+
+          {productsQuery.isLoading ? (
+            <div className="flex items-center gap-3 py-8 text-sm text-slate-500">
+              <Loader2 className="w-5 h-5 animate-spin text-[#E04A1F]" />
+              Chargement des produits…
             </div>
-          </div>
+          ) : products.length === 0 ? (
+            <div className="py-8 text-center text-sm text-slate-500 bg-slate-50 rounded-2xl">
+              Aucun produit disponible pour cette catégorie.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((p, idx) => {
+                const active = form.productCode === (p.code || p.productCode || String(p.id ?? idx));
+                const label = labelOf(p);
+                const itemKey = p.code || p.productCode || String(p.id ?? idx);
+                return (
+                  <div
+                    key={itemKey}
+                    onClick={() => { update("productCode", itemKey); update("axaCoverages", []); }}
+                    className={`group relative bg-white rounded-3xl p-6 flex flex-col gap-4 cursor-pointer transition-all duration-200 border-2 ${
+                      active
+                        ? "border-[#E04A1F] shadow-lg shadow-[#E04A1F]/10"
+                        : "border-slate-100 hover:border-slate-200 hover:shadow-md"
+                    }`}
+                  >
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradients[idx % gradients.length]} flex items-center justify-center shadow-md shrink-0`}>
+                      <Shield className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{itemKey}</p>
+                      <h3 className="text-base font-extrabold text-slate-800 mb-2" style={{ fontFamily: "Manrope, system-ui" }}>
+                        {label}
+                      </h3>
+                      {p.usageLabel && (
+                        <p className="text-sm text-slate-500 leading-relaxed">{p.usageLabel}</p>
+                      )}
+                    </div>
+                    <div className={`w-full py-2.5 rounded-xl text-sm font-bold text-center transition-all ${
+                      active ? "bg-[#E04A1F] text-white" : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                    }`}>
+                      {active ? <span className="flex items-center justify-center gap-2"><Check className="w-4 h-4" /> Sélectionné</span> : "Sélectionner"}
+                    </div>
+                    {active && (
+                      <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#E04A1F] flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-        <div className="space-y-7 lg:pl-8">
+      )}
+
+      {/* Durée + Pack — s'affichent quand un produit est choisi */}
+      {form.productCode && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Durée */}
           <div>
-            <h4
-              className="text-xl font-bold mb-3 text-[#171c1f]"
-              style={{ fontFamily: "Manrope, system-ui" }}
-            >
-              Pourquoi choisir Kinetic Assur ?
-            </h4>
-            <p className="text-[#5e6473] leading-relaxed">
-              Nous ne nous contentons pas d&apos;assurer vos véhicules. Nous protégeons votre
-              productivité avec des outils digitaux de pointe et une assistance réactive en cas de
-              sinistre.
-            </p>
+            <h2 className="text-base font-semibold text-slate-800 mb-1" style={{ fontFamily: "Manrope, system-ui" }}>
+              Durée du contrat
+            </h2>
+            <Popover open={durationOpen} onOpenChange={setDurationOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-[#f0f4f8] border-0 rounded-xl font-medium text-sm text-left focus:ring-2 focus:ring-[#ac3509]/20 transition-all"
+                >
+                  <span className={form.durationCode ? "text-[#171c1f]" : "text-[#9ca3af]"}>
+                    {DURATION_OPTIONS.find(d => d.code === form.durationCode)?.label || "Sélectionnez une durée"}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandGroup>
+                      {DURATION_OPTIONS.map(d => (
+                        <CommandItem
+                          key={d.code}
+                          value={d.label}
+                          onSelect={() => { update("durationCode", d.code); setDurationOpen(false); }}
+                          className="cursor-pointer"
+                        >
+                          <Check className={`mr-2 w-4 h-4 shrink-0 ${form.durationCode === d.code ? "opacity-100 text-[#ac3509]" : "opacity-0"}`} />
+                          {d.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
-          <div className="grid grid-cols-2 gap-5">
-            <div className="p-5 bg-[#f0f4f8] rounded-2xl border-l-4 border-[#ac3509]">
-              <span
-                className="block text-2xl font-black text-[#ac3509] mb-1"
-                style={{ fontFamily: "Manrope, system-ui" }}
-              >
-                24/7
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#414754]">
-                Assistance active
-              </span>
-            </div>
-            <div className="p-5 bg-[#f0f4f8] rounded-2xl border-l-4 border-[#006972]">
-              <span
-                className="block text-2xl font-black text-[#006972] mb-1"
-                style={{ fontFamily: "Manrope, system-ui" }}
-              >
-                100%
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#414754]">
-                Digitalisé
-              </span>
+
+          {/* Pack */}
+          <div>
+            <h2 className="text-base font-semibold text-slate-800 mb-1" style={{ fontFamily: "Manrope, system-ui" }}>
+              Pack
+            </h2>
+            <div className="w-full px-4 py-3 bg-[#f0f4f8] rounded-xl font-medium text-sm text-[#171c1f] flex items-center justify-between">
+              <span>Pack Base</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#ac3509] bg-[#fdf2ef] px-2 py-0.5 rounded-full">Par défaut</span>
             </div>
           </div>
         </div>
-      </div>
-    </>
+      )}
+    </div>
   );
 }
 
@@ -1268,51 +1361,70 @@ function Step1ContractType({
 function Step2Vehicle({
   form,
   update,
-  vehicules,
 }: {
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
-  vehicules: VehiculeLocation[];
 }) {
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [carTypeOpen, setCarTypeOpen] = useState(false);
+
   const energiesQuery = useQuery({
     queryKey: ["insurance-ref-energies"],
     queryFn: () => api.insurance.getReference("energies"),
   });
   const energies = unwrapRef(energiesQuery.data);
 
-  const labelOf = (item: InsuranceReferenceItem) =>
-    item.label || item.name || item.description || item.code;
+  // /ref/brands retourne TOUS les couples marque+modèle AXA dans un seul tableau.
+  // On en déduit les marques uniques et les modèles filtrés par marque sélectionnée.
+  const brandsQuery = useQuery({
+    queryKey: ["insurance-ref-brands"],
+    queryFn: () => api.insurance.getReference("brands"),
+  });
+  const axaAllVehicles = unwrapRef(brandsQuery.data);
 
-  // Brand / model / car type dropdowns are derived from the company's fleet — AXA's
-  // /ref/brands sample exposes only {code,label} (no nested models) and /ref/car-types
-  // currently returns nothing. Trim + lowercase to dedupe variants like
-  // "Toyota" vs "Toyota " vs "TOYOTA".
-  const normalize = (s: string | null | undefined) => (s ?? "").trim();
-  const dedupKey = (s: string) => s.toLocaleLowerCase("fr");
-  const distinct = (values: Array<string | null | undefined>) => {
-    const seen = new Map<string, string>();
-    for (const v of values) {
-      const n = normalize(v);
-      if (!n) continue;
-      const key = dedupKey(n);
-      if (!seen.has(key)) seen.set(key, n);
+  const uniqueBrands = useMemo(() => {
+    const seen = new Map<string, InsuranceReferenceItem>();
+    for (const item of axaAllVehicles) {
+      const code = (item.brandCode || '') as string;
+      if (code && !seen.has(code)) seen.set(code, item);
     }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "fr"));
-  };
-
-  const fleetBrands = useMemo(() => distinct(vehicules.map((v) => v.marque)), [vehicules]);
-
-  const brandModels = useMemo(() => {
-    if (!form.brand) return [] as string[];
-    const target = dedupKey(form.brand);
-    return distinct(
-      vehicules
-        .filter((v) => dedupKey(normalize(v.marque)) === target)
-        .map((v) => v.modele)
+    return Array.from(seen.values()).sort((a, b) =>
+      ((a.brandLabel || '') as string).localeCompare((b.brandLabel || '') as string, 'fr')
     );
-  }, [vehicules, form.brand]);
+  }, [axaAllVehicles]);
 
-  const fleetCarTypes = useMemo(() => distinct(vehicules.map((v) => v.type)), [vehicules]);
+  const filteredModels = useMemo(() => {
+    if (!form.brand) return [] as InsuranceReferenceItem[];
+    return axaAllVehicles.filter(item => (item.brandCode as string) === form.brand);
+  }, [axaAllVehicles, form.brand]);
+
+  const carTypesQuery = useQuery({
+    queryKey: ["insurance-ref-car-types"],
+    queryFn: () => api.insurance.getReference("car-types"),
+  });
+  // L'endpoint retourne un tableau de strings (ex: ["Berline", "SUV", ...])
+  const carTypesRaw = carTypesQuery.data;
+  const carTypeStrings: string[] = useMemo(() => {
+    const raw = (carTypesRaw as any);
+    const arr = raw?.data ?? raw;
+    if (Array.isArray(arr)) {
+      return arr.filter((x): x is string => typeof x === 'string');
+    }
+    return [];
+  }, [carTypesRaw]);
+
+  const labelOf = (item: InsuranceReferenceItem) => {
+    const raw = item as Record<string, unknown>;
+    return (
+      item.kindLabel || item.label || item.productLabel || item.libelle || item.nom ||
+      item.designation || item.name || item.description ||
+      item.code || item.productCode ||
+      (item.id != null ? String(item.id) : '') ||
+      (Object.values(raw).find((v) => typeof v === 'string' && v.length > 0) as string | undefined) ||
+      '—'
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -1404,59 +1516,139 @@ function Step2Vehicle({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-              {/* Brand — derived from the company's fleet */}
+              {/* Brand — combobox avec recherche */}
               <FieldGroup label="Marque">
-                <div className="relative">
-                  <select
-                    value={form.brand}
-                    onChange={(e) => {
-                      update("brand", e.target.value);
-                      // Reset model — the available models depend on the brand.
-                      update("model", "");
-                    }}
-                    disabled={fleetBrands.length === 0}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {fleetBrands.length === 0
-                        ? "Aucune marque disponible dans la flotte"
-                        : "Sélectionnez une marque"}
-                    </option>
-                    {fleetBrands.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
-                </div>
+                <Popover open={brandOpen} onOpenChange={setBrandOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium text-left focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all disabled:opacity-50"
+                      disabled={brandsQuery.isLoading}
+                    >
+                      <span className={form.brand ? "text-[#171c1f]" : "text-[#9ca3af]"}>
+                        {form.brand
+                          ? ((uniqueBrands.find(b => (b.brandCode as string) === form.brand)?.brandLabel || form.brand) as string)
+                          : brandsQuery.isLoading ? "Chargement…" : "Sélectionnez une marque"}
+                      </span>
+                      <ChevronDown className="w-5 h-5 text-[#5e6473] shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                    <Command>
+                      <div className="flex items-center border-b px-3">
+                        <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                        <CommandInput placeholder="Rechercher une marque…" className="border-0 focus:ring-0 py-3 text-sm" />
+                      </div>
+                      <CommandList className="max-h-60 overflow-auto">
+                        <CommandEmpty>Aucune marque trouvée.</CommandEmpty>
+                        <CommandGroup>
+                          {uniqueBrands.map((b) => {
+                            const code = (b.brandCode || '') as string;
+                            const label = (b.brandLabel || code) as string;
+                            return (
+                              <CommandItem
+                                key={code}
+                                value={label}
+                                onSelect={() => {
+                                  update("brand", code);
+                                  update("model", "");
+                                  update("otherBrand", "");
+                                  update("otherModel", "");
+                                  setBrandOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={`mr-2 w-4 h-4 shrink-0 ${form.brand === code ? "opacity-100" : "opacity-0"}`} />
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </FieldGroup>
 
-              {/* Model — filtered by the selected brand from the fleet */}
+              {/* Marque libre si "AUTRES" */}
+              {form.brand === "ZZ" && (
+                <FieldGroup label="Marque (saisie libre)">
+                  <input
+                    type="text"
+                    placeholder="Ex: Mahindra, Chery…"
+                    value={form.otherBrand}
+                    onChange={(e) => update("otherBrand", e.target.value)}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                  />
+                </FieldGroup>
+              )}
+
+              {/* Modèle — combobox filtré par marque, ou saisie libre si "AUTRES" */}
+              {form.brand === "ZZ" ? (
+                <FieldGroup label="Modèle (saisie libre)">
+                  <input
+                    type="text"
+                    placeholder="Ex: Scorpio, Tiggo…"
+                    value={form.otherModel}
+                    onChange={(e) => update("otherModel", e.target.value)}
+                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all"
+                  />
+                </FieldGroup>
+              ) : (
               <FieldGroup label="Modèle">
-                <div className="relative">
-                  <select
-                    value={form.model}
-                    onChange={(e) => update("model", e.target.value)}
-                    disabled={!form.brand || brandModels.length === 0}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {!form.brand
-                        ? "Choisissez d'abord une marque"
-                        : brandModels.length === 0
-                          ? "Aucun modèle disponible"
-                          : "Sélectionnez un modèle"}
-                    </option>
-                    {brandModels.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
-                </div>
+                <Popover open={modelOpen} onOpenChange={setModelOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium text-left focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!form.brand || filteredModels.length === 0}
+                    >
+                      <span className={form.model ? "text-[#171c1f]" : "text-[#9ca3af]"}>
+                        {form.model
+                          ? ((filteredModels.find(m => (m.typeCode as string) === form.model)?.typeLabel || form.model) as string)
+                          : !form.brand
+                            ? "Choisissez d'abord une marque"
+                            : filteredModels.length === 0
+                              ? "Aucun modèle disponible"
+                              : "Sélectionnez un modèle"}
+                      </span>
+                      <ChevronDown className="w-5 h-5 text-[#5e6473] shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                    <Command>
+                      <div className="flex items-center border-b px-3">
+                        <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                        <CommandInput placeholder="Rechercher un modèle…" className="border-0 focus:ring-0 py-3 text-sm" />
+                      </div>
+                      <CommandList className="max-h-60 overflow-auto">
+                        <CommandEmpty>Aucun modèle trouvé.</CommandEmpty>
+                        <CommandGroup>
+                          {filteredModels.map((m) => {
+                            const code = (m.typeCode || m.code || '') as string;
+                            const label = (m.typeLabel || code) as string;
+                            return (
+                              <CommandItem
+                                key={code}
+                                value={label}
+                                onSelect={() => {
+                                  update("model", code);
+                                  setModelOpen(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={`mr-2 w-4 h-4 shrink-0 ${form.model === code ? "opacity-100" : "opacity-0"}`} />
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </FieldGroup>
+              )}
 
               {/* Date de première mise en circulation */}
               <FieldGroup label="Date de mise en circulation">
@@ -1469,28 +1661,46 @@ function Step2Vehicle({
                 />
               </FieldGroup>
 
-              {/* Type de véhicule — derived from the fleet */}
+              {/* Type de véhicule — combobox avec recherche */}
               <FieldGroup label="Type de véhicule">
-                <div className="relative">
-                  <select
-                    value={form.carTypeCode}
-                    onChange={(e) => update("carTypeCode", e.target.value)}
-                    disabled={fleetCarTypes.length === 0}
-                    className="w-full px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {fleetCarTypes.length === 0
-                        ? "Aucun type disponible"
-                        : "Sélectionnez un type"}
-                    </option>
-                    {fleetCarTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#5e6473] w-5 h-5" />
-                </div>
+                <Popover open={carTypeOpen} onOpenChange={setCarTypeOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-4 bg-[#f0f4f8] border-0 rounded-xl font-medium text-left focus:ring-2 focus:ring-[#ac3509]/20 focus:bg-white transition-all disabled:opacity-50"
+                      disabled={carTypesQuery.isLoading}
+                    >
+                      <span className={form.carTypeCode ? "text-[#171c1f]" : "text-[#9ca3af]"}>
+                        {form.carTypeCode || (carTypesQuery.isLoading ? "Chargement…" : "Sélectionnez un type")}
+                      </span>
+                      <ChevronDown className="w-5 h-5 text-[#5e6473] shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                    <Command>
+                      <div className="flex items-center border-b px-3">
+                        <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                        <CommandInput placeholder="Rechercher un type…" className="border-0 focus:ring-0 py-3 text-sm" />
+                      </div>
+                      <CommandList className="max-h-60 overflow-auto">
+                        <CommandEmpty>Aucun type trouvé.</CommandEmpty>
+                        <CommandGroup>
+                          {carTypeStrings.map((t) => (
+                            <CommandItem
+                              key={t}
+                              value={t}
+                              onSelect={() => { update("carTypeCode", t); setCarTypeOpen(false); }}
+                              className="cursor-pointer"
+                            >
+                              <Check className={`mr-2 w-4 h-4 shrink-0 ${form.carTypeCode === t ? "opacity-100" : "opacity-0"}`} />
+                              {t}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </FieldGroup>
 
               {/* Énergie */}
@@ -1625,6 +1835,8 @@ function TrustCard({ icon, color, title, desc }: { icon: React.ReactNode; color:
 }
 
 // ==================== STEP 3: COVERAGE ====================
+const MANDATORY_COVERAGE_CODES = ['2', '89']; // RC + Carte digitale
+
 function Step3Coverage({
   form,
   update,
@@ -1632,12 +1844,6 @@ function Step3Coverage({
   form: FormState;
   update: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
 }) {
-  const productsQuery = useQuery({
-    queryKey: ["insurance-ref-products"],
-    queryFn: () => api.insurance.getReference("products"),
-  });
-  const products = unwrapRef(productsQuery.data);
-
   const coveragesQuery = useQuery({
     queryKey: ["insurance-ref-coverages", form.productCode],
     queryFn: () => api.insurance.getReference("coverages", { productCode: form.productCode }),
@@ -1645,26 +1851,66 @@ function Step3Coverage({
   });
   const coverages = unwrapRef(coveragesQuery.data);
 
-  const labelOf = (item: InsuranceReferenceItem) =>
-    item.label || item.name || item.description || item.code;
+  // Dédupliquer par code (la réponse contient les mêmes codes pour plusieurs categoryId)
+  const uniqueCoverages = useMemo(() => {
+    const seen = new Map<string, InsuranceReferenceItem>();
+    for (const c of coverages) {
+      const key = String((c.code ?? c.id) ?? '');
+      if (key && !seen.has(key)) seen.set(key, c);
+    }
+    return Array.from(seen.values()).sort(
+      (a, b) => Number(a.orderGuarantee ?? 99) - Number(b.orderGuarantee ?? 99)
+    );
+  }, [coverages]);
 
-  const isSelected = (code: string) => form.axaCoverages.some((c) => c.code === code);
-  const capitalOf = (code: string) =>
-    form.axaCoverages.find((c) => c.code === code)?.capitalAmount ?? 0;
+  // Auto-sélectionner les garanties obligatoires dès que la liste est chargée
+  useEffect(() => {
+    if (uniqueCoverages.length === 0) return;
+    const missing = MANDATORY_COVERAGE_CODES.filter(
+      mc => !form.axaCoverages.some(c => c.code === mc)
+    );
+    if (missing.length === 0) return;
+    const toAdd = missing.map(mc => {
+      const found = uniqueCoverages.find(c => String(c.code ?? c.id) === mc);
+      return { code: mc, label: (found?.description as string) || mc, capitalAmount: 0 };
+    });
+    update("axaCoverages", [...form.axaCoverages, ...toAdd]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uniqueCoverages.length]);
+
+  const isSelected = (code: string) => form.axaCoverages.some(c => c.code === code);
+  const getCov = (code: string) => form.axaCoverages.find(c => c.code === code);
 
   const toggleCoverage = (code: string, label: string) => {
+    if (MANDATORY_COVERAGE_CODES.includes(code)) return;
     if (isSelected(code)) {
-      update("axaCoverages", form.axaCoverages.filter((c) => c.code !== code));
+      update("axaCoverages", form.axaCoverages.filter(c => c.code !== code));
     } else {
       update("axaCoverages", [...form.axaCoverages, { code, label, capitalAmount: 0 }]);
     }
   };
 
+  const setOptionValue = (code: string, optValue: string, optKey: string) => {
+    update("axaCoverages", form.axaCoverages.map(c => {
+      if (c.code !== code) return c;
+      if (optKey === 'AA') return { ...c, option: optValue, capitalAmount: 0, hasOption: true };
+      return { ...c, capitalAmount: Number(optValue) || 0, option: undefined, hasOption: true };
+    }));
+  };
+
   const setCapital = (code: string, amount: number) => {
-    update(
-      "axaCoverages",
-      form.axaCoverages.map((c) => (c.code === code ? { ...c, capitalAmount: amount } : c))
-    );
+    update("axaCoverages", form.axaCoverages.map(c =>
+      c.code === code ? { ...c, capitalAmount: amount, hasOption: true } : c
+    ));
+  };
+
+  const formatOptionLabel = (opt: { key: string; value: string; label: string }) => {
+    if (opt.key === 'AA') return `${opt.label} (${opt.value})`;
+    const n = Number(opt.value);
+    const formattedValue = (opt.value === '0000' || n === 0)
+      ? 'Sans franchise'
+      : `${n.toLocaleString('fr-FR')} FCFA`;
+    return `${opt.label} — ${formattedValue}`;
   };
 
   return (
@@ -1674,79 +1920,17 @@ function Step3Coverage({
           className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 text-[#171c1f]"
           style={{ fontFamily: "Manrope, system-ui" }}
         >
-          Choisissez votre niveau de protection
+          Choisissez vos garanties
         </h1>
         <p className="text-lg text-[#5e6473]">
-          Sélectionnez le produit AXA et les garanties à inclure dans votre contrat. Le capital
-          assuré conditionne la prime.
+          Responsabilité Civile et Carte Digitale sont obligatoires. Ajoutez les garanties
+          complémentaires selon vos besoins.
         </p>
       </header>
 
-      {/* Product picker */}
-      <section className="mb-12">
-        <h2
-          className="text-xl font-bold mb-5 text-[#171c1f]"
-          style={{ fontFamily: "Manrope, system-ui" }}
-        >
-          Produit d&apos;assurance
-        </h2>
-        {productsQuery.isLoading ? (
-          <div className="flex items-center gap-3 text-sm text-[#5e6473]">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Chargement des produits AXA…
-          </div>
-        ) : products.length === 0 ? (
-          <p className="text-sm text-[#5e6473]">Aucun produit disponible.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {products.map((p) => {
-              const active = form.productCode === p.code;
-              return (
-                <button
-                  key={p.code}
-                  type="button"
-                  onClick={() => update("productCode", p.code)}
-                  className={`text-left p-6 rounded-2xl transition-all ${
-                    active
-                      ? "bg-white ring-2 ring-[#ac3509] shadow-xl"
-                      : "bg-white border border-[#eaeef2] hover:shadow-lg"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{
-                        backgroundColor: active ? "#ffdbd0" : "#f0f4f8",
-                        color: active ? "#ac3509" : "#5e6473",
-                      }}
-                    >
-                      <Shield className="w-5 h-5" />
-                    </div>
-                    {active && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#ac3509] bg-[#ffdbd0] px-2 py-0.5 rounded-full">
-                        Choisi
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-base font-bold text-[#171c1f] mb-1">{labelOf(p)}</h3>
-                  <p className="text-xs font-mono text-[#5e6473]">{p.code}</p>
-                  {p.description && (
-                    <p className="text-sm text-[#5e6473] mt-2 leading-relaxed">{p.description}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Coverages */}
       <section>
         <div className="flex items-baseline justify-between mb-5">
-          <h2
-            className="text-xl font-bold text-[#171c1f]"
-            style={{ fontFamily: "Manrope, system-ui" }}
-          >
+          <h2 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui" }}>
             Garanties
           </h2>
           {form.axaCoverages.length > 0 && (
@@ -1758,65 +1942,129 @@ function Step3Coverage({
 
         {!form.productCode ? (
           <div className="p-7 bg-[#f0f4f8] rounded-2xl text-sm text-[#5e6473] flex items-center gap-3">
-            <Info className="w-5 h-5 text-[#5e6473]" />
-            Sélectionnez d&apos;abord un produit pour voir les garanties disponibles.
+            <Info className="w-5 h-5" />
+            Aucun produit sélectionné. Retournez à l&apos;étape 1 pour choisir une catégorie.
           </div>
         ) : coveragesQuery.isLoading ? (
           <div className="flex items-center gap-3 text-sm text-[#5e6473]">
             <Loader2 className="w-4 h-4 animate-spin" />
             Chargement des garanties…
           </div>
-        ) : coverages.length === 0 ? (
+        ) : uniqueCoverages.length === 0 ? (
           <p className="text-sm text-[#5e6473]">Aucune garantie disponible pour ce produit.</p>
         ) : (
-          <div className="space-y-3">
-            {coverages.map((c) => {
-              const selected = isSelected(c.code);
-              const label = labelOf(c);
+          <>
+            {/* Garanties obligatoires — en haut, côte à côte */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+              {uniqueCoverages.filter(c => MANDATORY_COVERAGE_CODES.includes(String(c.code ?? c.id ?? ''))).map((c) => {
+                const codeStr = String(c.code ?? c.id ?? '');
+                const covLabel = (c.description as string) || codeStr;
+                return (
+                  <div key={codeStr} className="flex items-center gap-3 p-4 rounded-2xl bg-[#fdf2ef] border border-[#ac3509]/30">
+                    <div className="w-6 h-6 rounded-md bg-[#ac3509] flex items-center justify-center shrink-0">
+                      <Lock className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#171c1f] text-sm">{covLabel}</p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#ac3509]">Obligatoire</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Garanties optionnelles — grille 2 colonnes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {uniqueCoverages.filter(c => !MANDATORY_COVERAGE_CODES.includes(String(c.code ?? c.id ?? ''))).map((c) => {
+              const codeStr = String(c.code ?? c.id ?? '');
+              const isMandatory = MANDATORY_COVERAGE_CODES.includes(codeStr);
+              const selected = isMandatory || isSelected(codeStr);
+              const covLabel = (c.description as string) || codeStr;
+              const covOptions = c.options as Array<{ key: string; value: string; label: string; uuid?: string }> | null;
+              const selectedCov = getCov(codeStr);
+
               return (
                 <div
-                  key={c.code}
-                  className={`flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-2xl border transition-all ${
+                  key={codeStr}
+                  className={`p-5 rounded-2xl border transition-all ${
                     selected ? "bg-white border-[#ac3509]/40 shadow-sm" : "bg-white border-[#eaeef2]"
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleCoverage(c.code, label)}
-                    className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                      selected ? "bg-[#ac3509] border-[#ac3509]" : "bg-white border-[#dfe3e7]"
-                    }`}
-                    aria-pressed={selected}
-                  >
-                    {selected && <Check className="w-4 h-4 text-white" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-[#171c1f]">{label}</p>
-                    <p className="text-xs font-mono text-[#5e6473] mt-0.5">{c.code}</p>
-                    {c.description && (
-                      <p className="text-sm text-[#5e6473] mt-1 leading-relaxed">{c.description}</p>
+                  <div className="flex items-start gap-4">
+                    {/* Checkbox / Lock */}
+                    {isMandatory ? (
+                      <div className="w-6 h-6 rounded-md bg-[#ac3509] flex items-center justify-center shrink-0 mt-0.5">
+                        <Lock className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleCoverage(codeStr, covLabel)}
+                        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                          selected ? "bg-[#ac3509] border-[#ac3509]" : "bg-white border-[#dfe3e7]"
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        {selected && <Check className="w-4 h-4 text-white" />}
+                      </button>
                     )}
-                  </div>
-                  {selected && (
-                    <div className="md:w-56">
-                      <label className="block text-[10px] font-bold uppercase tracking-widest text-[#59413a] mb-1">
-                        Capital assuré (FCFA)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={100000}
-                        value={capitalOf(c.code) || ""}
-                        onChange={(e) => setCapital(c.code, Number(e.target.value) || 0)}
-                        placeholder="5 000 000"
-                        className="w-full bg-[#f0f4f8] border-0 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#ac3509]/40"
-                      />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-[#171c1f]">{covLabel}</p>
+                        {isMandatory && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-[#ac3509] px-2 py-0.5 rounded-full">
+                            Obligatoire
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Options avec valeurs prédéfinies */}
+                      {selected && covOptions && covOptions.length > 0 && (
+                        <div className="mt-3">
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-[#59413a] mb-1">
+                            {covOptions[0]?.key === 'AA' ? 'Niveau de garantie' :
+                             covOptions[0]?.key === 'FCHDOM' ? 'Franchise' : 'Capital assuré'}
+                          </label>
+                          <select
+                            className="bg-[#f0f4f8] border-0 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#ac3509]/40 w-full sm:w-64"
+                            value={covOptions[0]?.key === 'AA' ? (selectedCov?.option || '') : String(selectedCov?.capitalAmount || '')}
+                            onChange={(e) => setOptionValue(codeStr, e.target.value, covOptions[0]?.key || '')}
+                          >
+                            <option value="">Sélectionnez…</option>
+                            {covOptions.map((opt) => (
+                              <option key={opt.uuid || opt.value} value={opt.value}>
+                                {formatOptionLabel(opt)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Capital libre pour les garanties sans options prédéfinies (VOL, Incendie, etc.) */}
+                      {selected && !isMandatory && (!covOptions || covOptions.length === 0) && (
+                        <div className="mt-3">
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-[#59413a] mb-1">
+                            Capital assuré (FCFA)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={100000}
+                            value={selectedCov?.capitalAmount || ""}
+                            onChange={(e) => setCapital(codeStr, Number(e.target.value) || 0)}
+                            placeholder="5 000 000"
+                            className="bg-[#f0f4f8] border-0 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#ac3509]/40 w-full sm:w-48"
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
-          </div>
+            </div>
+          </>
         )}
       </section>
     </div>
@@ -2161,8 +2409,17 @@ function Step5Customer({
   });
   const countries = unwrapRef(countriesQuery.data);
 
-  const labelOf = (item: InsuranceReferenceItem) =>
-    item.label || item.name || item.description || item.code;
+  const labelOf = (item: InsuranceReferenceItem) => {
+    const raw = item as Record<string, unknown>;
+    return (
+      item.kindLabel || item.label || item.productLabel || item.libelle || item.nom ||
+      item.designation || item.name || item.description ||
+      item.code || item.productCode ||
+      (item.id != null ? String(item.id) : '') ||
+      (Object.values(raw).find((v) => typeof v === 'string' && v.length > 0) as string | undefined) ||
+      '—'
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">

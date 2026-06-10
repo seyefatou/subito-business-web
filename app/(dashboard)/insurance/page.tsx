@@ -200,8 +200,8 @@ function useUniqueDurations() {
   const all = useRefData('durations');
   const seen = new Map<string, InsuranceReferenceItem>();
   for (const d of all) {
-    const key = d.code;
-    if (!seen.has(key)) seen.set(key, d);
+    const key = d.code || '';
+    if (key && !seen.has(key)) seen.set(key, d);
   }
   return Array.from(seen.values());
 }
@@ -483,7 +483,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                               <CommandItem
                                 key={c.code}
                                 onSelect={() => {
-                                  setCategoryFilter(c.code);
+                                  if (c.code) setCategoryFilter(c.code);
                                   updateField('productCode', ''); // reset produit quand categorie change
                                   setCategoryOpen(false);
                                   setCategorySearch('');
@@ -551,7 +551,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                           <CommandEmpty>Aucun pack trouve</CommandEmpty>
                           <CommandGroup>
                             {packs.filter(p => p.label.toLowerCase().includes(packSearch.toLowerCase())).map(p => (
-                              <CommandItem key={p.code} onSelect={() => { updateField('packCode', p.code); setPackOpen(false); setPackSearch(''); }}>
+                              <CommandItem key={p.code} onSelect={() => { if (p.code) updateField('packCode', p.code); setPackOpen(false); setPackSearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${formData.packCode === p.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {p.label}
                               </CommandItem>
@@ -580,7 +580,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                           <CommandEmpty>Aucune duree trouvee</CommandEmpty>
                           <CommandGroup>
                             {durations.filter(d => (d.name || d.label || d.code || '').toLowerCase().includes(durationSearch.toLowerCase())).map(d => (
-                              <CommandItem key={d.code} onSelect={() => { updateField('durationCode', d.code); setDurationOpen(false); setDurationSearch(''); }}>
+                              <CommandItem key={d.code} onSelect={() => { if (d.code) updateField('durationCode', d.code); setDurationOpen(false); setDurationSearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${formData.durationCode === d.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {d.name || d.label || d.code}
                               </CommandItem>
@@ -611,7 +611,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                             {countries.filter(c => (c.name || c.label || c.code || '').toLowerCase().includes(countrySearch.toLowerCase())).map(c => (
                               <CommandItem
                                 key={c.code}
-                                onSelect={() => { updateField('countryCode', c.code); setCountryOpen(false); setCountrySearch(''); }}
+                                onSelect={() => { if (c.code) updateField('countryCode', c.code); setCountryOpen(false); setCountrySearch(''); }}
                               >
                                 <Check className={`mr-2 h-4 w-4 ${formData.countryCode === c.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {c.name || c.label || c.code}
@@ -647,7 +647,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                             {discounts.filter(d => (d.name || d.label || d.code || '').toLowerCase().includes(discountSearch.toLowerCase())).map(d => (
                               <CommandItem
                                 key={d.code}
-                                onSelect={() => { updateField('discountCode', d.code); setDiscountOpen(false); setDiscountSearch(''); }}
+                                onSelect={() => { if (d.code) updateField('discountCode', d.code); setDiscountOpen(false); setDiscountSearch(''); }}
                               >
                                 <Check className={`mr-2 h-4 w-4 ${formData.discountCode === d.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {d.name || d.label || d.code}
@@ -686,7 +686,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                           <CommandEmpty>Aucun type trouve</CommandEmpty>
                           <CommandGroup>
                             {carTypes.filter(c => (c.name || c.label || c.code || '').toLowerCase().includes(carTypeSearch.toLowerCase())).map(c => (
-                              <CommandItem key={c.code} onSelect={() => { updateField('carTypeCode', c.code); setCarTypeOpen(false); setCarTypeSearch(''); }}>
+                              <CommandItem key={c.code} onSelect={() => { if (c.code) updateField('carTypeCode', c.code); setCarTypeOpen(false); setCarTypeSearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${formData.carTypeCode === c.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {c.name || c.label || c.code}
                               </CommandItem>
@@ -730,7 +730,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                                 <CommandItem
                                   key={b.brandCode || b.code}
                                   onSelect={() => {
-                                    setFormData(prev => ({ ...prev, brandCode: b.brandCode || b.code, modelCode: '', otherBrand: '', otherModel: '' }));
+                                    setFormData(prev => ({ ...prev, brandCode: b.brandCode || b.code || '', modelCode: '', otherBrand: '', otherModel: '' }));
                                     setBrandOpen(false);
                                     setBrandSearch('');
                                   }}
@@ -832,7 +832,7 @@ function NewSimulationForm({ onSuccess, onCreateContract }: { onSuccess: () => v
                           <CommandEmpty>Aucune energie trouvee</CommandEmpty>
                           <CommandGroup>
                             {energies.filter(e => (e.name || e.label || e.code || '').toLowerCase().includes(energySearch.toLowerCase())).map(e => (
-                              <CommandItem key={e.code} onSelect={() => { updateField('energyCode', e.code); setEnergyOpen(false); setEnergySearch(''); }}>
+                              <CommandItem key={e.code} onSelect={() => { if (e.code) updateField('energyCode', e.code); setEnergyOpen(false); setEnergySearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${formData.energyCode === e.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {e.name || e.label || e.code}
                               </CommandItem>
@@ -1889,7 +1889,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                             {(titles.length > 0 ? titles : [{ code: 'MR', name: 'Monsieur' }, { code: 'MME', name: 'Madame' }, { code: 'MLLE', name: 'Mademoiselle' }] as InsuranceReferenceItem[])
                               .filter(t => (t.name || t.label || t.code || '').toLowerCase().includes(titleSearch.toLowerCase()))
                               .map(t => (
-                              <CommandItem key={t.code} onSelect={() => { updateCustomer('title', t.code); setTitleOpen(false); setTitleSearch(''); }}>
+                              <CommandItem key={t.code} onSelect={() => { if (t.code) updateCustomer('title', t.code); setTitleOpen(false); setTitleSearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${customer.title === t.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {t.name || t.label || t.code}
                               </CommandItem>
@@ -1959,7 +1959,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                           <CommandEmpty>Aucun resultat</CommandEmpty>
                           <CommandGroup>
                             {csps.filter(c => (c.name || c.label || c.code || '').toLowerCase().includes(cspSearch.toLowerCase())).map(c => (
-                              <CommandItem key={c.code} onSelect={() => { updateCustomer('csp', c.code); setCspOpen(false); setCspSearch(''); }}>
+                              <CommandItem key={c.code} onSelect={() => { if (c.code) updateCustomer('csp', c.code); setCspOpen(false); setCspSearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${customer.csp === c.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {c.name || c.label || c.code}
                               </CommandItem>
@@ -1987,7 +1987,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                           <CommandEmpty>Aucun resultat</CommandEmpty>
                           <CommandGroup>
                             {activities.filter(a => (a.name || a.label || a.code || '').toLowerCase().includes(activitySearch.toLowerCase())).map(a => (
-                              <CommandItem key={a.code} onSelect={() => { updateCustomer('activity', a.code); setActivityOpen(false); setActivitySearch(''); }}>
+                              <CommandItem key={a.code} onSelect={() => { if (a.code) updateCustomer('activity', a.code); setActivityOpen(false); setActivitySearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${customer.activity === a.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {a.name || a.label || a.code}
                               </CommandItem>
@@ -2015,7 +2015,7 @@ function NewContractForm({ onSuccess, prefilledSimulationId }: { onSuccess: () =
                           <CommandEmpty>Aucun resultat</CommandEmpty>
                           <CommandGroup>
                             {countries.filter(c => (c.name || c.label || c.code || '').toLowerCase().includes(nationalitySearch.toLowerCase())).map(c => (
-                              <CommandItem key={c.code} onSelect={() => { updateCustomer('nationality', c.code); setNationalityOpen(false); setNationalitySearch(''); }}>
+                              <CommandItem key={c.code} onSelect={() => { if (c.code) updateCustomer('nationality', c.code); setNationalityOpen(false); setNationalitySearch(''); }}>
                                 <Check className={`mr-2 h-4 w-4 ${customer.nationality === c.code ? 'opacity-100' : 'opacity-0'}`} />
                                 {c.name || c.label || c.code}
                               </CommandItem>

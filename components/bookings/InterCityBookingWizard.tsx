@@ -42,6 +42,7 @@ import {
   Search,
   UserPlus,
   Info,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,12 @@ import EmployeeForm from "@/components/employees/EmployeeForm";
 import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
+
+interface AdresseSupplementItem {
+  adresse: string;
+  lat: number | null;
+  lng: number | null;
+}
 
 interface Step {
   id: number;
@@ -109,6 +116,7 @@ interface FormData {
   // Options
   siegeBebes: number;
   animalDeCompagnie: boolean;
+  adressesSupplementAller: AdresseSupplementItem[];
   smallBags: number;
   largeBags: number;
   specialRequests: string;
@@ -117,6 +125,7 @@ interface FormData {
   pickupTimeRetour: string;
   siegeBebesRetour: number;
   animalDeCompagnieRetour: boolean;
+  adressesSupplementRetour: AdresseSupplementItem[];
   // Payment
   paymentMethod: InterCityPaymentMethod | '';
 }
@@ -245,6 +254,7 @@ export default function InterCityBookingWizard({
     adressePriseEnChargeArriveeRetourLng: null,
     siegeBebes: 0,
     animalDeCompagnie: false,
+    adressesSupplementAller: [],
     smallBags: 0,
     largeBags: 0,
     specialRequests: "",
@@ -252,6 +262,7 @@ export default function InterCityBookingWizard({
     pickupTimeRetour: "",
     siegeBebesRetour: 0,
     animalDeCompagnieRetour: false,
+    adressesSupplementRetour: [],
     paymentMethod: "",
   };
 
@@ -291,10 +302,12 @@ export default function InterCityBookingWizard({
     queryKey: ['pays'],
     queryFn: () => api.reference.getPays(),
   });
-  const paysRaw = paysResponse?.data;
-  const pays: string[] = Array.isArray(paysRaw)
-    ? paysRaw.map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || String(p)).filter(Boolean)
-    : [];
+  const paysArr: unknown[] = Array.isArray(paysResponse)
+    ? paysResponse
+    : Array.isArray((paysResponse as any)?.data) ? (paysResponse as any).data : [];
+  const pays: string[] = paysArr
+    .map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || '')
+    .filter(Boolean);
 
   // Fetch villes for selected country (only non-airport cities)
   const { data: villesResponse } = useQuery({
@@ -302,10 +315,10 @@ export default function InterCityBookingWizard({
     queryFn: () => api.reference.getVilles(selectedPays),
     enabled: !!selectedPays,
   });
-  const villesRaw = villesResponse?.data;
-  const allVilles: Ville[] = Array.isArray(villesRaw)
-    ? villesRaw
-    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
+  const allVilles: Ville[] = Array.isArray(villesResponse)
+    ? villesResponse
+    : Array.isArray((villesResponse as any)?.data) ? (villesResponse as any).data
+    : (villesResponse as any)?.list || (villesResponse as any)?.items || [];
   const villes = allVilles.filter(v => !v.isAeroport);
 
   // Fetch inter-city routes
@@ -313,7 +326,13 @@ export default function InterCityBookingWizard({
     queryKey: ['trajet-inter-ville'],
     queryFn: () => api.reference.getTrajetInterVille(),
   });
-  const trajets: TrajetInterVille[] = trajetsResponse?.data?.list || [];
+  const trajets: TrajetInterVille[] = (() => {
+    const r = trajetsResponse as any;
+    if (Array.isArray(r?.list)) return r.list;
+    if (Array.isArray(r?.data?.list)) return r.data.list;
+    if (Array.isArray(r?.data)) return r.data;
+    return [];
+  })();
 
   // Edit mode: once trajets are loaded, derive selectedPays / selectedDepartId / selectedArriveeId
   // from the booking's trajet so steps 2 and 3 (Trajet + Vehicule) display pre-filled selections.
@@ -595,6 +614,12 @@ export default function InterCityBookingWizard({
       specialRequests: formData.specialRequests || undefined,
     };
 
+    // Adresses supplémentaires aller
+    const filledAllerSupp = formData.adressesSupplementAller.filter(a => a.adresse.trim());
+    if (filledAllerSupp.length > 0) {
+      (bookingData as any).adressesSupplementAller = filledAllerSupp;
+    }
+
     // Add return trip info if round trip
     if (!formData.isOneWay) {
       bookingData.pickupDateRetour = formData.pickupDateRetour;
@@ -607,6 +632,10 @@ export default function InterCityBookingWizard({
       (bookingData as any).adressePriseEnChargeArriveeRetour = formData.adressePriseEnChargeArriveeRetour || undefined;
       (bookingData as any).adressePriseEnChargeArriveeRetourLat = formData.adressePriseEnChargeArriveeRetourLat || undefined;
       (bookingData as any).adressePriseEnChargeArriveeRetourLng = formData.adressePriseEnChargeArriveeRetourLng || undefined;
+      const filledRetourSupp = formData.adressesSupplementRetour.filter(a => a.adresse.trim());
+      if (filledRetourSupp.length > 0) {
+        (bookingData as any).adressesSupplementRetour = filledRetourSupp;
+      }
     }
 
     console.log('[INTER-CITY] Booking data:', JSON.stringify(bookingData, null, 2));
@@ -760,7 +789,9 @@ export default function InterCityBookingWizard({
                 <span className="font-bold text-lg">Total</span>
                 <div className="text-right">
                   <p className="text-2xl font-black text-orange-400">{calculateTotal().toLocaleString()} FCFA</p>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest">TVA incluse</p>
+                  {user?.isTva && (
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest">TVA 18% incluse</p>
+                  )}
                 </div>
               </div>
               <div className="bg-white/5 rounded-2xl p-4 my-6 flex items-center gap-3">
@@ -1221,43 +1252,6 @@ export default function InterCityBookingWizard({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <Baby className="w-5 h-5 text-slate-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">Sieges bebe (retour)</p>
-                                    <p className="text-xs text-slate-500">+5 000 FCFA/siege</p>
-                                  </div>
-                                </div>
-                                <Select
-                                  value={formData.siegeBebesRetour.toString()}
-                                  onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v))}
-                                >
-                                  <SelectTrigger className="w-20 bg-white border-0">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[0, 1, 2, 3].map(n => (
-                                      <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <PawPrint className="w-5 h-5 text-slate-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">Animal (retour)</p>
-                                    <p className="text-xs text-slate-500">+5 000 FCFA</p>
-                                  </div>
-                                </div>
-                                <Switch
-                                  checked={formData.animalDeCompagnieRetour}
-                                  onCheckedChange={(v) => handleChange('animalDeCompagnieRetour', v)}
-                                />
-                              </div>
-                            </div>
                           </div>
                         </motion.section>
                       )}
@@ -1276,57 +1270,198 @@ export default function InterCityBookingWizard({
 
                     {/* RIGHT col-4: sticky options */}
                     <aside className="lg:col-span-4">
-                      <div className="sticky top-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-6">
+                      <div className="sticky top-6 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
                         <h2 className="text-xl font-bold text-slate-900">Options</h2>
 
-                        {/* Sieges bebe with count */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
-                              <Baby className="w-5 h-5" />
+                        {/* ─── Options Aller ─── */}
+                        <div className="space-y-4">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] border-b border-slate-100 pb-2">Aller</p>
+
+                          {/* Sieges bebe */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                                <Baby className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">Siege bebe</p>
+                                <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">Sieges bebe</p>
-                              <p className="text-xs text-slate-500">+5 000 FCFA/siege</p>
-                            </div>
+                            <Select
+                              value={formData.siegeBebes.toString()}
+                              onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
+                            >
+                              <SelectTrigger className="w-16 h-9 bg-slate-50 border-0 rounded-lg">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 1].map(n => (
+                                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <Select
-                            value={formData.siegeBebes.toString()}
-                            onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
-                          >
-                            <SelectTrigger className="w-16 h-9 bg-slate-50 border-0 rounded-lg">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[0, 1, 2, 3].map(n => (
-                                <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+
+                          {/* Animal */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                                <PawPrint className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 truncate">Animal de compagnie</p>
+                                <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={formData.animalDeCompagnie}
+                              onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
+                            />
+                          </div>
+
+                          {/* Adresses supp aller */}
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-600">Arrets supplementaires</p>
+                            {formData.adressesSupplementAller.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <AddressAutocomplete
+                                    placeholder="Adresse d'arret"
+                                    value={item.adresse}
+                                    onChange={(val) => {
+                                      const arr = [...formData.adressesSupplementAller];
+                                      arr[idx] = { ...arr[idx], adresse: val };
+                                      handleChange('adressesSupplementAller', arr);
+                                    }}
+                                    onSelect={(address, lat, lng) => {
+                                      const arr = [...formData.adressesSupplementAller];
+                                      arr[idx] = { adresse: address, lat, lng };
+                                      handleChange('adressesSupplementAller', arr);
+                                    }}
+                                    iconColor="text-orange-400"
+                                    countryCode={countryNameToCode(selectedPays)}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleChange('adressesSupplementAller', formData.adressesSupplementAller.filter((_, i) => i !== idx))}
+                                  className="w-7 h-7 rounded-full bg-red-50 text-red-500 flex items-center justify-center shrink-0 hover:bg-red-100"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                            {formData.adressesSupplementAller.length < 3 && (
+                              <button
+                                type="button"
+                                onClick={() => handleChange('adressesSupplementAller', [...formData.adressesSupplementAller, { adresse: '', lat: null, lng: null }])}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-[#E04A1F] hover:underline"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Ajouter un arret
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ─── Options Retour ─── */}
+                        {!formData.isOneWay && (
+                          <div className="space-y-4 border-t border-slate-100 pt-5">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-[#E04A1F] border-b border-slate-100 pb-2">Retour</p>
+
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                                  <Baby className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">Siege bebe</p>
+                                  <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                                </div>
+                              </div>
+                              <Select
+                                value={formData.siegeBebesRetour.toString()}
+                                onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v))}
+                              >
+                                <SelectTrigger className="w-16 h-9 bg-slate-50 border-0 rounded-lg">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[0, 1].map(n => (
+                                    <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                                  <PawPrint className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-800 truncate">Animal de compagnie</p>
+                                  <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                                </div>
+                              </div>
+                              <Switch
+                                checked={formData.animalDeCompagnieRetour}
+                                onCheckedChange={(v) => handleChange('animalDeCompagnieRetour', v)}
+                              />
+                            </div>
+
+                            {/* Adresses supp retour */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-slate-600">Arrets supplementaires</p>
+                              {formData.adressesSupplementRetour.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <AddressAutocomplete
+                                      placeholder="Adresse d'arret"
+                                      value={item.adresse}
+                                      onChange={(val) => {
+                                        const arr = [...formData.adressesSupplementRetour];
+                                        arr[idx] = { ...arr[idx], adresse: val };
+                                        handleChange('adressesSupplementRetour', arr);
+                                      }}
+                                      onSelect={(address, lat, lng) => {
+                                        const arr = [...formData.adressesSupplementRetour];
+                                        arr[idx] = { adresse: address, lat, lng };
+                                        handleChange('adressesSupplementRetour', arr);
+                                      }}
+                                      iconColor="text-orange-400"
+                                      countryCode={countryNameToCode(selectedPays)}
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleChange('adressesSupplementRetour', formData.adressesSupplementRetour.filter((_, i) => i !== idx))}
+                                    className="w-7 h-7 rounded-full bg-red-50 text-red-500 flex items-center justify-center shrink-0 hover:bg-red-100"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Animal */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
-                              <PawPrint className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 truncate">Animal de compagnie</p>
-                              <p className="text-xs text-slate-500">+5 000 FCFA</p>
+                              {formData.adressesSupplementRetour.length < 3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleChange('adressesSupplementRetour', [...formData.adressesSupplementRetour, { adresse: '', lat: null, lng: null }])}
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-[#E04A1F] hover:underline"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Ajouter un arret
+                                </button>
+                              )}
                             </div>
                           </div>
-                          <Switch
-                            checked={formData.animalDeCompagnie}
-                            onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
-                          />
-                        </div>
+                        )}
 
-                        {/* Aller-retour (highlighted) */}
-                        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
+                        {/* Aller-retour toggle */}
+                        <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
-                              <ArrowRightLeft className="w-5 h-5" />
+                            <div className="w-9 h-9 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                              <ArrowRightLeft className="w-4 h-4" />
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-bold text-[#E04A1F] truncate">Aller-retour</p>
@@ -1349,7 +1484,6 @@ export default function InterCityBookingWizard({
                           </p>
                         </div>
 
-                        {/* Privacy note */}
                         <p className="text-center text-xs text-slate-400 leading-relaxed">
                           Vos donnees sont securisees et traitees selon notre politique de confidentialite.
                         </p>
@@ -1728,13 +1862,13 @@ export default function InterCityBookingWizard({
                           {v?.grandBagage != null && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
                               <Briefcase className="w-3.5 h-3.5 text-[#E04A1F]" />
-                              {v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''}
+                              {v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''} (23kg)
                             </span>
                           )}
                           {v?.petitBagage != null && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
                               <Briefcase className="w-3.5 h-3.5 text-[#E04A1F]" />
-                              {v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''}
+                              {v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''} (10kg)
                             </span>
                           )}
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full text-xs font-semibold text-slate-700">
@@ -1949,7 +2083,7 @@ export default function InterCityBookingWizard({
                         </p>
                       </div>
                       <div className="bg-[#ffdbd0] text-[#E04A1F] text-[10px] px-2 py-1 rounded font-bold uppercase">
-                        {user?.isTva ? 'HT' : 'TVA Incluse'}
+                        {user?.isTva ? 'HT' : 'Prix TTC'}
                       </div>
                     </div>
                     {user?.isTva && (
@@ -2034,19 +2168,89 @@ export default function InterCityBookingWizard({
                       </div>
                     </div>
 
+                    {/* Arrets supp aller */}
+                    {formData.adressesSupplementAller.filter(a => a.adresse).length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Arrets aller</p>
+                        <div className="space-y-1">
+                          {formData.adressesSupplementAller.filter(a => a.adresse).map((a, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm text-slate-600">
+                              <MapPin className="w-3 h-3 text-[#E04A1F] shrink-0" />
+                              <span className="truncate">{a.adresse}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {!formData.isOneWay && (
                       <div className="mt-6 pt-6 border-t border-slate-100">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ffdbd0] text-orange-700 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4">
                           <ArrowRightLeft className="w-3 h-3" />
                           Trajet retour
                         </div>
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-slate-700 font-medium">
                           {formData.pickupDateRetour && format(new Date(formData.pickupDateRetour), "EEEE d MMMM yyyy", { locale: fr })}
                           {formData.pickupTimeRetour && ` a ${formData.pickupTimeRetour}`}
                         </div>
+                        {formData.adressePriseEnChargeDepartRetour && (
+                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-green-500 shrink-0" />
+                            {formData.adressePriseEnChargeDepartRetour}
+                          </p>
+                        )}
+                        {formData.adressePriseEnChargeArriveeRetour && (
+                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-red-500 shrink-0" />
+                            {formData.adressePriseEnChargeArriveeRetour}
+                          </p>
+                        )}
+                        {formData.adressesSupplementRetour.filter(a => a.adresse).length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {formData.adressesSupplementRetour.filter(a => a.adresse).map((a, i) => (
+                              <p key={i} className="text-xs text-slate-500 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-[#E04A1F] shrink-0" />
+                                {a.adresse}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
+
+                  {/* Options recap */}
+                  {(formData.siegeBebes > 0 || formData.animalDeCompagnie || (!formData.isOneWay && (formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour))) && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Options</p>
+                      <div className="space-y-2">
+                        {formData.siegeBebes > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <Baby className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                            <span>1 siege bebe (aller)</span>
+                          </div>
+                        )}
+                        {formData.animalDeCompagnie && (
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <PawPrint className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                            <span>Animal de compagnie (aller)</span>
+                          </div>
+                        )}
+                        {!formData.isOneWay && formData.siegeBebesRetour > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <Baby className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                            <span>1 siege bebe (retour)</span>
+                          </div>
+                        )}
+                        {!formData.isOneWay && formData.animalDeCompagnieRetour && (
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <PawPrint className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                            <span>Animal de compagnie (retour)</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Client + Date split */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2129,7 +2333,7 @@ export default function InterCityBookingWizard({
                         <p className="text-xl font-bold text-slate-900 capitalize truncate">
                           {selectedTrajet?.vehicule?.categorie || selectedTrajet?.vehicule?.marque || 'Vehicule'}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex flex-wrap gap-2 mt-2">
                           {(selectedTrajet?.vehicule?.places ?? selectedTrajet?.vehicule?.nombrePlace) != null && (
                             <span className="flex items-center gap-1 text-xs text-slate-500">
                               <Users className="w-3 h-3" />
@@ -2137,13 +2341,16 @@ export default function InterCityBookingWizard({
                             </span>
                           )}
                           {selectedTrajet?.vehicule?.grandBagage != null && (
-                            <>
-                              <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                              <span className="flex items-center gap-1 text-xs text-slate-500">
-                                <Briefcase className="w-3 h-3" />
-                                {selectedTrajet.vehicule.grandBagage} bagages
-                              </span>
-                            </>
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <Briefcase className="w-3 h-3" />
+                              {selectedTrajet.vehicule.grandBagage} grand{Number(selectedTrajet.vehicule.grandBagage) > 1 ? 's' : ''} (23kg)
+                            </span>
+                          )}
+                          {selectedTrajet?.vehicule?.petitBagage != null && (
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <Briefcase className="w-3 h-3" />
+                              {selectedTrajet.vehicule.petitBagage} petit{Number(selectedTrajet.vehicule.petitBagage) > 1 ? 's' : ''} (10kg)
+                            </span>
                           )}
                         </div>
                       </div>
@@ -2202,9 +2409,9 @@ export default function InterCityBookingWizard({
                         <p className="text-2xl font-black text-orange-400">
                           {(user?.isTva ? Math.round(calculateTotal() * 1.18) : calculateTotal()).toLocaleString()} FCFA
                         </p>
-                        <p className="text-[10px] text-white/40 uppercase tracking-widest">
-                          {user?.isTva ? 'TVA 18% incluse' : 'TVA incluse'}
-                        </p>
+                        {user?.isTva && (
+                          <p className="text-[10px] text-white/40 uppercase tracking-widest">TVA 18% incluse</p>
+                        )}
                       </div>
                     </div>
 

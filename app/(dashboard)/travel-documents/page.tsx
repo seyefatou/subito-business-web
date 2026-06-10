@@ -396,7 +396,6 @@ export default function TravelDocuments() {
     const bookingData: CreateTravelDocumentDto = {
       flightReservation: hasFlight,
       hotelReservation: hasHotel,
-      travelInsurance: false,
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
