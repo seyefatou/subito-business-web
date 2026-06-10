@@ -502,7 +502,16 @@ function Step4Confirmation({
 }: Step4Props) {
   const getPensionLabel = (id: number) => {
     const pension = pensions.find((p) => p.id === id);
-    return pension?.nom || pension?.label || pension?.titre || '';
+    if (!pension) return '';
+
+    const formuleLabelMap: Record<string, string> = {
+      'PENSION_COMPLETE': 'Pension complète',
+      'DEMI_PENSION': 'Demi-pension',
+      'PETIT_DEJEUNER': 'Petit-déjeuner',
+      'NUIT_SIMPLE': 'Nuit simple',
+    };
+
+    return formuleLabelMap[pension.formule || ''] || pension.nom || pension.label || pension.titre || 'Option repas';
   };
   const getOptionLabel = (id: number) => {
     const option = priceOptions.find((o) => o.id === id);
