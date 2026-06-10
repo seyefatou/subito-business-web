@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, Minus, Plus, CreditCard } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, CreditCard, Calendar, Users, Wallet, Mail, Phone, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
@@ -580,115 +580,171 @@ function Step4Confirmation({
     return option?.titre || option?.label || option?.nom || '';
   };
 
+  const getPaymentMethodLabel = () => {
+    return state.paymentMethod === 'company_account'
+      ? 'Compte entreprise'
+      : state.paymentMethod === 'client'
+      ? 'Client/Employé'
+      : 'Non sélectionné';
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Récapitulatif */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-        <h2 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
-          Récapitulatif de votre réservation
+    <div className="space-y-8">
+      {/* Détails de la réservation - Bento Grid */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+        <h2 className="text-lg font-extrabold text-[#171c1f] mb-6" style={MANROPE}>
+          Détails de votre réservation
         </h2>
 
-        <div className="space-y-4 text-sm">
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Produit :</span>
-            <span className="font-medium text-[#171c1f]">{productName}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Produit */}
+          <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100">
+            <div className="w-12 h-12 rounded-2xl bg-[#ffdbd0] flex items-center justify-center shrink-0">
+              <Check className="w-5 h-5 text-[#E04A1F]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Logement</p>
+              <p className="text-base font-bold text-[#171c1f]">{productName}</p>
+            </div>
           </div>
 
+          {/* Nombre de personnes */}
+          <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Voyageurs</p>
+              <p className="text-base font-bold text-[#171c1f]">{state.nombrePersonnes} personne{state.nombrePersonnes > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+
+          {/* Dates */}
           {(productType === 'logement' || productType === 'circuit') && (
-            <>
-              <div className="flex justify-between">
-                <span className="text-[#585e6c]">Arrivée :</span>
-                <span className="font-medium text-[#171c1f]">
-                  {state.dateDebut ? format(state.dateDebut, 'dd MMMM yyyy', { locale: fr }) : '-'}
-                </span>
+            <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100 md:col-span-2">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5 text-amber-600" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-[#585e6c]">Départ :</span>
-                <span className="font-medium text-[#171c1f]">
-                  {state.dateFin ? format(state.dateFin, 'dd MMMM yyyy', { locale: fr }) : '-'}
-                </span>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">Dates du séjour</p>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-xs text-[#585e6c] mb-1">Arrivée</p>
+                    <p className="text-sm font-bold text-[#171c1f]">
+                      {state.dateDebut ? format(state.dateDebut, 'dd MMM yyyy', { locale: fr }) : '-'}
+                    </p>
+                  </div>
+                  <div className="text-[#585e6c]">→</div>
+                  <div>
+                    <p className="text-xs text-[#585e6c] mb-1">Départ</p>
+                    <p className="text-sm font-bold text-[#171c1f]">
+                      {state.dateFin ? format(state.dateFin, 'dd MMM yyyy', { locale: fr }) : '-'}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </>
-          )}
-
-          {productType === 'activite' && state.dateDebut && (
-            <div className="flex justify-between">
-              <span className="text-[#585e6c]">Date :</span>
-              <span className="font-medium text-[#171c1f]">
-                {format(state.dateDebut, 'dd MMMM yyyy', { locale: fr })}
-              </span>
             </div>
           )}
 
-          {productType === 'vehicule' && (
-            <>
-              <div className="flex justify-between">
-                <span className="text-[#585e6c]">Début :</span>
-                <span className="font-medium text-[#171c1f]">
-                  {state.dateDebut ? format(state.dateDebut, 'dd MMMM yyyy', { locale: fr }) : '-'}{' '}
-                  {state.heureDebut ? `à ${state.heureDebut}` : ''}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#585e6c]">Fin :</span>
-                <span className="font-medium text-[#171c1f]">
-                  {state.dateFin ? format(state.dateFin, 'dd MMMM yyyy', { locale: fr }) : '-'}{' '}
-                  {state.heureFin ? `à ${state.heureFin}` : ''}
-                </span>
-              </div>
-            </>
-          )}
-
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Nombre de personnes :</span>
-            <span className="font-medium text-[#171c1f]">{state.nombrePersonnes}</span>
-          </div>
-
+          {/* Options repas */}
           {state.selectedPensions.length > 0 && (
-            <div>
-              <span className="text-[#585e6c] block mb-1">Options repas :</span>
-              {state.selectedPensions.map((id) => (
-                <span key={id} className="block text-[#171c1f] font-medium ml-4">
-                  • {getPensionLabel(id)}
-                </span>
-              ))}
+            <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">Options repas</p>
+                <div className="space-y-1">
+                  {state.selectedPensions.map((id) => (
+                    <p key={id} className="text-sm font-medium text-[#171c1f]">
+                      • {getPensionLabel(id)}
+                    </p>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Options supplémentaires */}
           {state.selectedPriceOptions.length > 0 && (
-            <div>
-              <span className="text-[#585e6c] block mb-1">Options supplémentaires :</span>
-              {state.selectedPriceOptions.map((id) => (
-                <span key={id} className="block text-[#171c1f] font-medium ml-4">
-                  • {getOptionLabel(id)}
-                </span>
-              ))}
+            <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">Options supplémentaires</p>
+                <div className="space-y-1">
+                  {state.selectedPriceOptions.map((id) => (
+                    <p key={id} className="text-sm font-medium text-[#171c1f]">
+                      • {getOptionLabel(id)}
+                    </p>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Client info */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-        <h3 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
+      {/* Mode de paiement */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#ffdbd0] flex items-center justify-center shrink-0">
+            <Wallet className="w-5 h-5 text-[#E04A1F]" />
+          </div>
+          <div className="flex-1">
+            <p className="text-lg font-extrabold text-[#171c1f] mb-1" style={MANROPE}>Mode de paiement</p>
+            <p className="text-base font-bold text-[#E04A1F]">{getPaymentMethodLabel()}</p>
+            <p className="text-xs text-[#585e6c] mt-2">
+              {state.paymentMethod === 'company_account'
+                ? 'L\'entreprise paiera cette réservation'
+                : state.paymentMethod === 'client'
+                ? 'Le client ou l\'employé paiera cette réservation'
+                : 'Veuillez sélectionner un mode de paiement'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Informations du client */}
+      <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+        <h3 className="text-lg font-extrabold text-[#171c1f] mb-6" style={MANROPE}>
           Informations du client
         </h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Prénom :</span>
-            <span className="font-medium text-[#171c1f]">{selectedEmployee?.prenom || user?.prenom}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Nom et Prénom */}
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+              <UserIcon className="w-5 h-5 text-slate-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Prénom</p>
+              <p className="text-sm font-bold text-[#171c1f] truncate">{selectedEmployee?.prenom || user?.prenom}</p>
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1 mt-3">Nom</p>
+              <p className="text-sm font-bold text-[#171c1f] truncate">{selectedEmployee?.nom || user?.nom}</p>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Nom :</span>
-            <span className="font-medium text-[#171c1f]">{selectedEmployee?.nom || user?.nom}</span>
+
+          {/* Email */}
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+              <Mail className="w-5 h-5 text-slate-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Email</p>
+              <p className="text-sm font-bold text-[#171c1f] truncate">{selectedEmployee?.email || user?.email}</p>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Email :</span>
-            <span className="font-medium text-[#171c1f]">{selectedEmployee?.email || user?.email}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#585e6c]">Téléphone :</span>
-            <span className="font-medium text-[#171c1f]">{selectedEmployee?.telephone || user?.telephone}</span>
+
+          {/* Téléphone */}
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0">
+              <Phone className="w-5 h-5 text-slate-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Téléphone</p>
+              <p className="text-sm font-bold text-[#171c1f]">{selectedEmployee?.telephone || user?.telephone}</p>
+            </div>
           </div>
         </div>
       </div>
