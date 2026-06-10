@@ -152,25 +152,87 @@ export function ReservationWizard({
     }
   };
 
+  const steps = [
+    { title: 'Informations client' },
+    { title: 'Détails de réservation' },
+    { title: 'Mode de paiement' },
+    { title: 'Confirmation' },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 py-8">
       <div className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={state.step > 1 ? handlePrevStep : onCancel}
-            className="p-2 hover:bg-slate-100 rounded-full transition"
-          >
-            <ArrowLeft className="w-6 h-6 text-[#171c1f]" />
-          </button>
-          <div>
-            <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
-              Étape {state.step} sur 4
-            </p>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
-              {getStepTitle()}
-            </h1>
+        {/* Header with back button and step info */}
+        <div className="flex items-baseline justify-between gap-4 flex-wrap mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={state.step > 1 ? handlePrevStep : onCancel}
+              className="p-2 hover:bg-slate-100 rounded-full transition"
+            >
+              <ArrowLeft className="w-6 h-6 text-[#171c1f]" />
+            </button>
+            <div>
+              <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
+                Étape {state.step} sur 4
+              </p>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
+                {getStepTitle()}
+              </h1>
+            </div>
           </div>
+          <span className="text-[#E04A1F] font-bold text-xs bg-[#ffdbd0] px-4 py-2 rounded-full uppercase tracking-widest shrink-0">
+            Étape {state.step}/4
+          </span>
+        </div>
+
+        {/* Editorial Stepper */}
+        <div className="flex items-center w-full mb-10">
+          {steps.map((step, idx) => {
+            const isDone = state.step > (idx + 1);
+            const isActive = state.step === (idx + 1);
+            const isLast = idx === steps.length - 1;
+            return (
+              <React.Fragment key={idx}>
+                <div className="flex flex-col items-center gap-2 shrink-0">
+                  <div
+                    className={`rounded-full flex items-center justify-center transition-all font-bold ${
+                      isActive
+                        ? "w-12 h-12 bg-[#E04A1F] text-white ring-4 ring-[#ffdbd0] shadow-lg shadow-[#E04A1F]/20"
+                        : isDone
+                        ? "w-10 h-10 bg-[#E04A1F] text-white"
+                        : "w-10 h-10 bg-[#dfe3e7] text-slate-500"
+                    }`}
+                  >
+                    {isDone ? (
+                      <Check className="w-5 h-5" strokeWidth={3} />
+                    ) : (
+                      <span className="text-sm">{idx + 1}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs hidden sm:block whitespace-nowrap text-center ${
+                      isActive
+                        ? "font-bold text-[#E04A1F]"
+                        : isDone
+                        ? "font-semibold text-[#171c1f]"
+                        : "font-medium text-slate-400"
+                    }`}
+                  >
+                    {step.title}
+                  </span>
+                </div>
+                {!isLast && (
+                  <div className="flex-1 h-1 mx-2 sm:mx-4 -mt-6 rounded-full overflow-hidden bg-[#dfe3e7]">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        isDone ? "bg-[#E04A1F] w-full" : "bg-transparent w-0"
+                      }`}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
