@@ -38,7 +38,7 @@ export interface BookingContextType {
 }
 
 export interface ReservationWizardState {
-  step: 1 | 2 | 3;
+  step: 1 | 2 | 3 | 4;
   dateDebut?: Date;
   dateFin?: Date;
   heureDebut?: string;
@@ -46,4 +46,5 @@ export interface ReservationWizardState {
   nombrePersonnes: number;
   selectedPensions: number[];
   selectedPriceOptions: number[];
+  paymentMethod?: 'company_account' | 'client';
 }

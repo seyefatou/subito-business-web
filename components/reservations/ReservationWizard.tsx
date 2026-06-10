@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
@@ -64,14 +64,14 @@ export function ReservationWizard({
   };
 
   const handleNextStep = () => {
-    if (state.step < 3) {
-      setState((prev) => ({ ...prev, step: (prev.step + 1) as 1 | 2 | 3 }));
+    if (state.step < 4) {
+      setState((prev) => ({ ...prev, step: (prev.step + 1) as 1 | 2 | 3 | 4 }));
     }
   };
 
   const handlePrevStep = () => {
     if (state.step > 1) {
-      setState((prev) => ({ ...prev, step: (prev.step - 1) as 1 | 2 | 3 }));
+      setState((prev) => ({ ...prev, step: (prev.step - 1) as 1 | 2 | 3 | 4 }));
     }
   };
 
@@ -114,7 +114,14 @@ export function ReservationWizard({
         );
       case 3:
         return (
-          <Step3Confirmation
+          <Step3Payment
+            state={state}
+            setState={setState}
+          />
+        );
+      case 4:
+        return (
+          <Step4Confirmation
             productType={productType}
             productId={productId}
             productName={productName}
@@ -137,7 +144,9 @@ export function ReservationWizard({
       case 2:
         return 'Détails de réservation';
       case 3:
-        return 'Confirmation et paiement';
+        return 'Mode de paiement';
+      case 4:
+        return 'Confirmation';
       default:
         return '';
     }
@@ -156,7 +165,7 @@ export function ReservationWizard({
           </button>
           <div>
             <p className="text-xs text-[#585e6c] font-semibold uppercase tracking-widest">
-              Étape {state.step} sur 3
+              Étape {state.step} sur 4
             </p>
             <h1 className="text-2xl md:text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
               {getStepTitle()}
@@ -217,10 +226,10 @@ export function ReservationWizard({
                   </Button>
                 )}
 
-                {state.step < 3 ? (
+                {state.step < 4 ? (
                   <Button
                     onClick={handleNextStep}
-                    disabled={state.step === 2 && !isStep2Complete()}
+                    disabled={(state.step === 2 && !isStep2Complete()) || (state.step === 3 && !state.paymentMethod)}
                     className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-4 h-4 mr-2" />
@@ -411,8 +420,66 @@ function Step2ReservationDetails({
   );
 }
 
-// ==================== STEP 3: CONFIRMATION ====================
-interface Step3Props {
+// ==================== STEP 3: PAYMENT ====================
+interface Step3PaymentProps {
+  state: ReservationWizardState;
+  setState: (updater: (prev: ReservationWizardState) => ReservationWizardState) => void;
+}
+
+function Step3Payment({ state, setState }: Step3PaymentProps) {
+  const paymentMethods = [
+    { id: 'company_account', label: 'Compte entreprise', description: 'L\'entreprise paie' },
+    { id: 'client', label: 'Client/Employé', description: 'Le client ou l\'employé paie lui-même' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        <h2 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
+          Sélectionnez le mode de paiement
+        </h2>
+        <div className="space-y-3">
+          {paymentMethods.map((method) => (
+            <label
+              key={method.id}
+              className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition ${
+                state.paymentMethod === method.id
+                  ? 'border-[#E04A1F] bg-[#ffdbd0]/30'
+                  : 'border-slate-200 hover:border-slate-300 bg-white'
+              }`}
+            >
+              <input
+                type="radio"
+                name="paymentMethod"
+                value={method.id}
+                checked={state.paymentMethod === method.id}
+                onChange={(e) =>
+                  setState((prev) => ({
+                    ...prev,
+                    paymentMethod: e.target.value as 'company_account' | 'client',
+                  }))
+                }
+                className="w-5 h-5 cursor-pointer"
+              />
+              <div className="ml-4 flex-1">
+                <p className="font-semibold text-[#171c1f]">{method.label}</p>
+                <p className="text-sm text-[#585e6c]">{method.description}</p>
+              </div>
+              {state.paymentMethod === method.id && (
+                <div className="w-5 h-5 rounded-full bg-[#E04A1F] flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== STEP 4: CONFIRMATION ====================
+interface Step4Props {
   productType: ProductType;
   productId: number;
   productName: string;
@@ -423,7 +490,7 @@ interface Step3Props {
   priceOptions: any[];
 }
 
-function Step3Confirmation({
+function Step4Confirmation({
   productType,
   productId,
   productName,
@@ -432,7 +499,7 @@ function Step3Confirmation({
   user,
   pensions,
   priceOptions,
-}: Step3Props) {
+}: Step4Props) {
   const getPensionLabel = (id: number) => {
     const pension = pensions.find((p) => p.id === id);
     return pension?.nom || pension?.label || pension?.titre || '';
