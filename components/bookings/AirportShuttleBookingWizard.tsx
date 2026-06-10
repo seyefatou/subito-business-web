@@ -1694,13 +1694,16 @@ export default function AirportShuttleBookingWizard({
 
                 {/* Terminal Selector for Departure */}
                 {(() => {
-                  const departureVille = selectedDepartId ? allVilles.find(v => v.id === selectedDepartId) : null;
-                  const departureTerminals = departureVille?.terminals ? Array.isArray(departureVille.terminals) ? departureVille.terminals : [] : [];
-                  if (!departureTerminals || departureTerminals.length === 0) return null;
+                  // Determine which airport to check based on direction
+                  const airportId = formData.direction === 'to_airport' ? selectedArriveeId : selectedDepartId;
+                  const airportVille = airportId ? allVilles.find(v => v.id === airportId) : null;
+                  const terminals = airportVille?.terminals ? Array.isArray(airportVille.terminals) ? airportVille.terminals : [] : [];
+
+                  if (!terminals || terminals.length === 0) return null;
 
                   return (
                     <div className="space-y-2">
-                      <Label>Terminal de départ (si applicable)</Label>
+                      <Label>Terminal {formData.direction === 'to_airport' ? 'de destination' : 'de départ'}</Label>
                       <Select
                         value={formData.terminalDepartId?.toString() || ''}
                         onValueChange={(v) => handleChange('terminalDepartId', v ? parseInt(v) : null)}
@@ -1710,7 +1713,7 @@ export default function AirportShuttleBookingWizard({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">-- Sans terminal --</SelectItem>
-                          {departureTerminals.map((term: any) => (
+                          {terminals.map((term: any) => (
                             <SelectItem key={term.id} value={term.id.toString()}>
                               {term.nom}
                             </SelectItem>
@@ -1787,13 +1790,17 @@ export default function AirportShuttleBookingWizard({
 
                   {/* Terminal Selector for Return */}
                   {(() => {
-                    const returnVille = selectedArriveeId ? allVilles.find(v => v.id === selectedArriveeId) : null;
-                    const returnTerminals = returnVille?.terminals ? Array.isArray(returnVille.terminals) ? returnVille.terminals : [] : [];
+                    // For return trip, we're going back to the original departure point
+                    // So if direction was 'to_airport', we return from the airport
+                    const returnAirportId = formData.direction === 'to_airport' ? selectedArriveeId : selectedDepartId;
+                    const returnAirportVille = returnAirportId ? allVilles.find(v => v.id === returnAirportId) : null;
+                    const returnTerminals = returnAirportVille?.terminals ? Array.isArray(returnAirportVille.terminals) ? returnAirportVille.terminals : [] : [];
+
                     if (!returnTerminals || returnTerminals.length === 0) return null;
 
                     return (
                       <div className="space-y-2">
-                        <Label>Terminal de retour (si applicable)</Label>
+                        <Label>Terminal de retour</Label>
                         <Select
                           value={formData.terminalRetourId?.toString() || ''}
                           onValueChange={(v) => handleChange('terminalRetourId', v ? parseInt(v) : null)}
