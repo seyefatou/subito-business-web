@@ -388,23 +388,22 @@ export default function AirportShuttleBookingWizard({
     return Array.from(map.values());
   }, [trajets]);
 
-  // Merge villes: prioritize API data for complete terminal info, fallback to trajet data
+  // Always use API data for complete terminal info, supplement with trajet data
   const allVilles: Ville[] = React.useMemo(() => {
-    if (villesFromTrajets.length === 0) return villesFromApi;
+    if (villesFromApi.length === 0 && villesFromTrajets.length === 0) return [];
 
-    // Create a map of villes from API for enrichment
-    const apiMap = new Map<number, Ville>();
-    villesFromApi.forEach(v => apiMap.set(v.id, v));
+    // Prioritize API data (has complete terminal info), fallback to trajet data
+    const combined = [...villesFromApi];
 
-    // Use trajet villes but enrich with complete data from API if available
-    return villesFromTrajets.map(trajetVille => {
-      const apiVille = apiMap.get(trajetVille.id);
-      // Merge: use API version if it has terminals, otherwise use trajet version
-      if (apiVille && apiVille.terminals) {
-        return { ...trajetVille, ...apiVille };
+    // Add trajet-only villes that aren't in API
+    const apiIds = new Set(villesFromApi.map(v => v.id));
+    villesFromTrajets.forEach(tv => {
+      if (!apiIds.has(tv.id)) {
+        combined.push(tv);
       }
-      return trajetVille;
     });
+
+    return combined;
   }, [villesFromTrajets, villesFromApi]);
 
   // CI: categories (public, no auth)
