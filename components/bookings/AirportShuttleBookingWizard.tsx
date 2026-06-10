@@ -436,7 +436,7 @@ export default function AirportShuttleBookingWizard({
     ? ciOptionsRaw
     : Array.isArray((ciOptionsRaw as any)?.data) ? (ciOptionsRaw as any).data : [];
 
-  // CI: quote — fires automatically when step 2 coords are filled
+  // CI: quote for ALLER — fires automatically when step 2 coords are filled
   const canFetchCIQuote = isCIBooking
     && formData.addressLat != null && formData.addressLng != null
     && formData.returnAddressLat != null && formData.returnAddressLng != null;
@@ -455,6 +455,26 @@ export default function AirportShuttleBookingWizard({
     enabled: canFetchCIQuote,
   });
   const ciQuote: NavetteCIQuoteResponse | null = (ciQuoteRaw as any)?.data ?? ciQuoteRaw ?? null;
+
+  // CI: quote for RETOUR (if round-trip) — fires automatically when return coords are filled
+  const canFetchCIReturnQuote = formData.is_round_trip && isCIBooking
+    && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null
+    && ciReturnArriveAddressLat != null && ciReturnArriveAddressLng != null;
+
+  const { data: ciReturnQuoteRaw, isLoading: ciReturnQuoteLoading, isError: ciReturnQuoteError } = useQuery({
+    queryKey: ['navette-ci-quote-return', ciReturnDepartAddressLat, ciReturnDepartAddressLng, ciReturnArriveAddressLat, ciReturnArriveAddressLng, formData.passengers, ciBagages23, ciBagages10],
+    queryFn: () => api.bookings.navetteCI.getQuote({
+      departLat: ciReturnDepartAddressLat!,
+      departLng: ciReturnDepartAddressLng!,
+      arriveeLat: ciReturnArriveAddressLat!,
+      arriveeLng: ciReturnArriveAddressLng!,
+      pax: formData.passengers,
+      bagages23: ciBagages23,
+      bagages10: ciBagages10,
+    }),
+    enabled: canFetchCIReturnQuote,
+  });
+  const ciReturnQuote: NavetteCIQuoteResponse | null = (ciReturnQuoteRaw as any)?.data ?? ciReturnQuoteRaw ?? null;
 
   // Filter by selected country if one is selected
   const filteredVilles = selectedPays
@@ -585,8 +605,26 @@ export default function AirportShuttleBookingWizard({
     return Math.round(getTrajetBase() * ROUND_TRIP_DISCOUNT_RATE);
   };
 
+  const calculateCIPriceTotal = (): number => {
+    let total = ciCategoryPrice;
+    // Add return price if round-trip
+    if (formData.is_round_trip && ciReturnQuote) {
+      // Find the selected category from return quote and add its price
+      const returnCategoryOption = ciReturnQuote.options.find(opt => opt.categorie === ciCategoryCode);
+      if (returnCategoryOption) {
+        total += returnCategoryOption.prix;
+      }
+    }
+    // Apply round-trip discount if applicable
+    if (formData.is_round_trip && total > 0) {
+      const discount = Math.round(total * ROUND_TRIP_DISCOUNT_RATE);
+      total -= discount;
+    }
+    return total;
+  };
+
   const calculateTotal = (): number => {
-    if (isCIBooking) return ciCategoryPrice;
+    if (isCIBooking) return calculateCIPriceTotal();
     if (!selectedTrajet) return 0;
     let total = getTrajetBase() - getRoundTripDiscount();
     if (formData.siegeBebes > 0 && selectedTrajet.prixSiegeBebe) {
@@ -1206,6 +1244,10 @@ export default function AirportShuttleBookingWizard({
                         const lng = airport?.longitude ?? null;
                         setCiArriveeAddressDisplay(val);
                         setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
+                        // Auto-remplir l'aéroport de départ du retour avec cet aéroport
+                        setCiReturnDepartAddress(val);
+                        setCiReturnDepartAddressLat(lat);
+                        setCiReturnDepartAddressLng(lng);
                       }}
                     >
                       <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
@@ -1227,6 +1269,10 @@ export default function AirportShuttleBookingWizard({
                       onSelect={(address, lat, lng) => {
                         setCiArriveeAddressDisplay(address);
                         setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                        // Auto-remplir la ville de départ du retour avec cette adresse
+                        setCiReturnDepartAddress(address);
+                        setCiReturnDepartAddressLat(lat);
+                        setCiReturnDepartAddressLng(lng);
                       }}
                       iconColor="text-blue-500"
                       countryCode="CI"
