@@ -726,6 +726,17 @@ export default function AirportShuttleBookingWizard({
         flightNumber: formData.flight_number || undefined,
         notes: formData.specialRequests || undefined,
         employeeId: formData.employeeId || undefined,
+        // Return trip information (if round-trip)
+        ...(formData.is_round_trip && {
+          scheduledDateRetour: formData.return_date ? new Date(formData.return_date + 'T00:00:00.000Z').toISOString() : undefined,
+          scheduledTimeRetour: formData.return_time || undefined,
+          departRetourLat: ciReturnDepartAddressLat ?? undefined,
+          departRetourLng: ciReturnDepartAddressLng ?? undefined,
+          arriveeRetourLat: ciReturnArriveAddressLat ?? undefined,
+          arriveeRetourLng: ciReturnArriveAddressLng ?? undefined,
+          departRetourAddress: ciReturnDepartAddress || undefined,
+          arriveeRetourAddress: ciReturnArriveAddress || undefined,
+        }),
         optionsSelectionnees: [
           ...Object.entries(ciSimpleOptions)
             .filter(([, qty]) => qty > 0)
@@ -743,6 +754,25 @@ export default function AirportShuttleBookingWizard({
                 ...(a.contactTelephone && { contactTelephone: a.contactTelephone }),
               })),
             })),
+          ...(formData.is_round_trip &&
+            Object.entries(ciReturnSimpleOptions)
+              .filter(([, qty]) => qty > 0)
+              .map(([id, quantite]) => ({ optionId: Number(id), quantite, forReturn: true }))),
+          ...(formData.is_round_trip &&
+            Object.entries(ciReturnAddressOptions)
+              .filter(([, adrs]) => adrs.length > 0)
+              .map(([id, adresses]) => ({
+                optionId: Number(id),
+                forReturn: true,
+                adresses: adresses.map((a): NavetteCIOptionAdresse => ({
+                  adresse: a.adresse,
+                  lat: a.lat ?? 0,
+                  lng: a.lng ?? 0,
+                  ...(a.instructions && { instructions: a.instructions }),
+                  ...(a.contactNom && { contactNom: a.contactNom }),
+                  ...(a.contactTelephone && { contactTelephone: a.contactTelephone }),
+                })),
+              }))),
         ].filter(o => (o as any).quantite > 0 || ((o as any).adresses?.length ?? 0) > 0),
       };
       createCIBooking.mutate(ciData);
