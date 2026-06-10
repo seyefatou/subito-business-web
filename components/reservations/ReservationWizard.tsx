@@ -112,6 +112,13 @@ export function ReservationWizard({
       return;
     }
 
+    const getFormuleRepas = (): string | undefined => {
+      if (state.selectedPensions.length === 0) return undefined;
+      const pensionId = state.selectedPensions[0];
+      const pension = pensions.find((p) => p.id === pensionId);
+      return pension?.formule || undefined;
+    };
+
     const reservationData = {
       serviceType: productType === 'logement' ? 'LOGEMENT' : productType.toUpperCase(),
       logementId: productType === 'logement' ? productId : undefined,
@@ -127,13 +134,16 @@ export function ReservationWizard({
       heureDebut: state.heureDebut,
       heureFin: state.heureFin,
       nombrePersonnes: state.nombrePersonnes,
-      formuleRepas: state.selectedPensions.length > 0 ? state.selectedPensions[0] : undefined,
-      priceOptions: state.selectedPriceOptions.map((id) => ({
-        code: `OPTION_${id}`,
-        quantite: 1,
-      })),
+      formuleRepas: getFormuleRepas(),
+      priceOptions: state.selectedPriceOptions.map((id) => {
+        const option = priceOptions.find((o) => o.id === id);
+        return {
+          code: option?.code || `OPTION_${id}`,
+          quantite: 1,
+        };
+      }),
       notes: `Mode de paiement: ${state.paymentMethod === 'company_account' ? 'Compte entreprise' : 'Client/Employé'}`,
-      canal: 'web',
+      canal: 'company',
     };
 
     createReservationMutation.mutate(reservationData);
