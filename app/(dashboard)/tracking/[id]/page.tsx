@@ -515,7 +515,7 @@ export default function TrackingDetailPage() {
                 <ItineraryTimeline
                   origin={(d.adressePriseEnChargeRetour as string) || (d.adressePriseEnChargeDepartRetour as string) || arriveeVille || "—"}
                   originLabel={arriveeVille ? `Départ retour — ${arriveeVille}` : "Prise en charge retour"}
-                  destination={(d.adressePriseEnChargeArriveeRetour as string) || departVille || "—"}
+                  destination={(d.adresseDestinationRetour as string) || departVille || "—"}
                   destinationLabel={departVille ? `Arrivée retour — ${departVille}` : "Destination retour"}
                   flightNumber={isToAirport ? (d.flightNumber as string | undefined) : undefined}
                   variant="return"
