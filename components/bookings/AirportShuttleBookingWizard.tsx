@@ -1137,14 +1137,14 @@ export default function AirportShuttleBookingWizard({
                   <div className="space-y-2">
                     <Label>Terminal de l'aéroport de départ</Label>
                     <Select
-                      value={formData.terminalDepartId?.toString() || ''}
-                      onValueChange={(v) => handleChange('terminalDepartId', v ? parseInt(v) : null)}
+                      value={formData.terminalDepartId?.toString() || 'none'}
+                      onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
                     >
                       <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
                         <SelectValue placeholder="Sélectionner un terminal" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">-- Sans terminal --</SelectItem>
+                        <SelectItem value="none">-- Sans terminal --</SelectItem>
                         {terminals.map((term: any) => (
                           <SelectItem key={term.id} value={term.id.toString()}>
                             {term.nom}
@@ -1209,14 +1209,14 @@ export default function AirportShuttleBookingWizard({
                   <div className="space-y-2">
                     <Label>Terminal de l'aéroport</Label>
                     <Select
-                      value={formData.terminalRetourId?.toString() || ''}
-                      onValueChange={(v) => handleChange('terminalRetourId', v ? parseInt(v) : null)}
+                      value={formData.terminalRetourId?.toString() || 'none'}
+                      onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
                     >
                       <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
                         <SelectValue placeholder="Sélectionner un terminal" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">-- Sans terminal --</SelectItem>
+                        <SelectItem value="none">-- Sans terminal --</SelectItem>
                         {terminals.map((term: any) => (
                           <SelectItem key={term.id} value={term.id.toString()}>
                             {term.nom}
@@ -1764,14 +1764,14 @@ export default function AirportShuttleBookingWizard({
                     <div className="space-y-2">
                       <Label>Terminal {formData.direction === 'to_airport' ? 'de destination' : 'de départ'}</Label>
                       <Select
-                        value={formData.terminalDepartId?.toString() || ''}
-                        onValueChange={(v) => handleChange('terminalDepartId', v ? parseInt(v) : null)}
+                        value={formData.terminalDepartId?.toString() || 'none'}
+                        onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
                       >
                         <SelectTrigger className="rounded-xl">
                           <SelectValue placeholder="Sélectionner un terminal" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">-- Sans terminal --</SelectItem>
+                          <SelectItem value="none">-- Sans terminal --</SelectItem>
                           {terminals.map((term: any) => (
                             <SelectItem key={term.id} value={term.id.toString()}>
                               {term.nom}
@@ -1861,14 +1861,14 @@ export default function AirportShuttleBookingWizard({
                       <div className="space-y-2">
                         <Label>Terminal de retour</Label>
                         <Select
-                          value={formData.terminalRetourId?.toString() || ''}
-                          onValueChange={(v) => handleChange('terminalRetourId', v ? parseInt(v) : null)}
+                          value={formData.terminalRetourId?.toString() || 'none'}
+                          onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
                         >
                           <SelectTrigger className="rounded-xl">
                             <SelectValue placeholder="Sélectionner un terminal" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">-- Sans terminal --</SelectItem>
+                            <SelectItem value="none">-- Sans terminal --</SelectItem>
                             {returnTerminals.map((term: any) => (
                               <SelectItem key={term.id} value={term.id.toString()}>
                                 {term.nom}
