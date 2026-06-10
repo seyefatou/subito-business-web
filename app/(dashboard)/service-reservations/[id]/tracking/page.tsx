@@ -143,16 +143,31 @@ export default function ServiceReservationTrackingPage() {
                   </div>
                 </div>
 
-                {/* Nombre de nuits */}
+                {/* Nombre de nuits précis */}
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
                     <Clock className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Durée</p>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Durée du séjour</p>
                     <p className="text-base font-bold text-[#171c1f]">{numberOfNights} nuit{numberOfNights > 1 ? 's' : ''}</p>
+                    {reservation.optionsSupplementaires?.pension && (
+                      <>
+                        <p className="text-xs text-[#585e6c] mt-1">
+                          {reservation.optionsSupplementaires.pension.nbNuits} nuit{reservation.optionsSupplementaires.pension.nbNuits > 1 ? 's' : ''} en semaine
+                        </p>
+                        {reservation.optionsSupplementaires.pension.nbWeekend > 0 && (
+                          <p className="text-xs text-[#585e6c]">
+                            + {reservation.optionsSupplementaires.pension.nbWeekend} jour{reservation.optionsSupplementaires.pension.nbWeekend > 1 ? 's' : ''} weekend
+                          </p>
+                        )}
+                      </>
+                    )}
                     <p className="text-xs text-[#585e6c] mt-2">
                       Départ : {format(new Date(reservation.dateFin), 'dd MMMM yyyy', { locale: fr })}
+                    </p>
+                    <p className="text-xs text-[#585e6c]">
+                      Check-out : {reservation.logement?.heureCheckOut || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -167,10 +182,13 @@ export default function ServiceReservationTrackingPage() {
                     <p className="text-base font-bold text-[#171c1f]">
                       {reservation.nombrePersonnes} personne{reservation.nombrePersonnes > 1 ? 's' : ''}
                     </p>
+                    {reservation.logement?.capacite && (
+                      <p className="text-xs text-[#585e6c] mt-1">Capacité max : {reservation.logement.capacite}</p>
+                    )}
                   </div>
                 </div>
 
-                {/* Logement */}
+                {/* Logement avec détails */}
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
                     <Home className="w-5 h-5 text-orange-600" />
@@ -179,8 +197,36 @@ export default function ServiceReservationTrackingPage() {
                     <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Logement</p>
                     <p className="text-base font-bold text-[#171c1f]">{reservation.logement?.nom}</p>
                     <p className="text-xs text-[#585e6c] mt-1">{reservation.logement?.type || 'N/A'}</p>
+                    {reservation.logement?.ville && (
+                      <p className="text-xs text-[#585e6c]">
+                        {reservation.logement.ville}, {reservation.logement.pays}
+                      </p>
+                    )}
+                    <div className="text-xs text-[#585e6c] mt-2">
+                      <p>• {reservation.logement?.nbreChambres} chambre{reservation.logement?.nbreChambres !== 1 ? 's' : ''}</p>
+                      <p>• {reservation.logement?.salleDeBain} salle{reservation.logement?.salleDeBain !== 1 ? 's' : ''} de bain</p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Image du logement */}
+                {reservation.logement?.images?.[0] && (
+                  <div className="md:col-span-2">
+                    <img
+                      src={reservation.logement.images[0]}
+                      alt={reservation.logement.nom}
+                      className="w-full h-48 object-cover rounded-2xl"
+                    />
+                  </div>
+                )}
+
+                {/* Conditions d'annulation */}
+                {reservation.logement?.typeAnnulation && (
+                  <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
+                    <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d'annulation</p>
+                    <p className="text-sm text-blue-900">{reservation.logement.typeAnnulation}</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -191,57 +237,105 @@ export default function ServiceReservationTrackingPage() {
                   Détails de facturation
                 </h2>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {/* Pension */}
                   {reservation.optionsSupplementaires.pension && (
-                    <div className="flex justify-between items-start pb-4 border-b border-slate-100">
-                      <div>
-                        <p className="font-semibold text-[#171c1f]">{reservation.optionsSupplementaires.pension.formule}</p>
-                        <p className="text-sm text-[#585e6c] mt-1">
-                          {reservation.optionsSupplementaires.pension.nbNuits} nuit
-                          {reservation.optionsSupplementaires.pension.nbNuits > 1 ? 's' : ''} ×{' '}
-                          {FORMAT_FCFA(reservation.optionsSupplementaires.pension.prixParNuit)}
-                        </p>
-                        {reservation.optionsSupplementaires.pension.nbWeekend > 0 && (
-                          <p className="text-sm text-[#585e6c]">
-                            + {reservation.optionsSupplementaires.pension.nbWeekend} jour
-                            {reservation.optionsSupplementaires.pension.nbWeekend > 1 ? 's' : ''} weekend ×{' '}
-                            {FORMAT_FCFA(reservation.optionsSupplementaires.pension.prixWeekend)}
+                    <div className="pb-6 border-b-2 border-slate-100">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="text-base font-extrabold text-[#171c1f]">
+                            {reservation.optionsSupplementaires.pension.formule}
                           </p>
-                        )}
+                          <p className="text-xs text-[#585e6c] mt-1 uppercase tracking-widest font-bold">
+                            Formule repas
+                          </p>
+                        </div>
+                        <span className="bg-[#ffdbd0] text-[#E04A1F] text-xs font-bold px-3 py-1 rounded-full">
+                          Principale
+                        </span>
                       </div>
-                      <p className="font-bold text-[#E04A1F]">
-                        {FORMAT_FCFA(reservation.optionsSupplementaires.pension.total)}
-                      </p>
+
+                      <div className="space-y-3 bg-slate-50 rounded-xl p-4 mt-4">
+                        <div className="flex justify-between">
+                          <p className="text-sm text-[#585e6c]">
+                            {reservation.optionsSupplementaires.pension.nbNuits} nuit
+                            {reservation.optionsSupplementaires.pension.nbNuits > 1 ? 's' : ''} en semaine
+                          </p>
+                          <p className="text-sm font-semibold text-[#171c1f]">
+                            {FORMAT_FCFA(reservation.optionsSupplementaires.pension.prixParNuit)} / nuit
+                          </p>
+                        </div>
+
+                        {reservation.optionsSupplementaires.pension.nbWeekend > 0 && (
+                          <div className="flex justify-between">
+                            <p className="text-sm text-[#585e6c]">
+                              {reservation.optionsSupplementaires.pension.nbWeekend} jour
+                              {reservation.optionsSupplementaires.pension.nbWeekend > 1 ? 's' : ''} weekend
+                            </p>
+                            <p className="text-sm font-semibold text-[#171c1f]">
+                              {FORMAT_FCFA(reservation.optionsSupplementaires.pension.prixWeekend)} / jour
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between pt-3 border-t border-slate-200">
+                          <p className="font-semibold text-[#171c1f]">Sous-total pension</p>
+                          <p className="font-bold text-[#E04A1F]">
+                            {FORMAT_FCFA(reservation.optionsSupplementaires.pension.total)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   {/* Options supplémentaires */}
                   {reservation.optionsSupplementaires.priceOptions &&
                     reservation.optionsSupplementaires.priceOptions.length > 0 && (
-                      <div className="space-y-3">
-                        {reservation.optionsSupplementaires.priceOptions.map((option, idx) => (
-                          <div key={idx} className="flex justify-between items-center">
-                            <div>
-                              <p className="font-semibold text-[#171c1f]">{option.titre}</p>
-                              <p className="text-sm text-[#585e6c]">
-                                × {option.quantite} @ {FORMAT_FCFA(option.prix)}
-                              </p>
+                      <div>
+                        <p className="text-base font-extrabold text-[#171c1f] mb-4">Options supplémentaires</p>
+                        <div className="space-y-3">
+                          {reservation.optionsSupplementaires.priceOptions.map((option, idx) => (
+                            <div key={idx} className="bg-slate-50 rounded-xl p-4">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <p className="font-semibold text-[#171c1f] capitalize">{option.titre}</p>
+                                  <p className="text-xs text-[#585e6c] mt-1">Code: {option.code}</p>
+                                </div>
+                                <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded">
+                                  {option.pricingMode === 'PER_NUIT' ? 'Par nuit' : 'Quantité'}
+                                </span>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <p className="text-[#585e6c]">Prix unitaire</p>
+                                  <p className="font-semibold text-[#171c1f]">{FORMAT_FCFA(option.prix)}</p>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <p className="text-[#585e6c]">Quantité</p>
+                                  <p className="font-semibold text-[#171c1f]">{option.quantite}</p>
+                                </div>
+                                <div className="flex justify-between pt-2 border-t border-slate-200">
+                                  <p className="font-semibold text-[#171c1f]">Total</p>
+                                  <p className="font-bold text-[#E04A1F]">{FORMAT_FCFA(option.total)}</p>
+                                </div>
+                              </div>
                             </div>
-                            <p className="font-bold text-[#171c1f]">{FORMAT_FCFA(option.total)}</p>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
 
                   {/* Total */}
-                  <div className="flex justify-between items-center pt-4 border-t-2 border-[#E04A1F]">
-                    <p className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
-                      Total
-                    </p>
-                    <p className="text-2xl font-extrabold text-[#E04A1F]">
-                      {FORMAT_FCFA(reservation.totalPrice)}
-                    </p>
+                  <div className="pt-4 border-t-2 border-[#E04A1F]">
+                    <div className="flex justify-between items-center">
+                      <p className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
+                        TOTAL
+                      </p>
+                      <p className="text-3xl font-extrabold text-[#E04A1F]">
+                        {FORMAT_FCFA(reservation.totalPrice)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
