@@ -1182,6 +1182,76 @@ export default function AirportShuttleBookingWizard({
                   );
                 })()}
 
+                {/* Arrivée (Aéroport ou Adresse selon le sens) */}
+                <div className="space-y-2">
+                  <Label>
+                    {ciSens === 'airport_to_city' ? 'Adresse d\'arrivée (ville) *' : 'Aéroport d\'arrivée *'}
+                  </Label>
+                  {ciSens === 'city_to_airport' ? (
+                    <Select
+                      value={formData.return_address}
+                      onValueChange={(val) => {
+                        const airport = aeroports.find(a => (a.nom || a.name) === val);
+                        const lat = airport?.latitude ?? null;
+                        const lng = airport?.longitude ?? null;
+                        setCiArriveeAddressDisplay(val);
+                        setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Choisir un aéroport" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aeroports.map(a => (
+                          <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                            {a.nom || a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <AddressAutocomplete
+                      placeholder="Ex: Cocody, Abidjan"
+                      value={formData.return_address}
+                      onChange={(val) => handleChange('return_address', val)}
+                      onSelect={(address, lat, lng) => {
+                        setCiArriveeAddressDisplay(address);
+                        setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                      }}
+                      iconColor="text-blue-500"
+                      countryCode="CI"
+                    />
+                  )}
+                </div>
+
+                {/* Terminal Arrivée */}
+                {ciSens === 'city_to_airport' && (() => {
+                  const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
+                  const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                  if (!terminals || terminals.length === 0) return null;
+                  return (
+                    <div className="space-y-2">
+                      <Label>Terminal de l'aéroport d'arrivée</Label>
+                      <Select
+                        value={formData.terminalRetourId?.toString() || 'none'}
+                        onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Sélectionner un terminal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-- Sans terminal --</SelectItem>
+                          {terminals.map((term: any) => (
+                            <SelectItem key={term.id} value={term.id.toString()}>
+                              {term.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
+
                 {/* Date et Heure Aller */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1429,12 +1499,24 @@ export default function AirportShuttleBookingWizard({
                     <h4 className="font-semibold text-slate-800">Informations Retour</h4>
                   </div>
 
-                  {/* Arrivée Retour (l'aéroport inverse) */}
+                  {/* Départ Retour (inverse de l'aller) */}
                   <div className="space-y-2">
                     <Label>
-                      {ciSens === 'city_to_airport' ? 'Aéroport de retour *' : 'Adresse de retour (ville) *'}
+                      {ciSens === 'city_to_airport' ? 'Adresse de départ retour (ville) *' : 'Aéroport de départ retour *'}
                     </Label>
                     {ciSens === 'city_to_airport' ? (
+                      <AddressAutocomplete
+                        placeholder="Ex: Cocody, Abidjan"
+                        value={formData.return_address}
+                        onChange={(val) => handleChange('return_address', val)}
+                        onSelect={(address, lat, lng) => {
+                          setCiArriveeAddressDisplay(address);
+                          setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                        }}
+                        iconColor="text-blue-500"
+                        countryCode="CI"
+                      />
+                    ) : (
                       <Select
                         value={formData.return_address}
                         onValueChange={(val) => {
@@ -1456,32 +1538,90 @@ export default function AirportShuttleBookingWizard({
                           ))}
                         </SelectContent>
                       </Select>
-                    ) : (
-                      <AddressAutocomplete
-                        placeholder="Ex: Cocody, Abidjan"
-                        value={formData.return_address}
-                        onChange={(val) => handleChange('return_address', val)}
-                        onSelect={(address, lat, lng) => {
-                          setCiArriveeAddressDisplay(address);
-                          setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
-                        }}
-                        iconColor="text-blue-500"
-                        countryCode="CI"
-                      />
                     )}
                   </div>
 
-                  {/* Terminal Retour */}
-                  {ciSens === 'city_to_airport' && (() => {
+                  {/* Terminal Départ Retour */}
+                  {ciSens === 'airport_to_city' && (() => {
                     const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
                     const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
                     return (
                       <div className="space-y-2">
-                        <Label>Terminal de l'aéroport de retour</Label>
+                        <Label>Terminal de départ retour</Label>
                         <Select
                           value={formData.terminalRetourId?.toString() || 'none'}
                           onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
+                        >
+                          <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                            <SelectValue placeholder="Sélectionner un terminal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-- Sans terminal --</SelectItem>
+                            {terminals.map((term: any) => (
+                              <SelectItem key={term.id} value={term.id.toString()}>
+                                {term.nom}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Arrivée Retour (l'aéroport inverse) */}
+                  <div className="space-y-2">
+                    <Label>
+                      {ciSens === 'city_to_airport' ? 'Aéroport d\'arrivée retour *' : 'Adresse d\'arrivée retour (ville) *'}
+                    </Label>
+                    {ciSens === 'city_to_airport' ? (
+                      <Select
+                        value={formData.address}
+                        onValueChange={(val) => {
+                          const airport = aeroports.find(a => (a.nom || a.name) === val);
+                          const lat = airport?.latitude ?? null;
+                          const lng = airport?.longitude ?? null;
+                          setCiDepartAddressDisplay(val);
+                          setFormData(prev => ({ ...prev, address: val, addressLat: lat, addressLng: lng }));
+                        }}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Choisir un aéroport" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {aeroports.map(a => (
+                            <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                              {a.nom || a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <AddressAutocomplete
+                        placeholder="Ex: Plateau, Abidjan"
+                        value={formData.address}
+                        onChange={(val) => handleChange('address', val)}
+                        onSelect={(address, lat, lng) => {
+                          setCiDepartAddressDisplay(address);
+                          setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
+                        }}
+                        iconColor="text-orange-500"
+                        countryCode="CI"
+                      />
+                    )}
+                  </div>
+
+                  {/* Terminal Arrivée Retour */}
+                  {ciSens === 'city_to_airport' && (() => {
+                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
+                    const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                    if (!terminals || terminals.length === 0) return null;
+                    return (
+                      <div className="space-y-2">
+                        <Label>Terminal d'arrivée retour</Label>
+                        <Select
+                          value={formData.terminalDepartId?.toString() || 'none'}
+                          onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
                         >
                           <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
                             <SelectValue placeholder="Sélectionner un terminal" />
