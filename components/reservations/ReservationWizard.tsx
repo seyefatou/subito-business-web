@@ -55,6 +55,7 @@ export function ReservationWizard({
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
+  const [bookingId, setBookingId] = useState<number | null>(null);
 
   const isStep2Complete = () => {
     if (productType === 'logement' || productType === 'circuit') {
@@ -85,7 +86,9 @@ export function ReservationWizard({
     mutationFn: (data: any) => api.serviceReservations.create(data),
     onSuccess: (response: any) => {
       const ref = response?.data?.reservationCode || response?.reservationCode || `SRV-${Date.now()}`;
+      const id = response?.data?.id || response?.id;
       setBookingRef(ref);
+      setBookingId(id);
       setBookingSuccess(true);
       toast.success('Réservation confirmée avec succès !');
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -301,8 +304,9 @@ export function ReservationWizard({
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
           <Button
-            onClick={() => router.push(`/tracking`)}
-            className="flex-1 bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2"
+            onClick={() => bookingId && router.push(`/service-reservations/${bookingId}/tracking`)}
+            disabled={!bookingId}
+            className="flex-1 bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2 disabled:opacity-50"
           >
             <Search className="w-5 h-5" />
             Suivre ma réservation
