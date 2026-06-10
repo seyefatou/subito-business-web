@@ -107,7 +107,14 @@ export function ReservationWizard({
       return;
     }
 
-    if (!state.dateDebut || !state.dateFin) {
+    // Validate dates based on product type
+    if (!state.dateDebut) {
+      toast.error('Veuillez sélectionner les dates');
+      return;
+    }
+
+    // Only require dateFin for logement, circuit, and vehicule (not activite)
+    if ((productType === 'logement' || productType === 'circuit' || productType === 'vehicule') && !state.dateFin) {
       toast.error('Veuillez sélectionner les dates');
       return;
     }
