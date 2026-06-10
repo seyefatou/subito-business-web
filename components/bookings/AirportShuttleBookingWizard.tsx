@@ -1047,7 +1047,7 @@ export default function AirportShuttleBookingWizard({
                 </h3>
               </div>
 
-              {/* Sens */}
+              {/* Sens du trajet */}
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Sens du trajet</Label>
                 <div className="grid grid-cols-2 gap-3 bg-[#f0f4f8] p-2 rounded-2xl">
@@ -1064,7 +1064,6 @@ export default function AirportShuttleBookingWizard({
                           setCiSens(option.value);
                           setCiDepartAddressDisplay('');
                           setCiArriveeAddressDisplay('');
-                          // Réinitialiser les adresses car départ/arrivée s'inversent selon le sens
                           setFormData(prev => ({
                             ...prev,
                             address: '', addressLat: null, addressLng: null,
@@ -1084,7 +1083,7 @@ export default function AirportShuttleBookingWizard({
                 </div>
               </div>
 
-              {/* Round trip toggle for CI */}
+              {/* Round trip toggle */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
                 <div className="flex items-center gap-3">
                   <ArrowRightLeft className="w-5 h-5 text-slate-500" />
@@ -1106,190 +1105,328 @@ export default function AirportShuttleBookingWizard({
                 />
               </div>
 
-              {/* Departure — airport SELECT si sens airport_to_city, sinon AddressAutocomplete ville */}
-              <div className="space-y-2">
-                <Label>
-                  {ciSens === 'airport_to_city' ? 'Aéroport de départ *' : 'Adresse de départ (ville) *'}
-                </Label>
-                {ciSens === 'airport_to_city' ? (
-                  <Select
-                    value={formData.address}
-                    onValueChange={(val) => {
-                      const airport = aeroports.find(a => (a.nom || a.name) === val);
-                      const lat = airport?.latitude ?? null;
-                      const lng = airport?.longitude ?? null;
-                      setCiDepartAddressDisplay(val);
-                      setFormData(prev => ({ ...prev, address: val, addressLat: lat, addressLng: lng }));
-                    }}
-                  >
-                    <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                      <SelectValue placeholder="Choisir un aéroport" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {aeroports.map(a => (
-                        <SelectItem key={a.id} value={a.nom || a.name || ''}>
-                          {a.nom || a.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <AddressAutocomplete
-                    placeholder="Ex: Plateau, Abidjan"
-                    value={formData.address}
-                    onChange={(val) => handleChange('address', val)}
-                    onSelect={(address, lat, lng) => {
-                      setCiDepartAddressDisplay(address);
-                      setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
-                    }}
-                    iconColor="text-orange-500"
-                    countryCode="CI"
-                  />
-                )}
-              </div>
-
-              {/* Terminal Selector for CI Departure Airport */}
-              {ciSens === 'airport_to_city' && (() => {
-                const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
-                const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
-
-                if (!terminals || terminals.length === 0) return null;
-
-                return (
-                  <div className="space-y-2">
-                    <Label>Terminal de l'aéroport de départ</Label>
-                    <Select
-                      value={formData.terminalDepartId?.toString() || 'none'}
-                      onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
-                    >
-                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                        <SelectValue placeholder="Sélectionner un terminal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">-- Sans terminal --</SelectItem>
-                        {terminals.map((term: any) => (
-                          <SelectItem key={term.id} value={term.id.toString()}>
-                            {term.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })()}
-
-              {/* Arrival — AddressAutocomplete ville si sens airport_to_city, sinon airport SELECT */}
-              <div className="space-y-2">
-                <Label>
-                  {ciSens === 'airport_to_city' ? 'Adresse d\'arrivée (ville) *' : 'Aéroport d\'arrivée *'}
-                </Label>
-                {ciSens === 'city_to_airport' ? (
-                  <Select
-                    value={formData.return_address}
-                    onValueChange={(val) => {
-                      const airport = aeroports.find(a => (a.nom || a.name) === val);
-                      const lat = airport?.latitude ?? null;
-                      const lng = airport?.longitude ?? null;
-                      setCiArriveeAddressDisplay(val);
-                      setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
-                    }}
-                  >
-                    <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                      <SelectValue placeholder="Choisir un aéroport" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {aeroports.map(a => (
-                        <SelectItem key={a.id} value={a.nom || a.name || ''}>
-                          {a.nom || a.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <AddressAutocomplete
-                    placeholder="Ex: Cocody, Abidjan"
-                    value={formData.return_address}
-                    onChange={(val) => handleChange('return_address', val)}
-                    onSelect={(address, lat, lng) => {
-                      setCiArriveeAddressDisplay(address);
-                      setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
-                    }}
-                    iconColor="text-blue-500"
-                    countryCode="CI"
-                  />
-                )}
-              </div>
-
-              {/* Terminal Selector for CI */}
-              {ciSens === 'city_to_airport' && (() => {
-                const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
-                const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
-
-                if (!terminals || terminals.length === 0) return null;
-
-                return (
-                  <div className="space-y-2">
-                    <Label>Terminal de l'aéroport</Label>
-                    <Select
-                      value={formData.terminalRetourId?.toString() || 'none'}
-                      onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
-                    >
-                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
-                        <SelectValue placeholder="Sélectionner un terminal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">-- Sans terminal --</SelectItem>
-                        {terminals.map((term: any) => (
-                          <SelectItem key={term.id} value={term.id.toString()}>
-                            {term.nom}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })()}
-
-              {/* Date & Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start bg-slate-50 hover:bg-slate-100 rounded-xl h-12 px-4 font-normal"
-                      >
-                        <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
-                        {formData.departure_date
-                          ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
-                          : <span className="text-slate-500">Sélectionner une date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
-                        onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
-                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* SECTION ALLER */}
+              <div className="border border-orange-200 rounded-2xl p-5 space-y-4 bg-orange-50/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <PlaneTakeoff className="w-5 h-5 text-[#E04A1F]" />
+                  <h4 className="font-semibold text-slate-800">Informations Aller</h4>
                 </div>
+
+                {/* Départ (Aéroport ou Adresse selon le sens) */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure *</Label>
-                  <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
-                    <TimePicker
-                      value={formData.departure_time}
-                      onChange={(v) => handleChange('departure_time', v)}
-                      placeholder="Choisir une heure"
-                      selectedDate={formData.departure_date}
+                  <Label>
+                    {ciSens === 'airport_to_city' ? 'Aéroport de départ *' : 'Adresse de départ (ville) *'}
+                  </Label>
+                  {ciSens === 'airport_to_city' ? (
+                    <Select
+                      value={formData.address}
+                      onValueChange={(val) => {
+                        const airport = aeroports.find(a => (a.nom || a.name) === val);
+                        const lat = airport?.latitude ?? null;
+                        const lng = airport?.longitude ?? null;
+                        setCiDepartAddressDisplay(val);
+                        setFormData(prev => ({ ...prev, address: val, addressLat: lat, addressLng: lng }));
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Choisir un aéroport" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aeroports.map(a => (
+                          <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                            {a.nom || a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <AddressAutocomplete
+                      placeholder="Ex: Plateau, Abidjan"
+                      value={formData.address}
+                      onChange={(val) => handleChange('address', val)}
+                      onSelect={(address, lat, lng) => {
+                        setCiDepartAddressDisplay(address);
+                        setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
+                      }}
+                      iconColor="text-orange-500"
+                      countryCode="CI"
+                    />
+                  )}
+                </div>
+
+                {/* Terminal Départ */}
+                {ciSens === 'airport_to_city' && (() => {
+                  const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
+                  const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                  if (!terminals || terminals.length === 0) return null;
+                  return (
+                    <div className="space-y-2">
+                      <Label>Terminal de l'aéroport de départ</Label>
+                      <Select
+                        value={formData.terminalDepartId?.toString() || 'none'}
+                        onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Sélectionner un terminal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">-- Sans terminal --</SelectItem>
+                          {terminals.map((term: any) => (
+                            <SelectItem key={term.id} value={term.id.toString()}>
+                              {term.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
+
+                {/* Date et Heure Aller */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date départ *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start bg-white hover:bg-slate-50 rounded-xl h-12 px-4 font-normal"
+                        >
+                          <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                          {formData.departure_date
+                            ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                            : <span className="text-slate-500">Sélectionner</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
+                          onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure départ *</Label>
+                    <div className="bg-white rounded-xl px-4 h-12 flex items-center">
+                      <TimePicker
+                        value={formData.departure_time}
+                        onChange={(v) => handleChange('departure_time', v)}
+                        placeholder="Choisir une heure"
+                        selectedDate={formData.departure_date}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Numéro de vol (si airport_to_city) */}
+                {ciSens === 'airport_to_city' && (
+                  <div className="space-y-2">
+                    <Label>Numéro de vol *</Label>
+                    <Input
+                      placeholder="Ex: SN204"
+                      value={formData.flight_number}
+                      onChange={(e) => handleChange('flight_number', e.target.value)}
                     />
                   </div>
+                )}
+
+                {/* Options supplémentaires Aller (Siège bébé, Animal) */}
+                <div className="border-t border-slate-200 pt-4 space-y-3">
+                  <p className="text-sm font-semibold text-slate-800">Options aller</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Siège bébé</Label>
+                      <Select
+                        value={formData.siegeBebes?.toString() || '0'}
+                        onValueChange={(v) => handleChange('siegeBebes', parseInt(v) || 0)}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 6 }, (_, i) => i).map(n => (
+                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Animal de compagnie</Label>
+                      <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={formData.animalDeCompagnie || false}
+                          onChange={(e) => handleChange('animalDeCompagnie', e.target.checked)}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-slate-600">Oui</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Passengers & Baggage */}
+              {/* SECTION RETOUR (visible seulement si aller-retour) */}
+              {formData.is_round_trip && (
+                <div className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <PlaneLanding className="w-5 h-5 text-blue-600" />
+                    <h4 className="font-semibold text-slate-800">Informations Retour</h4>
+                  </div>
+
+                  {/* Arrivée Retour (l'aéroport inverse) */}
+                  <div className="space-y-2">
+                    <Label>
+                      {ciSens === 'city_to_airport' ? 'Aéroport de retour *' : 'Adresse de retour (ville) *'}
+                    </Label>
+                    {ciSens === 'city_to_airport' ? (
+                      <Select
+                        value={formData.return_address}
+                        onValueChange={(val) => {
+                          const airport = aeroports.find(a => (a.nom || a.name) === val);
+                          const lat = airport?.latitude ?? null;
+                          const lng = airport?.longitude ?? null;
+                          setCiArriveeAddressDisplay(val);
+                          setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
+                        }}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                          <SelectValue placeholder="Choisir un aéroport" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {aeroports.map(a => (
+                            <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                              {a.nom || a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <AddressAutocomplete
+                        placeholder="Ex: Cocody, Abidjan"
+                        value={formData.return_address}
+                        onChange={(val) => handleChange('return_address', val)}
+                        onSelect={(address, lat, lng) => {
+                          setCiArriveeAddressDisplay(address);
+                          setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                        }}
+                        iconColor="text-blue-500"
+                        countryCode="CI"
+                      />
+                    )}
+                  </div>
+
+                  {/* Terminal Retour */}
+                  {ciSens === 'city_to_airport' && (() => {
+                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
+                    const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                    if (!terminals || terminals.length === 0) return null;
+                    return (
+                      <div className="space-y-2">
+                        <Label>Terminal de l'aéroport de retour</Label>
+                        <Select
+                          value={formData.terminalRetourId?.toString() || 'none'}
+                          onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
+                        >
+                          <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
+                            <SelectValue placeholder="Sélectionner un terminal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-- Sans terminal --</SelectItem>
+                            {terminals.map((term: any) => (
+                              <SelectItem key={term.id} value={term.id.toString()}>
+                                {term.nom}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Date et Heure Retour */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date retour *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start bg-white hover:bg-blue-50 rounded-xl h-12 px-4 font-normal"
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                            {formData.return_date
+                              ? format(new Date(formData.return_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                              : <span className="text-slate-500">Sélectionner</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.return_date ? new Date(formData.return_date + 'T00:00:00') : undefined}
+                            onSelect={(date) => handleChange('return_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                            disabled={(date) => {
+                              const minDate = formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                              return date < minDate;
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure retour *</Label>
+                      <div className="bg-white rounded-xl px-4 h-12 flex items-center">
+                        <TimePicker
+                          value={formData.return_time}
+                          onChange={(v) => handleChange('return_time', v)}
+                          placeholder="Choisir une heure"
+                          selectedDate={formData.return_date}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Options supplémentaires Retour (Siège bébé, Animal) */}
+                  <div className="border-t border-slate-200 pt-4 space-y-3">
+                    <p className="text-sm font-semibold text-slate-800">Options retour</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Siège bébé</Label>
+                        <Select
+                          value={formData.siegeBebesRetour?.toString() || '0'}
+                          onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v) || 0)}
+                        >
+                          <SelectTrigger className="bg-white border-0 rounded-xl h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 6 }, (_, i) => i).map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Animal de compagnie</Label>
+                        <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100">
+                          <input
+                            type="checkbox"
+                            checked={formData.animalDeCompagnieRetour || false}
+                            onChange={(e) => handleChange('animalDeCompagnieRetour', e.target.checked)}
+                            className="rounded"
+                          />
+                          <span className="text-sm text-slate-600">Oui</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Passagers et Bagages (Global) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Passagers</Label>
@@ -1297,7 +1434,7 @@ export default function AirportShuttleBookingWizard({
                     value={formData.passengers.toString()}
                     onValueChange={(v) => handleChange('passengers', parseInt(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-slate-50 rounded-xl">
                       <Users className="w-4 h-4 mr-2" />
                       <SelectValue />
                     </SelectTrigger>
@@ -1316,7 +1453,9 @@ export default function AirportShuttleBookingWizard({
                     value={ciBagages23.toString()}
                     onValueChange={(v) => setCiBagages23(parseInt(v))}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="bg-slate-50 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 11 }, (_, i) => i).map(n => (
                         <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
@@ -1330,7 +1469,9 @@ export default function AirportShuttleBookingWizard({
                     value={ciBagages10.toString()}
                     onValueChange={(v) => setCiBagages10(parseInt(v))}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="bg-slate-50 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 11 }, (_, i) => i).map(n => (
                         <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
@@ -1340,9 +1481,9 @@ export default function AirportShuttleBookingWizard({
                 </div>
               </div>
 
-              {/* Options supplémentaires CI */}
+              {/* Options supplémentaires avancées (Adresses supplémentaires) */}
               {ciOptions.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-3 border-t border-slate-200 pt-4">
                   <Label className="text-base font-semibold">Options supplémentaires</Label>
                   <div className="space-y-3">
                     {ciOptions.map((opt) => {
@@ -1469,20 +1610,8 @@ export default function AirportShuttleBookingWizard({
                 </div>
               )}
 
-              {/* Flight number (when airport_to_city) */}
-              {ciSens === 'airport_to_city' && (
-                <div className="space-y-2">
-                  <Label>Numéro de vol *</Label>
-                  <Input
-                    placeholder="Ex: SN204"
-                    value={formData.flight_number}
-                    onChange={(e) => handleChange('flight_number', e.target.value)}
-                  />
-                </div>
-              )}
-
               {/* Notes */}
-              <div className="space-y-2">
+              <div className="space-y-2 border-t border-slate-200 pt-4">
                 <Label>Notes (optionnel)</Label>
                 <Textarea
                   placeholder="Informations complémentaires..."
