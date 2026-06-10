@@ -285,6 +285,13 @@ export default function AirportShuttleBookingWizard({
   // Adresses CI confirmées (set uniquement via onSelect, non écrasées par onChange)
   const [ciDepartAddressDisplay, setCiDepartAddressDisplay] = useState('');
   const [ciArriveeAddressDisplay, setCiArriveeAddressDisplay] = useState('');
+  // Adresses du retour - indépendantes de l'aller
+  const [ciReturnDepartAddress, setCiReturnDepartAddress] = useState('');
+  const [ciReturnDepartAddressLat, setCiReturnDepartAddressLat] = useState<number | null>(null);
+  const [ciReturnDepartAddressLng, setCiReturnDepartAddressLng] = useState<number | null>(null);
+  const [ciReturnArriveAddress, setCiReturnArriveAddress] = useState('');
+  const [ciReturnArriveAddressLat, setCiReturnArriveAddressLat] = useState<number | null>(null);
+  const [ciReturnArriveAddressLng, setCiReturnArriveAddressLng] = useState<number | null>(null);
 
   useEffect(() => {
     if (isEdit && initialData) {
@@ -1499,7 +1506,7 @@ export default function AirportShuttleBookingWizard({
                     <h4 className="font-semibold text-slate-800">Informations Retour</h4>
                   </div>
 
-                  {/* Départ Retour (inverse de l'aller) */}
+                  {/* Départ Retour (inverse de l'aller) - VIDE PAR DÉFAUT */}
                   <div className="space-y-2">
                     <Label>
                       {ciSens === 'airport_to_city' ? 'Adresse de départ retour (ville) *' : 'Aéroport de départ retour *'}
@@ -1507,24 +1514,26 @@ export default function AirportShuttleBookingWizard({
                     {ciSens === 'airport_to_city' ? (
                       <AddressAutocomplete
                         placeholder="Ex: Cocody, Abidjan"
-                        value={formData.return_address}
-                        onChange={(val) => handleChange('return_address', val)}
+                        value={ciReturnDepartAddress}
+                        onChange={(val) => setCiReturnDepartAddress(val)}
                         onSelect={(address, lat, lng) => {
-                          setCiArriveeAddressDisplay(address);
-                          setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                          setCiReturnDepartAddress(address);
+                          setCiReturnDepartAddressLat(lat);
+                          setCiReturnDepartAddressLng(lng);
                         }}
                         iconColor="text-blue-500"
                         countryCode="CI"
                       />
                     ) : (
                       <Select
-                        value={formData.return_address}
+                        value={ciReturnDepartAddress}
                         onValueChange={(val) => {
                           const airport = aeroports.find(a => (a.nom || a.name) === val);
                           const lat = airport?.latitude ?? null;
                           const lng = airport?.longitude ?? null;
-                          setCiArriveeAddressDisplay(val);
-                          setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
+                          setCiReturnDepartAddress(val);
+                          setCiReturnDepartAddressLat(lat);
+                          setCiReturnDepartAddressLng(lng);
                         }}
                       >
                         <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
@@ -1542,8 +1551,8 @@ export default function AirportShuttleBookingWizard({
                   </div>
 
                   {/* Terminal Départ Retour */}
-                  {ciSens === 'city_to_airport' && (() => {
-                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
+                  {ciSens === 'city_to_airport' && ciReturnDepartAddress && (() => {
+                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === ciReturnDepartAddress);
                     const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
                     return (
@@ -1569,20 +1578,21 @@ export default function AirportShuttleBookingWizard({
                     );
                   })()}
 
-                  {/* Arrivée Retour (l'inverse du départ retour) */}
+                  {/* Arrivée Retour (l'inverse du départ retour) - VIDE PAR DÉFAUT */}
                   <div className="space-y-2">
                     <Label>
                       {ciSens === 'airport_to_city' ? 'Aéroport d\'arrivée retour *' : 'Adresse d\'arrivée retour (ville) *'}
                     </Label>
                     {ciSens === 'airport_to_city' ? (
                       <Select
-                        value={formData.address}
+                        value={ciReturnArriveAddress}
                         onValueChange={(val) => {
                           const airport = aeroports.find(a => (a.nom || a.name) === val);
                           const lat = airport?.latitude ?? null;
                           const lng = airport?.longitude ?? null;
-                          setCiDepartAddressDisplay(val);
-                          setFormData(prev => ({ ...prev, address: val, addressLat: lat, addressLng: lng }));
+                          setCiReturnArriveAddress(val);
+                          setCiReturnArriveAddressLat(lat);
+                          setCiReturnArriveAddressLng(lng);
                         }}
                       >
                         <SelectTrigger className="bg-white border-0 rounded-xl h-12 px-4">
@@ -1599,11 +1609,12 @@ export default function AirportShuttleBookingWizard({
                     ) : (
                       <AddressAutocomplete
                         placeholder="Ex: Plateau, Abidjan"
-                        value={formData.address}
-                        onChange={(val) => handleChange('address', val)}
+                        value={ciReturnArriveAddress}
+                        onChange={(val) => setCiReturnArriveAddress(val)}
                         onSelect={(address, lat, lng) => {
-                          setCiDepartAddressDisplay(address);
-                          setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
+                          setCiReturnArriveAddress(address);
+                          setCiReturnArriveAddressLat(lat);
+                          setCiReturnArriveAddressLng(lng);
                         }}
                         iconColor="text-orange-500"
                         countryCode="CI"
@@ -1612,8 +1623,8 @@ export default function AirportShuttleBookingWizard({
                   </div>
 
                   {/* Terminal Arrivée Retour */}
-                  {ciSens === 'airport_to_city' && (() => {
-                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
+                  {ciSens === 'airport_to_city' && ciReturnArriveAddress && (() => {
+                    const selectedAirport = aeroports.find(a => (a.nom || a.name) === ciReturnArriveAddress);
                     const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
                     return (
