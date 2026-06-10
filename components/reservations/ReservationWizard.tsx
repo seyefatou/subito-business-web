@@ -158,7 +158,7 @@ export function ReservationWizard({
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={onCancel}
+            onClick={state.step > 1 ? handlePrevStep : onCancel}
             className="p-2 hover:bg-slate-100 rounded-full transition"
           >
             <ArrowLeft className="w-6 h-6 text-[#171c1f]" />
