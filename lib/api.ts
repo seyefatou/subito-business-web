@@ -1,10 +1,11 @@
 'use client';
 
-// API Client for mysubito-v2-api
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.mysubito.net/v1';
+// API Client — Mysubito Microservices
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dev.api.mysubito.net';
 
 // Token keys for localStorage
 const TOKEN_KEY = 'subito_compagny_token';
+const REFRESH_TOKEN_KEY = 'subito_compagny_refresh_token';
 const USER_KEY = 'subito_compagny_user';
 
 // ==================== GENERIC TYPES ====================
@@ -97,6 +98,8 @@ export interface Ville {
   isAeroport?: boolean;
   statut?: string;
   image?: string[];
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface VehiculeNavette {
@@ -156,7 +159,11 @@ export interface VtcTarif {
   country: string;
   vehicleType: string;
   package: string;
-  price: number;
+  price: number | string;
+  includedKm?: number;
+  extraHourCost?: number | string;
+  extraKmCost?: number | string;
+  statut?: string;
 }
 
 export interface VtcPricingGrid {
@@ -255,48 +262,38 @@ export interface UpdateEmployeeDto {
 
 // ==================== BOOKING TYPES ====================
 export interface CreateAirportShuttleBookingDto {
-  serviceType: string;
   trajetAeroportId: number;
-  direction?: 'to_airport' | 'from_airport';
   isOneWay: boolean;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  clientAddress?: string;
+  flightNumber?: string;
   pickupDateAller: string;
   pickupTimeAller: string;
   pickupDateRetour?: string;
   pickupTimeRetour?: string;
-  passengers: number;
-  flightNumber?: string;
   adressePriseEnChargeAller: string;
   adressePriseEnChargeAllerLat?: number;
   adressePriseEnChargeAllerLng?: number;
   adressePriseEnChargeRetour?: string;
   adressePriseEnChargeRetourLat?: number;
   adressePriseEnChargeRetourLng?: number;
-  clientName: string;
-  clientPhone: string;
-  clientEmail?: string;
-  clientAddress: string;
-  siegeBebes?: number;
-  animalDeCompagnie?: boolean;
-  adresseSupplement?: number;
+  terminalDepartId?: number;
+  terminalRetourId?: number;
   adresseSupplementAller?: Array<{ adresse: string; lat: number; lng: number }>;
-  specialRequests?: string;
-  departureTime?: string;
-  arrivalTime?: string;
-  siegeBebesRetour?: number;
-  animalDeCompagnieRetour?: boolean;
   adresseSupplementRetour?: Array<{ adresse: string; lat: number; lng: number }>;
-  departureTimeRetour?: string;
-  arrivalTimeRetour?: string;
-  paidBy: 'company' | 'client';
-  paymentMethod?: string;
-  companyCode?: string;
-  customerId?: number;
-  employeeId?: number;
-  discountAmount?: number;
-  discountPercent?: number;
-  surchargeAmount?: number;
-  surchargePercent?: number;
+  siegeBebes?: number;
+  siegeBebesRetour?: number;
+  animalDeCompagnie?: boolean;
+  animalDeCompagnieRetour?: boolean;
+  smallBags?: number;
+  largeBags?: number;
+  specialRequests?: string;
   canal?: string;
+  discountCode?: string;
+  employeeId?: number;
+  direction?: 'to_airport' | 'from_airport';
 }
 
 export interface CreateInterCityBookingDto {
@@ -417,7 +414,6 @@ export interface BookingResponse {
 export interface CreateTravelDocumentDto {
   flightReservation: boolean;
   hotelReservation: boolean;
-  travelInsurance?: boolean;
   firstName: string;
   lastName: string;
   email: string;
@@ -629,7 +625,7 @@ export interface BookingStatsData {
   [key: string]: unknown;
 }
 
-// Travel document stats from GET /travel-documents/compagny/stats
+// Travel document stats from GET /travel-documents/company/stats
 export interface TravelDocStatsData {
   kpis: {
     totalExpenses: number;
@@ -703,6 +699,26 @@ export interface PaymentRequest {
 }
 
 // ==================== SERVICE RESERVATION TYPES ====================
+export type TypeTarification = 'PAR_PERSONNE' | 'PAR_GROUPE' | 'FORFAIT';
+
+export interface PriceOption {
+  id: number;
+  code?: string;
+  titre?: string;
+  description?: string;
+  prix?: number;
+  pricingMode?: string;
+  isActive?: boolean;
+  logementId?: number | null;
+  chambreId?: number | null;
+  activiteId?: number | null;
+  circuitId?: number | null;
+  vehiculeLocationId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
 export interface Circuit {
   id: number;
   titre: string;
@@ -716,6 +732,8 @@ export interface Circuit {
   nonInclus?: string[];
   typeAnnulation?: string;
   images?: string[];
+  priceOptions?: PriceOption[];
+  partner?: PartnerInfo;
   statut?: string;
   [key: string]: unknown;
 }
@@ -732,7 +750,10 @@ export interface Activite {
   inclus?: string[];
   nonInclus?: string[];
   typeAnnulation?: string;
+  typeTarification?: TypeTarification;
   images?: string[];
+  priceOptions?: PriceOption[];
+  partner?: PartnerInfo;
   statut?: string;
   [key: string]: unknown;
 }
@@ -749,6 +770,7 @@ export interface ActiviteCircuitItem {
   inclus?: string[];
   nonInclus?: string[];
   typeAnnulation?: string;
+  typeTarification?: TypeTarification;
   images?: string[];
   statut?: string;
   type: 'circuit' | 'activite';
@@ -764,6 +786,15 @@ export interface ChambreHotel {
   nombreUnites?: number;
   prixParNuit?: number;
   prixWeekend?: number;
+  acompteRequis?: boolean;
+  acompteType?: 'POURCENTAGE' | 'MONTANT_FIXE' | null;
+  acompteValeur?: number | null;
+  prixAvecPetitDejeuner?: number | null;
+  prixDemiPension?: number | null;
+  prixPensionComplete?: number | null;
+  prixWeekendAvecPetitDejeuner?: number | null;
+  prixWeekendDemiPension?: number | null;
+  prixWeekendPensionComplete?: number | null;
   images?: string[];
   equipements?: string[];
   salleDeBain?: number;
@@ -804,6 +835,19 @@ export interface PartnerInfo {
   id: number;
   nomPartner: string;
   logo?: string;
+}
+
+export interface Pension {
+  id: number;
+  formule?: string;
+  prix?: number;
+  prixWeekend?: number | null;
+  isActive?: boolean;
+  logementId?: number;
+  chambreId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
 }
 
 export interface AvisLogement {
@@ -864,6 +908,15 @@ export interface Logement {
   heureCheckOut?: string;
   prixParNuit?: number;
   prixWeekend?: number;
+  acompteRequis?: boolean;
+  acompteType?: 'POURCENTAGE' | 'MONTANT_FIXE' | null;
+  acompteValeur?: number | null;
+  prixAvecPetitDejeuner?: number | null;
+  prixDemiPension?: number | null;
+  prixPensionComplete?: number | null;
+  prixWeekendAvecPetitDejeuner?: number | null;
+  prixWeekendDemiPension?: number | null;
+  prixWeekendPensionComplete?: number | null;
   equipements?: string[];
   equipementsDetail?: EquipementsDetail;
   capacite?: number;
@@ -871,6 +924,8 @@ export interface Logement {
   salleDeBain?: number;
   chambresHotel?: ChambreHotel[];
   images?: string[];
+  priceOptions?: PriceOption[];
+  pensions?: Pension[];
   typeAnnulation?: string;
   latitude?: number;
   longitude?: number;
@@ -912,29 +967,100 @@ export interface VehiculeLocation {
   chauffeur?: boolean;
   gps?: boolean;
   images?: string[];
+  priceOptions?: PriceOption[];
+  partner?: PartnerInfo;
   statut?: string;
   [key: string]: unknown;
 }
 
 export interface CreateServiceReservationDto {
   serviceType: 'ACTIVITE' | 'LOGEMENT' | 'FLOTTE';
-  circuitId?: number;
   activiteId?: number;
+  circuitId?: number;
   logementId?: number;
   chambreId?: number;
   vehiculeLocationId?: number;
+  employeeId?: number;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
   dateDebut: string;
   dateFin?: string;
-  totalPrice?: number;
-  employeeId?: number;
-  notes?: string;
+  heureDebut?: string;
+  heureFin?: string;
   nombrePersonnes?: number;
   adresseLivraison?: string;
-  paidBy?: 'company' | 'client';
-  paymentMethod?: string;
+  permisConduire?: string;
+  formuleRepas?: string;
+  reductionType?: string;
+  reductionValue?: number;
+  notes?: string;
+  canal?: string;
+  priceOptions?: Array<{ code: string; quantite: number }>;
+}
+
+export interface QuoteRequestDto {
+  serviceType?: 'ACTIVITE' | 'LOGEMENT' | 'CIRCUIT' | 'FLOTTE';
+  activiteId?: number;
+  circuitId?: number;
+  logementId?: number;
+  chambreId?: number;
+  vehiculeLocationId?: number;
+  dateDebut?: string;
+  dateFin?: string;
+  heureDebut?: string;
+  heureFin?: string;
+  nombrePersonnes?: number;
+  pensionIds?: number[];
+  priceOptionIds?: number[];
+  reductionType?: string;
+  reductionValue?: number;
+}
+
+export interface QuoteResponseDto {
+  serviceType: string;
+  product: Record<string, unknown>;
+  sejour: {
+    dateDebut: string;
+    dateFin: string;
+    nbNuits: number;
+    nbWeekend: number;
+  };
+  nombrePersonnes: number;
+  uniteBase: string;
+  base: { libelle: string; montant: number };
+  pension?: {
+    formule: string;
+    prixParNuit: number;
+    prixWeekend: number | null;
+    nbNuits: number;
+    nbWeekend: number;
+    remplaceBase: boolean;
+    total: number;
+  };
+  options?: {
+    items: Array<{
+      code: string;
+      titre: string;
+      pricingMode: string;
+      prix: number;
+      quantite?: number;
+      total: number;
+    }>;
+    montant: number;
+  };
+  reduction?: {
+    type: string;
+    valeur: number;
+    montant: number;
+  };
+  acompte: {
+    requis: boolean;
+    type: string | null;
+    montant: number | null;
+  };
+  totalPrice: number;
+  disponible: boolean;
 }
 
 export interface PayReservationDto {
@@ -1064,13 +1190,112 @@ export interface DeliveryType {
   isActive?: boolean;
 }
 
+// ==================== NAVETTE CI TYPES ====================
+export interface NavetteCICategory {
+  id: number;
+  code: string;
+  label: string;
+  maxPax: number;
+  maxBagages23kg: number;
+  maxBagages10kg: number;
+  image?: string;
+  ordre: number;
+  statut: string;
+  tarifs: Array<{ prixParKm: number; minimumGaranti: number; statut: string }>;
+}
+
+export interface NavetteCIQuoteOption {
+  categoryId: number;
+  code: string;
+  label: string;
+  maxPax: number;
+  maxBagages10kg: number;
+  maxBagages23kg: number;
+  image?: string;
+  prixParKm: number;
+  minimumGaranti: number;
+  prix: number;
+  minimumApplique: boolean;
+}
+
+export interface NavetteCIQuoteResponse {
+  distanceKm: number;
+  pax: number;
+  bagages23: number;
+  bagages10: number;
+  options: NavetteCIQuoteOption[];
+}
+
+export interface NavetteCIOption {
+  id: number;
+  code: string;
+  label: string;
+  description?: string;
+  image?: string[];
+  prix: number;
+  maxQuantite: number;
+  type: 'SIMPLE' | 'ADDRESS';
+  pricingMode: 'FLAT' | 'PER_KM_DETOUR';
+  country: string;
+  ordre: number;
+  statut: string;
+}
+
+export interface NavetteCIOptionAdresse {
+  adresse: string;
+  lat: number;
+  lng: number;
+  instructions?: string;
+  contactNom?: string;
+  contactTelephone?: string;
+}
+
+export interface NavetteCIOptionSelectionnee {
+  optionId: number;
+  quantite?: number;
+  adresses?: NavetteCIOptionAdresse[];
+}
+
+export interface CreateNavetteCIBookingDto {
+  categoryCode: string;
+  departLat: number;
+  departLng: number;
+  arriveeLat: number;
+  arriveeLng: number;
+  departAddress: string;
+  arriveeAddress: string;
+  pax: number;
+  bagages23: number;
+  bagages10: number;
+  sens: 'airport_to_city' | 'city_to_airport';
+  isOneWay: boolean;
+  scheduledDate: string;
+  scheduledTime: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone: string;
+  flightNumber?: string;
+  paymentMethod?: string;
+  notes?: string;
+  employeeId?: number;
+  optionsSelectionnees?: NavetteCIOptionSelectionnee[];
+}
+
 // ==================== INSURANCE TYPES ====================
 export interface InsuranceReferenceItem {
   id?: string | number;
-  code: string;
+  code?: string;
   name?: string;
   label?: string;
   description?: string;
+  // AXA product fields
+  kindLabel?: string;
+  usageLabel?: string;
+  productCode?: string;
+  productLabel?: string;
+  libelle?: string;
+  nom?: string;
+  designation?: string;
   // Brand-specific fields (from /ref/brands)
   brandCode?: string;
   brandLabel?: string;
@@ -1081,6 +1306,7 @@ export interface InsuranceReferenceItem {
   categoryId?: number;
   orderGuarantee?: number;
   options?: Array<{ key: string; value: string; label: string }> | null;
+  [key: string]: unknown;
 }
 
 export type InsuranceReferenceType =
@@ -1089,6 +1315,7 @@ export type InsuranceReferenceType =
   | 'categories'
   | 'products'
   | 'brands'
+  | 'models'
   | 'energies'
   | 'policy-fees'
   | 'durations'
@@ -1303,8 +1530,9 @@ function translateErrorMessage(msg: string): string {
 // ==================== TICKET TYPES ====================
 export interface TicketMessageResponse {
   id: number;
+  ticketId: number;
   content: string;
-  senderType: 'company' | 'manager';
+  senderType: 'compagny' | 'manager';
   senderId: number;
   lu: boolean;
   createdAt: string;
@@ -1358,27 +1586,45 @@ class ApiClient {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
-  private saveNewToken(newToken: string) {
+  private getRefreshToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  }
+
+  private getCompanyId(): number | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      if (!raw) return null;
+      const user = JSON.parse(raw);
+      return user?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private saveNewToken(accessToken: string, refreshToken?: string) {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(TOKEN_KEY, newToken);
-    document.cookie = `subito_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+    localStorage.setItem(TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    document.cookie = `subito_token=${accessToken}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
   }
 
   private clearAuth() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     document.cookie = 'subito_token=; path=/; max-age=0';
   }
 
   private async attemptRefreshToken(): Promise<string | null> {
-    // If already refreshing, wait for the existing refresh to finish
     if (this.isRefreshing && this.refreshPromise) {
       return this.refreshPromise;
     }
 
-    const currentToken = this.getAuthToken();
-    if (!currentToken) return null;
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return null;
 
     this.isRefreshing = true;
     this.refreshPromise = (async () => {
@@ -1386,10 +1632,8 @@ class ApiClient {
         console.log('[API] Attempting token refresh...');
         const res = await fetch(`${this.baseUrl}/auth/compagny/refresh-token`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${currentToken}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
         });
 
         if (!res.ok) {
@@ -1398,11 +1642,13 @@ class ApiClient {
         }
 
         const json = await res.json();
-        const newToken = json?.data?.access_token || json?.access_token;
-        if (newToken) {
+        const data = json?.data ?? json;
+        const newAccess = data?.accessToken || data?.access_token;
+        const newRefresh = data?.refreshToken || data?.refresh_token;
+        if (newAccess) {
           console.log('[API] Token refreshed successfully');
-          this.saveNewToken(newToken);
-          return newToken as string;
+          this.saveNewToken(newAccess, newRefresh);
+          return newAccess as string;
         }
         return null;
       } catch (err) {
@@ -1599,7 +1845,7 @@ class ApiClient {
       }),
 
     getProfile: (token: string) =>
-      this.request<CompagnyUserProfile>('/auth/compagny/profile', {
+      this.request<CompagnyUserProfile>('/auth/compagny/me', {
         headers: { Authorization: `Bearer ${token}` },
       }),
 
@@ -1612,7 +1858,7 @@ class ApiClient {
 
     changePassword: (token: string, data: ChangePasswordCompagnyDto) =>
       this.request('/auth/compagny/change-password', {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       }),
@@ -1629,14 +1875,14 @@ class ApiClient {
         body: JSON.stringify(data),
       }),
 
-    refreshToken: (token: string) =>
-      this.request<{ access_token: string }>('/auth/compagny/refresh-token', {
+    refreshToken: (refreshToken: string) =>
+      this.request<{ accessToken: string; refreshToken: string }>('/auth/compagny/refresh-token', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ refreshToken }),
       }),
 
     updateFcmToken: (fcmToken: string) =>
-      this.authPut<void>('/auth/compagny/fcm-token', { fcmToken }),
+      this.authPost<void>('/auth/compagny/fcm-token', { fcmToken }),
   };
 
   // ==================== COMPANY REGISTRATION REQUESTS (PUBLIC) ====================
@@ -1650,20 +1896,17 @@ class ApiClient {
 
   // ==================== REFERENCE DATA (PUBLIC) ====================
   reference = {
-    getTrajetAeroport: () =>
-      this.authGet<TrajetAeroport[]>('/trajet-aeroport'),
-
-    getTrajetsWithVehicules: (pays?: string) =>
-      this.authGet<TrajetAeroport[]>(`/trajets/with-vehicules${pays ? `?pays=${encodeURIComponent(pays)}` : ''}`),
+    searchAirportShuttles: (villeDepartId: number, villeArriveeId: number, page = 1, pageSize = 50) =>
+      this.authGet<TrajetAeroport[]>(`/bookings/airport-shuttle/search?villeDepartId=${villeDepartId}&villeArriveeId=${villeArriveeId}&page=${page}&pageSize=${pageSize}`),
 
     getTrajetInterVille: () =>
-      this.authGet<{ list: TrajetInterVille[]; total: number; page: number; pageSize: number }>('/trajet-inter-ville'),
+      this.authGet<{ data: TrajetInterVille[]; total: number; page: number; limit: number }>('/bookings/trajets-inter-ville'),
 
     getVtcTarifs: (country: string) =>
-      this.authGet<VtcTarif[]>(`/vtc-tarifs?country=${country}`),
+      this.authGet<VtcTarif[]>(`/bookings/vtc-tarifs?country=${country}`),
 
     getVtcGrid: (country: string) =>
-      this.authGet<VtcPricingGrid>(`/vtc-tarifs/grid?country=${country}`),
+      this.authGet<VtcPricingGrid>(`/bookings/vtc-tarifs/pricing?country=${country}`),
 
     getVilles: (pays?: string) =>
       this.authGet<Ville[]>(`/villes${pays ? `?pays=${encodeURIComponent(pays)}` : ''}`),
@@ -1675,35 +1918,35 @@ class ApiClient {
       this.request<TravelDocumentTarif[]>('/travel-documents/tarifs'),
 
     getPaymentOptions: () =>
-      this.request<PaymentOption[]>('/payment-options'),
+      this.request<PaymentOption[]>('/payments/payment-options'),
   };
 
   // ==================== BOOKINGS COMPANY ====================
   bookings = {
     // Create bookings
     createAirportShuttle: (data: CreateAirportShuttleBookingDto) =>
-      this.authPost<BookingResponse>('/bookings/airport-shuttle-by-compagny', data),
+      this.authPost<BookingResponse>('/bookings/airport-shuttle/compagny/create', data),
 
     createInterCity: (data: CreateInterCityBookingDto) =>
-      this.authPost<BookingResponse>('/bookings/inter-city-by-compagny', data),
+      this.authPost<BookingResponse>('/bookings/inter-city/compagny/create', data),
 
     createVisaAssistance: (data: CreateVisaAssistanceRequestDto) =>
-      this.authPost<BookingResponse>('/bookings/visa-assistance/by-compagny', data),
+      this.authPost<BookingResponse>('/bookings/visa-assistance/compagny/create', data),
 
     createVtcHourly: (data: CreateVtcHourlyBookingDto) =>
-      this.authPost<BookingResponse>('/bookings/vtc-hourly/by-compagny', data),
+      this.authPost<BookingResponse>('/bookings/vtc-hourly/compagny/create', data),
 
-    // List all company bookings
+    // List bookings — no transversal list in microservices; use type-specific sub-lists
     list: (page = 1, limit = 10) =>
-      this.authGet<PaginatedData<BookingResponse>>(`/bookings/compagny?page=${page}&limit=${limit}`),
+      this.authGet<PaginatedData<BookingResponse>>(`/bookings/airport-shuttle/compagny?page=${page}&limit=${limit}`),
 
-    // Get single booking
+    // Get single booking by type-specific endpoint (use sub-resource .get() where possible)
     get: (id: number) =>
-      this.authGet<BookingResponse>(`/bookings/compagny/${id}`),
+      this.authGet<BookingResponse>(`/bookings/airport-shuttle/compagny/${id}`),
 
     // Cancel booking
     cancel: (id: number) =>
-      this.authDelete<void>(`/bookings/compagny/${id}`),
+      this.authPatch<void>(`/bookings/compagny/${id}/cancel`),
 
     // Pay individual booking
     payIndividual: (id: number, data?: { paymentMethod?: string }) =>
@@ -1749,12 +1992,27 @@ class ApiClient {
         this.authPut<BookingResponse>(`/bookings/vtc-hourly/compagny/${id}`, data),
     },
 
+    // Navette CI
+    navetteCI: {
+      getCategories: () =>
+        this.request<NavetteCICategory[]>('/bookings/airport-shuttle/ci/categories'),
+      getOptions: () =>
+        this.request<NavetteCIOption[]>('/bookings/airport-shuttle/ci/options'),
+      getQuote: (data: { departLat: number; departLng: number; arriveeLat: number; arriveeLng: number; pax: number; bagages23: number; bagages10: number }) =>
+        this.authPost<NavetteCIQuoteResponse>('/bookings/airport-shuttle/ci/quote', data),
+      create: (data: CreateNavetteCIBookingDto) =>
+        this.authPost<BookingResponse>('/bookings/airport-shuttle/ci/compagny/create', data),
+    },
+
     // Dashboard & Stats
     dashboard: () =>
       this.authGet<DashboardData>('/bookings/compagny/dashboard'),
 
-    stats: (startDate: string, endDate: string) =>
-      this.authGet<StatsData>(`/bookings/compagny/stats?startDate=${startDate}&endDate=${endDate}`),
+    stats: (startDate: string, endDate: string, serviceType?: string) => {
+      const q = new URLSearchParams({ startDate, endDate });
+      if (serviceType) q.set('serviceType', serviceType);
+      return this.authGet<StatsData>(`/bookings/compagny/stats?${q.toString()}`);
+    },
 
     // Payment requests
     paymentRequests: {
@@ -1772,65 +2030,67 @@ class ApiClient {
   // ==================== TRAVEL DOCUMENTS COMPANY ====================
   travelDocuments = {
     create: (data: CreateTravelDocumentDto) =>
-      this.authPost<TravelDocumentResponse>('/travel-documents/compagny', data),
+      this.authPost<TravelDocumentResponse>('/travel-documents/company', data),
 
     list: (params?: { status?: string; page?: number; limit?: number }) => {
       const q = new URLSearchParams();
       if (params?.status) q.set('status', params.status);
       if (params?.page) q.set('page', params.page.toString());
       if (params?.limit) q.set('limit', params.limit.toString());
-      return this.authGet<PaginatedData<TravelDocumentResponse>>(`/travel-documents/compagny?${q.toString()}`);
+      return this.authGet<PaginatedData<TravelDocumentResponse>>(`/travel-documents/company?${q.toString()}`);
     },
 
     get: (id: number) =>
-      this.authGet<TravelDocumentResponse>(`/travel-documents/compagny/${id}`),
+      this.authGet<TravelDocumentResponse>(`/travel-documents/company/${id}`),
 
     update: (id: number, data: Partial<CreateTravelDocumentDto>) =>
-      this.authPut<TravelDocumentResponse>(`/travel-documents/compagny/${id}`, data),
+      this.authPut<TravelDocumentResponse>(`/travel-documents/company/${id}`, data),
 
     delete: (id: number) =>
-      this.authDelete<void>(`/travel-documents/compagny/${id}`),
+      this.authDelete<void>(`/travel-documents/company/${id}`),
 
     dashboard: () =>
-      this.authGet<DashboardData>('/travel-documents/compagny/dashboard'),
+      this.authGet<DashboardData>('/travel-documents/company/dashboard'),
 
     stats: (startDate: string, endDate: string) =>
-      this.authGet<StatsData>(`/travel-documents/compagny/stats?startDate=${startDate}&endDate=${endDate}`),
+      this.authGet<StatsData>(`/travel-documents/company/stats?startDate=${startDate}&endDate=${endDate}`),
 
     paymentRequests: {
       list: (page = 1, limit = 10) =>
-        this.authGet<PaginatedData<PaymentRequest>>(`/travel-documents/compagny/payment-requests?page=${page}&limit=${limit}`),
+        this.authGet<PaginatedData<PaymentRequest>>(`/travel-documents/company/payment-requests?page=${page}&limit=${limit}`),
       approve: (id: number) =>
-        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/approve`),
+        this.authPut<void>(`/travel-documents/company/payment-requests/${id}/approve`),
       pay: (id: number) =>
-        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/pay`),
+        this.authPut<void>(`/travel-documents/company/payment-requests/${id}/pay`),
       reject: (id: number) =>
-        this.authPut<void>(`/travel-documents/compagny/payment-requests/${id}/reject`),
+        this.authPut<void>(`/travel-documents/company/payment-requests/${id}/reject`),
     },
   };
 
   // ==================== DEPARTMENTS ====================
+  // Users service: /users/companies/departments
   departments = {
     create: (data: CreateDepartmentDto) =>
-      this.authPost<DepartmentResponse>('/departments', data),
+      this.authPost<DepartmentResponse>('/users/companies/departments', data),
 
     list: (page = 1, limit = 50) =>
-      this.authGet<PaginatedData<DepartmentResponse>>(`/departments?page=${page}&limit=${limit}`),
+      this.authGet<PaginatedData<DepartmentResponse>>(`/users/companies/departments?page=${page}&limit=${limit}`),
 
     get: (id: number) =>
-      this.authGet<DepartmentResponse>(`/departments/${id}`),
+      this.authGet<DepartmentResponse>(`/users/companies/departments/${id}`),
 
     update: (id: number, data: UpdateDepartmentDto) =>
-      this.authPut<DepartmentResponse>(`/departments/${id}`, data),
+      this.authPatch<DepartmentResponse>(`/users/companies/departments/${id}`, data),
 
     delete: (id: number) =>
-      this.authDelete<void>(`/departments/${id}`),
+      this.authDelete<void>(`/users/companies/departments/${id}`),
   };
 
   // ==================== EMPLOYEES ====================
+  // Users service: /users/companies/employees
   employees = {
     create: (data: CreateEmployeeDto) =>
-      this.authPost<EmployeeResponse>('/employees', data),
+      this.authPost<EmployeeResponse>('/users/companies/employees', data),
 
     list: (params?: { page?: number; limit?: number; departementId?: number; actif?: boolean }) => {
       const q = new URLSearchParams();
@@ -1838,23 +2098,23 @@ class ApiClient {
       if (params?.limit) q.set('limit', params.limit.toString());
       if (params?.departementId) q.set('departementId', params.departementId.toString());
       if (params?.actif !== undefined) q.set('actif', params.actif.toString());
-      return this.authGet<PaginatedData<EmployeeResponse>>(`/employees?${q.toString()}`);
+      return this.authGet<PaginatedData<EmployeeResponse>>(`/users/companies/employees?${q.toString()}`);
     },
 
     get: (id: number) =>
-      this.authGet<EmployeeResponse>(`/employees/${id}`),
+      this.authGet<EmployeeResponse>(`/users/companies/employees/${id}`),
 
     update: (id: number, data: UpdateEmployeeDto) =>
-      this.authPut<EmployeeResponse>(`/employees/${id}`, data),
+      this.authPatch<EmployeeResponse>(`/users/companies/employees/${id}`, data),
 
     delete: (id: number) =>
-      this.authDelete<void>(`/employees/${id}`),
+      this.authDelete<void>(`/users/companies/employees/${id}`),
   };
 
   // ==================== INVOICES COMPANY ====================
   invoices = {
     requestInvoice: (data?: Record<string, unknown>) =>
-      this.authPost<void>('/invoices/compagny/request', data || {}),
+      this.authPost<void>('/payments/invoices/compagny/request', data || {}),
 
     list: (params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string }) => {
       const q = new URLSearchParams();
@@ -1863,63 +2123,79 @@ class ApiClient {
       if (params?.status) q.set('status', params.status);
       if (params?.startDate) q.set('startDate', params.startDate);
       if (params?.endDate) q.set('endDate', params.endDate);
-      return this.authGet<PaginatedData<InvoiceResponse>>(`/invoices/compagny?${q.toString()}`);
+      return this.authGet<PaginatedData<InvoiceResponse>>(`/payments/invoices/compagny?${q.toString()}`);
     },
 
     summary: () =>
-      this.authGet<InvoiceSummary>('/invoices/compagny/summary'),
+      this.authGet<InvoiceSummary>('/payments/invoices/compagny/summary'),
 
     billingStats: () =>
-      this.authGet<BillingStats>('/invoices/compagny/billing-stats'),
+      this.authGet<BillingStats>('/payments/invoices/compagny/billing-stats'),
 
     get: (id: number) =>
-      this.authGet<InvoiceResponse>(`/invoices/compagny/${id}`),
+      this.authGet<InvoiceResponse>(`/payments/invoices/compagny/${id}`),
 
     pay: (id: number, data?: { paymentMethod?: string }) =>
-      this.authPut<InvoiceResponse>(`/invoices/compagny/${id}/pay`, data || {}),
+      this.authPut<InvoiceResponse>(`/payments/invoices/compagny/${id}/pay`, data || {}),
   };
 
   // ==================== SERVICE RESERVATIONS COMPANY ====================
   serviceReservations = {
-    create: (data: CreateServiceReservationDto) =>
-      this.authPost<ServiceReservationResponse>('/service-reservations/compagny', data),
+    quote: (data: QuoteRequestDto) =>
+      this.request<QuoteResponseDto>('/reservations/quote', { method: 'POST', body: JSON.stringify(data) }),
 
-    list: (page = 1, limit = 10) =>
-      this.authGet<PaginatedData<ServiceReservationResponse>>(`/service-reservations/compagny?page=${page}&limit=${limit}`),
+    create: (data: CreateServiceReservationDto) =>
+      this.authPost<ServiceReservationResponse>('/reservations/company/service-reservations', data),
+
+    list: (page = 1, limit = 10, params?: { status?: string; serviceType?: string; search?: string }) => {
+      const q = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+      if (params?.status) q.set('status', params.status);
+      if (params?.serviceType) q.set('serviceType', params.serviceType);
+      if (params?.search) q.set('search', params.search);
+      return this.authGet<PaginatedData<ServiceReservationResponse>>(`/reservations/company/service-reservations?${q.toString()}`);
+    },
 
     get: (id: number) =>
-      this.authGet<ServiceReservationResponse>(`/service-reservations/compagny/${id}`),
+      this.authGet<ServiceReservationResponse>(`/reservations/company/service-reservations/${id}`),
 
+    cancel: (id: number, motif?: string) =>
+      this.authPatch<ServiceReservationResponse>(`/reservations/company/service-reservations/${id}/cancel`, motif ? { motif } : undefined),
+
+    // Paiement via le service payments
     pay: (id: number, data: PayReservationDto) =>
-      this.authPut<ServiceReservationResponse>(`/service-reservations/compagny/${id}/pay`, data),
+      this.authPost<ServiceReservationResponse>(`/payments/bictorys/initiate`, {
+        serviceType: 'service_reservation',
+        serviceId: id,
+        ...data,
+      }),
   };
 
   // ==================== PUBLIC CATALOGS (NO AUTH) ====================
   circuits = {
     listPublic: (page = 1, limit = 50) =>
-      this.request<PaginatedData<Circuit>>(`/circuits/public?page=${page}&limit=${limit}`),
+      this.request<PaginatedData<Circuit>>(`/catalog/circuits?page=${page}&limit=${limit}`),
 
     getPublic: (id: number) =>
-      this.request<Circuit>(`/circuits/public/${id}`),
+      this.request<Circuit>(`/catalog/circuits/${id}`),
 
     listActivitesEtCircuits: () =>
-      this.request<ActiviteCircuitItem[]>(`/circuits/public/activites-et-circuits`),
+      this.request<ActiviteCircuitItem[]>(`/catalog/circuits`),
   };
 
   activites = {
     listPublic: (page = 1, limit = 50) =>
-      this.request<PaginatedData<Activite>>(`/activites/public?page=${page}&limit=${limit}`),
+      this.request<PaginatedData<Activite>>(`/catalog/activites?page=${page}&limit=${limit}`),
 
     getPublic: (id: number) =>
-      this.request<Activite>(`/activites/public/${id}`),
+      this.request<Activite>(`/catalog/activites/${id}`),
   };
 
   logements = {
     listPublic: (page = 1, limit = 50) =>
-      this.request<PaginatedData<Logement>>(`/logements/public?page=${page}&limit=${limit}`),
+      this.request<PaginatedData<Logement>>(`/catalog/logements?page=${page}&limit=${limit}`),
 
     getPublic: (id: number) =>
-      this.request<Logement>(`/logements/public/${id}`),
+      this.request<Logement>(`/catalog/logements/${id}`),
 
     searchPublic: (params: { location?: string; dateArrivee?: string; dateDepart?: string; nbChambres?: number; nbAdultes?: number; nbEnfants?: number }) => {
       const q = new URLSearchParams();
@@ -1929,22 +2205,22 @@ class ApiClient {
       if (params.nbChambres) q.set('nbChambres', params.nbChambres.toString());
       if (params.nbAdultes) q.set('nbAdultes', params.nbAdultes.toString());
       if (params.nbEnfants) q.set('nbEnfants', params.nbEnfants.toString());
-      return this.request<Logement[]>(`/logements/public/search?${q.toString()}`);
+      return this.request<Logement[]>(`/catalog/logements?${q.toString()}`);
     },
   };
 
   vehiculesLocation = {
     listPublic: (page = 1, limit = 50) =>
-      this.request<PaginatedData<VehiculeLocation>>(`/vehicules-location/public?page=${page}&limit=${limit}`),
+      this.request<PaginatedData<VehiculeLocation>>(`/catalog/vehicules?page=${page}&limit=${limit}`),
 
     getPublic: (id: number) =>
-      this.request<VehiculeLocation>(`/vehicules-location/public/${id}`),
+      this.request<VehiculeLocation>(`/catalog/vehicules/${id}`),
   };
 
   // ==================== DELIVERIES COMPANY ====================
   deliveries = {
     types: () =>
-      this.request<DeliveryType[]>('/delivery-types/public'),
+      this.request<DeliveryType[]>('/deliveries/delivery-types/public'),
 
     estimate: (data: { deliveryTypeId: number; pickupLat: number; pickupLng: number; dropoffLat: number; dropoffLng: number }) =>
       this.authPost<DeliveryEstimate>('/deliveries/company/estimate', data),
@@ -1970,10 +2246,11 @@ class ApiClient {
   // ==================== INSURANCE COMPANY ====================
   insurance = {
     // 1. Récupérer les données de référence AXA
-    getReference: (type: InsuranceReferenceType, params?: { productCode?: string; categoryCode?: string }) => {
+    getReference: (type: InsuranceReferenceType, params?: { productCode?: string; categoryCode?: string; brandCode?: string }) => {
       const q = new URLSearchParams();
       if (params?.productCode) q.set('productCode', params.productCode);
       if (params?.categoryCode) q.set('categoryCode', params.categoryCode);
+      if (params?.brandCode) q.set('brandCode', params.brandCode);
       const qs = q.toString();
       return this.authGet<InsuranceReferenceItem[]>(`/insurance/compagny/ref/${type}${qs ? `?${qs}` : ''}`);
     },
@@ -2034,70 +2311,48 @@ class ApiClient {
   // ==================== TICKETS COMPANY ====================
   tickets = {
     create: (data: CreateTicketDto) =>
-      this.authPost<TicketResponse>('/company/tickets', data),
+      this.authPost<TicketResponse>('/admin/compagny/tickets', data),
 
-    list: (params?: { statut?: string; page?: number; limit?: number }) => {
+    list: (params?: { statut?: string }) => {
       const q = new URLSearchParams();
       if (params?.statut) q.set('statut', params.statut);
-      if (params?.page) q.set('page', params.page.toString());
-      if (params?.limit) q.set('limit', params.limit.toString());
-      return this.authGet<PaginatedData<TicketResponse>>(`/company/tickets?${q.toString()}`);
+      const qs = q.toString();
+      return this.authGet<TicketResponse[]>(`/admin/compagny/tickets${qs ? `?${qs}` : ''}`);
     },
 
     get: (id: number) =>
-      this.authGet<TicketResponse>(`/company/tickets/${id}`),
+      this.authGet<TicketResponse>(`/admin/compagny/tickets/${id}`),
 
     sendMessage: (id: number, data: CreateTicketMessageDto) =>
-      this.authPost<TicketMessageResponse>(`/company/tickets/${id}/messages`, data),
+      this.authPost<TicketMessageResponse>(`/admin/compagny/tickets/${id}/messages`, data),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================
+  // TODO: vérifier le chemin exact du service notifications pour le rôle compagny
   notifications = {
-    list: () =>
-      this.authGet<NotificationListResponse>('/notifications/compagny'),
+    list: (limit = 100) =>
+      this.authGet<NotificationListResponse>(`/admin/admin/messagerie/notifications/compagny?limit=${limit}`),
 
     unreadCount: () =>
-      this.authGet<{ count: number }>('/notifications/compagny/unread-count'),
+      this.authGet<{ count: number }>('/admin/admin/messagerie/notifications/compagny/unread-count'),
 
     get: (id: number) =>
-      this.authGet<CompagnyNotification>(`/notifications/compagny/${id}`),
+      this.authGet<CompagnyNotification>(`/admin/admin/messagerie/notifications/compagny/${id}`),
 
     markRead: (id: number) =>
-      this.authPatch<void>(`/notifications/compagny/${id}/read`),
+      this.authPatch<void>(`/admin/admin/messagerie/notifications/compagny/${id}/read`),
 
     markAllRead: () =>
-      this.authPatch<void>('/notifications/compagny/read-all'),
+      this.authPatch<void>('/admin/admin/messagerie/notifications/compagny/read-all'),
   };
 
   // ==================== BICTORYS PAYMENT ====================
   bictorys = {
     /** Initier un paiement via Bictorys — retourne checkoutUrl */
     initiate: (data: InitiateBictorysPaymentDto) =>
-      this.authPost<BictorysPaymentResponse>('/bictorys/initiate', data),
+      this.authPost<BictorysPaymentResponse>('/payments/bictorys/initiate', data),
   };
 
-  // ==================== AVIS (PUBLIC) ====================
-  avis = {
-    /** Avis d'un partenaire */
-    partner: (partnerId: number, page = 1, limit = 20) =>
-      this.request<AvisResponse>(`/partners/${partnerId}/avis?page=${page}&limit=${limit}`),
-
-    /** Avis d'un logement */
-    logement: (logementId: number, page = 1, limit = 20) =>
-      this.request<AvisResponse>(`/logements/${logementId}/avis?page=${page}&limit=${limit}`),
-
-    /** Avis d'une activité */
-    activite: (activiteId: number, page = 1, limit = 20) =>
-      this.request<AvisResponse>(`/activites/${activiteId}/avis?page=${page}&limit=${limit}`),
-
-    /** Avis d'un circuit */
-    circuit: (circuitId: number, page = 1, limit = 20) =>
-      this.request<AvisResponse>(`/circuits/${circuitId}/avis?page=${page}&limit=${limit}`),
-
-    /** Avis d'un véhicule de location */
-    vehiculeLocation: (vehiculeId: number, page = 1, limit = 20) =>
-      this.request<AvisResponse>(`/vehicules-location/${vehiculeId}/avis?page=${page}&limit=${limit}`),
-  };
 }
 
 // Export singleton instance

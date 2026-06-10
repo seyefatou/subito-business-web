@@ -28,6 +28,7 @@ import {
   Car,
   Calendar as CalendarIcon,
   Clock,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,7 @@ import EmployeeForm from "@/components/employees/EmployeeForm";
 import { AddressAutocomplete, countryNameToCode } from "@/components/ui/address-autocomplete";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
-import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod } from "@/lib/api";
+import { api, TrajetAeroport, Ville, CreateAirportShuttleBookingDto, EmployeeResponse, CreateEmployeeDto, DepartmentResponse, PaymentOption, toBookingPaymentMethod, NavetteCICategory, NavetteCIQuoteResponse, NavetteCIQuoteOption, CreateNavetteCIBookingDto, NavetteCIOption, NavetteCIOptionAdresse } from "@/lib/api";
 import type { BookingResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { extractBookingSub } from "@/lib/bookingResponse";
@@ -75,6 +76,21 @@ interface StepDef {
 }
 
 type PaymentChoice = string;
+
+interface AdresseSupplementItem {
+  adresse: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+interface CIAdresseItem {
+  adresse: string;
+  lat: number | null;
+  lng: number | null;
+  instructions: string;
+  contactNom: string;
+  contactTelephone: string;
+}
 
 interface FormData {
   direction: string;
@@ -99,10 +115,15 @@ interface FormData {
   clientAddress: string;
   siegeBebes: number;
   animalDeCompagnie: boolean;
-  adresseSupplement: number;
+  adressesSupplementAller: AdresseSupplementItem[];
+  siegeBebesRetour: number;
+  animalDeCompagnieRetour: boolean;
+  adressesSupplementRetour: AdresseSupplementItem[];
   specialRequests: string;
   employeeId: number | null;
   vehiculeId: number | null;
+  terminalDepartId: number | null;
+  terminalRetourId: number | null;
 }
 
 const initialFormData: FormData = {
@@ -128,10 +149,15 @@ const initialFormData: FormData = {
   clientAddress: "",
   siegeBebes: 0,
   animalDeCompagnie: false,
-  adresseSupplement: 0,
+  adressesSupplementAller: [],
+  siegeBebesRetour: 0,
+  animalDeCompagnieRetour: false,
+  adressesSupplementRetour: [],
   specialRequests: "",
   employeeId: null,
   vehiculeId: null,
+  terminalDepartId: null,
+  terminalRetourId: null,
 };
 
 const steps: StepDef[] = [
@@ -221,7 +247,10 @@ export default function AirportShuttleBookingWizard({
       clientAddress: typeof top.clientAddress === 'string' ? top.clientAddress : '',
       siegeBebes: numOr('siegeBebes', 0),
       animalDeCompagnie: bool('animalDeCompagnie'),
-      adresseSupplement: numOr('adresseSupplement', 0),
+      adressesSupplementAller: [],
+      siegeBebesRetour: numOr('siegeBebesRetour', 0),
+      animalDeCompagnieRetour: bool('animalDeCompagnieRetour'),
+      adressesSupplementRetour: [],
       specialRequests: str('specialRequests'),
       employeeId: typeof top.employeeId === 'number' ? top.employeeId : null,
       vehiculeId,
@@ -239,6 +268,23 @@ export default function AirportShuttleBookingWizard({
   const [selectedPays, setSelectedPays] = useState<string>("");
   const [selectedDepartId, setSelectedDepartId] = useState<number | null>(null);
   const [selectedArriveeId, setSelectedArriveeId] = useState<number | null>(null);
+
+  const isCIBooking = selectedPays.toLowerCase().includes('ivoire') || selectedPays.toLowerCase() === 'cote_ivoire';
+
+  // CI-specific state
+  const [ciSens, setCiSens] = useState<'airport_to_city' | 'city_to_airport'>('airport_to_city');
+  const [ciBagages23, setCiBagages23] = useState(0);
+  const [ciBagages10, setCiBagages10] = useState(0);
+  const [ciCategoryCode, setCiCategoryCode] = useState('');
+  const [ciCategoryPrice, setCiCategoryPrice] = useState(0);
+  const [ciDistanceKm, setCiDistanceKm] = useState(0);
+  // optionId → quantité (pour les options SIMPLE)
+  const [ciSimpleOptions, setCiSimpleOptions] = useState<Record<number, number>>({});
+  // optionId → liste d'adresses (pour les options ADDRESS)
+  const [ciAddressOptions, setCiAddressOptions] = useState<Record<number, CIAdresseItem[]>>({});
+  // Adresses CI confirmées (set uniquement via onSelect, non écrasées par onChange)
+  const [ciDepartAddressDisplay, setCiDepartAddressDisplay] = useState('');
+  const [ciArriveeAddressDisplay, setCiArriveeAddressDisplay] = useState('');
 
   useEffect(() => {
     if (isEdit && initialData) {
@@ -289,42 +335,37 @@ export default function AirportShuttleBookingWizard({
     queryKey: ['pays'],
     queryFn: () => api.reference.getPays(),
   });
-  const paysRaw = paysResponse?.data;
-  const pays: string[] = Array.isArray(paysRaw)
-    ? paysRaw.map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || String(p)).filter(Boolean)
-    : [];
+  const paysArr: unknown[] = Array.isArray(paysResponse)
+    ? paysResponse
+    : Array.isArray((paysResponse as any)?.data) ? (paysResponse as any).data : [];
+  const pays: string[] = paysArr
+    .map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || '')
+    .filter(Boolean);
 
-  // Fetch airport routes (each trajet = 1 route + 1 vehicule + 1 prix)
-  const { data: trajetsResponse } = useQuery({
-    queryKey: ['trajet-aeroport'],
-    queryFn: () => api.reference.getTrajetAeroport(),
+  // Search trajets dynamically when both villes are selected
+  const { data: trajetsResponse, isFetching: trajetsLoading } = useQuery({
+    queryKey: ['airport-shuttle-search', selectedDepartId, selectedArriveeId],
+    queryFn: () => api.reference.searchAirportShuttles(selectedDepartId!, selectedArriveeId!),
+    enabled: !!(selectedDepartId && selectedArriveeId),
   });
-  const trajetsRaw = trajetsResponse?.data;
-  const trajets: TrajetAeroport[] = Array.isArray(trajetsRaw)
-    ? trajetsRaw
-    : (trajetsRaw as any)?.list || (trajetsRaw as any)?.items || [];
+  const trajets: TrajetAeroport[] = Array.isArray(trajetsResponse)
+    ? trajetsResponse
+    : Array.isArray((trajetsResponse as any)?.data) ? (trajetsResponse as any).data
+    : (trajetsResponse as any)?.list || (trajetsResponse as any)?.items || [];
 
-  // Edit mode: once trajets are loaded, derive selectedPays / selectedDepartId / selectedArriveeId
-  // from the booking's trajet so steps 2 and 3 (Trajet + Vehicule) display pre-filled selections.
+  // Edit mode: pré-remplir pays/villes depuis les données brutes de la réservation
   useEffect(() => {
-    if (!isEdit || !initialData || !formData.trajetAeroportId || trajets.length === 0) return;
-    const trajet = trajets.find(t => t.id === formData.trajetAeroportId);
-    if (!trajet) return;
-    const villeDepart = trajet.villeDepart;
-    const villeArrivee = trajet.villeArrivee;
-    // API stores: villeDepart = airport, villeArrivee = city
-    if (formData.direction === 'to_airport') {
-      // User's depart = city = API's villeArrivee; user's arrivee = airport = API's villeDepart
-      if (villeArrivee?.id) setSelectedDepartId(villeArrivee.id);
-      if (villeDepart?.id) setSelectedArriveeId(villeDepart.id);
-    } else {
-      if (villeDepart?.id) setSelectedDepartId(villeDepart.id);
-      if (villeArrivee?.id) setSelectedArriveeId(villeArrivee.id);
-    }
-    const pays = villeDepart?.pays || villeArrivee?.pays;
+    if (!isEdit || !initialData) return;
+    const raw = initialData as any;
+    const nested = raw?.airportShuttle || raw?.service || raw;
+    const pays = nested?.pays || nested?.country;
     if (pays) setSelectedPays(pays);
+    const deptId = nested?.villeDepartId || nested?.departureVilleId;
+    const arvId = nested?.villeArriveeId || nested?.arrivalVilleId;
+    if (deptId) setSelectedDepartId(Number(deptId));
+    if (arvId) setSelectedArriveeId(Number(arvId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, initialData?.id, formData.trajetAeroportId, formData.direction, trajets.length]);
+  }, [isEdit, initialData?.id]);
 
   // Fetch villes for selected country (fallback)
   const { data: villesResponse } = useQuery({
@@ -332,10 +373,10 @@ export default function AirportShuttleBookingWizard({
     queryFn: () => api.reference.getVilles(selectedPays),
     enabled: !!selectedPays,
   });
-  const villesRaw = villesResponse?.data;
-  const villesFromApi: Ville[] = Array.isArray(villesRaw)
-    ? villesRaw
-    : (villesRaw as any)?.list || (villesRaw as any)?.items || [];
+  const villesFromApi: Ville[] = Array.isArray(villesResponse)
+    ? villesResponse
+    : Array.isArray((villesResponse as any)?.data) ? (villesResponse as any).data
+    : (villesResponse as any)?.list || (villesResponse as any)?.items || [];
 
   // Extract unique villes from trajets (guaranteed matching IDs)
   const villesFromTrajets = React.useMemo(() => {
@@ -349,6 +390,46 @@ export default function AirportShuttleBookingWizard({
 
   // Use villes from trajets if available, otherwise fall back to API
   const allVilles: Ville[] = villesFromTrajets.length > 0 ? villesFromTrajets : villesFromApi;
+
+  // CI: categories (public, no auth)
+  const { data: ciCategoriesRaw } = useQuery({
+    queryKey: ['navette-ci-categories'],
+    queryFn: () => api.bookings.navetteCI.getCategories(),
+    enabled: isCIBooking,
+  });
+  const ciCategories: NavetteCICategory[] = Array.isArray(ciCategoriesRaw)
+    ? ciCategoriesRaw
+    : Array.isArray((ciCategoriesRaw as any)?.data) ? (ciCategoriesRaw as any).data : [];
+
+  // CI: options supplémentaires (public, no auth)
+  const { data: ciOptionsRaw } = useQuery({
+    queryKey: ['navette-ci-options'],
+    queryFn: () => api.bookings.navetteCI.getOptions(),
+    enabled: isCIBooking,
+  });
+  const ciOptions: NavetteCIOption[] = Array.isArray(ciOptionsRaw)
+    ? ciOptionsRaw
+    : Array.isArray((ciOptionsRaw as any)?.data) ? (ciOptionsRaw as any).data : [];
+
+  // CI: quote — fires automatically when step 2 coords are filled
+  const canFetchCIQuote = isCIBooking
+    && formData.addressLat != null && formData.addressLng != null
+    && formData.returnAddressLat != null && formData.returnAddressLng != null;
+
+  const { data: ciQuoteRaw, isLoading: ciQuoteLoading, isError: ciQuoteError } = useQuery({
+    queryKey: ['navette-ci-quote', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10],
+    queryFn: () => api.bookings.navetteCI.getQuote({
+      departLat: formData.addressLat!,
+      departLng: formData.addressLng!,
+      arriveeLat: formData.returnAddressLat!,
+      arriveeLng: formData.returnAddressLng!,
+      pax: formData.passengers,
+      bagages23: ciBagages23,
+      bagages10: ciBagages10,
+    }),
+    enabled: canFetchCIQuote,
+  });
+  const ciQuote: NavetteCIQuoteResponse | null = (ciQuoteRaw as any)?.data ?? ciQuoteRaw ?? null;
 
   // Filter by selected country if one is selected
   const filteredVilles = selectedPays
@@ -366,34 +447,17 @@ export default function AirportShuttleBookingWizard({
   // Helper to get ville display name (API returns nom or name)
   const getVilleName = (v?: Ville | null): string => v?.nom || v?.name || '';
 
-  // Find ALL matching trajets for a given depart+arrivee (each has a different vehicule)
-  // API always stores: villeDepart = airport, villeArrivee = city
-  const findMatchingTrajets = (departId: number, arriveeId: number): TrajetAeroport[] => {
-    if (formData.direction === 'to_airport') {
-      // User selected: depart=city, arrivee=airport → match API's villeArrivee=city, villeDepart=airport
-      return trajets.filter(t => t.villeDepart?.id === arriveeId && t.villeArrivee?.id === departId);
-    } else {
-      // User selected: depart=airport, arrivee=city → matches API structure directly
-      return trajets.filter(t => t.villeDepart?.id === departId && t.villeArrivee?.id === arriveeId);
-    }
-  };
-
-  // Trajets matching current route selection, triés du moins cher au plus cher
-  const matchingTrajets: TrajetAeroport[] = (selectedDepartId && selectedArriveeId)
-    ? [...findMatchingTrajets(selectedDepartId, selectedArriveeId)].sort((a, b) => {
-        const pa = a.prixAllerSimple ?? a.prix ?? Number.POSITIVE_INFINITY;
-        const pb = b.prixAllerSimple ?? b.prix ?? Number.POSITIVE_INFINITY;
-        return pa - pb;
-      })
-    : [];
+  // Trajets triés du moins cher au plus cher (viennent de la recherche dynamique)
+  const matchingTrajets: TrajetAeroport[] = [...trajets].sort((a, b) => {
+    const pa = a.prixAllerSimple ?? a.prix ?? Number.POSITIVE_INFINITY;
+    const pb = b.prixAllerSimple ?? b.prix ?? Number.POSITIVE_INFINITY;
+    return pa - pb;
+  });
 
   // The trajet selected by the user (when they pick a vehicle)
   const selectedTrajet = trajets.find(t => t.id === formData.trajetAeroportId);
 
-  // First available vehicle image across navette trajets — used as Premium Velocity card background
-  const premiumVehicleImage: string | undefined = trajets
-    .map(t => (Array.isArray(t.vehicule?.image) ? t.vehicule?.image?.[0] : t.vehicule?.image))
-    .find((img): img is string => typeof img === 'string' && img.length > 0);
+  const premiumVehicleImage: string | undefined = undefined;
 
   // Create booking mutation
   const createBooking = useMutation({
@@ -423,6 +487,20 @@ export default function AirportShuttleBookingWizard({
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Erreur lors de la modification');
+    },
+  });
+
+  // CI booking mutation
+  const createCIBooking = useMutation({
+    mutationFn: (data: CreateNavetteCIBookingDto) => api.bookings.navetteCI.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setBookingRef((response as any)?.data?.bookingCode || (response as any)?.bookingCode || `SUB-${Date.now()}`);
+      setBookingSuccess(true);
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Erreur lors de la réservation CI');
     },
   });
 
@@ -483,6 +561,7 @@ export default function AirportShuttleBookingWizard({
   };
 
   const calculateTotal = (): number => {
+    if (isCIBooking) return ciCategoryPrice;
     if (!selectedTrajet) return 0;
     let total = getTrajetBase() - getRoundTripDiscount();
     if (formData.siegeBebes > 0 && selectedTrajet.prixSiegeBebe) {
@@ -491,8 +570,19 @@ export default function AirportShuttleBookingWizard({
     if (formData.animalDeCompagnie && selectedTrajet.prixAnimalCompagnie) {
       total += selectedTrajet.prixAnimalCompagnie;
     }
-    if (formData.adresseSupplement > 0 && selectedTrajet.prixAdresseSupplementaire) {
-      total += selectedTrajet.prixAdresseSupplementaire * formData.adresseSupplement;
+    if (formData.adressesSupplementAller.length > 0 && selectedTrajet.prixAdresseSupplementaire) {
+      total += selectedTrajet.prixAdresseSupplementaire * formData.adressesSupplementAller.length;
+    }
+    if (formData.is_round_trip) {
+      if (formData.siegeBebesRetour > 0 && selectedTrajet.prixSiegeBebe) {
+        total += selectedTrajet.prixSiegeBebe * formData.siegeBebesRetour;
+      }
+      if (formData.animalDeCompagnieRetour && selectedTrajet.prixAnimalCompagnie) {
+        total += selectedTrajet.prixAnimalCompagnie;
+      }
+      if (formData.adressesSupplementRetour.length > 0 && selectedTrajet.prixAdresseSupplementaire) {
+        total += selectedTrajet.prixAdresseSupplementaire * formData.adressesSupplementRetour.length;
+      }
     }
     return total;
   };
@@ -522,6 +612,16 @@ export default function AirportShuttleBookingWizard({
     }
 
     if (currentStep === 2) {
+      if (isCIBooking) {
+        if (!formData.address || !formData.addressLat) { toast.error("Veuillez saisir l'adresse de départ"); return; }
+        if (!formData.return_address || !formData.returnAddressLat) { toast.error("Veuillez saisir l'adresse d'arrivée"); return; }
+        if (!formData.departure_date) { toast.error("Veuillez sélectionner une date"); return; }
+        if (!formData.departure_time) { toast.error("Veuillez sélectionner une heure"); return; }
+        if (formData.passengers < 1) { toast.error("Minimum 1 passager"); return; }
+        if (ciSens === 'airport_to_city' && !formData.flight_number) { toast.error("Le numéro de vol est obligatoire depuis l'aéroport"); return; }
+        setCurrentStep(3);
+        return;
+      }
       if (!selectedDepartId || !selectedArriveeId) { toast.error("Veuillez selectionner le depart et l'arrivee"); return; }
       if (!formData.departure_date) { toast.error("Veuillez selectionner une date de depart"); return; }
       if (!formData.departure_time) { toast.error("Veuillez selectionner une heure de depart"); return; }
@@ -532,10 +632,14 @@ export default function AirportShuttleBookingWizard({
         if (!formData.return_time) { toast.error("Veuillez selectionner une heure de retour"); return; }
         if (!formData.return_address) { toast.error("Veuillez entrer une adresse de prise en charge retour"); return; }
       }
-      if (matchingTrajets.length === 0) { toast.error("Aucun trajet disponible pour cette route"); return; }
     }
 
     if (currentStep === 3) {
+      if (isCIBooking) {
+        if (!ciCategoryCode) { toast.error("Veuillez choisir une catégorie de véhicule"); return; }
+        setCurrentStep(4);
+        return;
+      }
       if (!formData.trajetAeroportId) { toast.error("Veuillez choisir un vehicule"); return; }
     }
 
@@ -551,40 +655,89 @@ export default function AirportShuttleBookingWizard({
   };
 
   const handleSubmit = () => {
+    if (isCIBooking) {
+      if (!ciCategoryCode) { toast.error("Veuillez choisir un véhicule"); return; }
+      const ciData: CreateNavetteCIBookingDto = {
+        categoryCode: ciCategoryCode,
+        departLat: formData.addressLat!,
+        departLng: formData.addressLng!,
+        arriveeLat: formData.returnAddressLat!,
+        arriveeLng: formData.returnAddressLng!,
+        departAddress: formData.address,
+        arriveeAddress: formData.return_address,
+        pax: formData.passengers,
+        bagages23: ciBagages23,
+        bagages10: ciBagages10,
+        sens: ciSens,
+        isOneWay: !formData.is_round_trip,
+        scheduledDate: new Date(formData.departure_date + 'T00:00:00.000Z').toISOString(),
+        scheduledTime: formData.departure_time,
+        clientName: formData.clientName,
+        clientEmail: formData.clientEmail || undefined,
+        clientPhone: formatPhoneForApi(formData.clientPhone),
+        flightNumber: formData.flight_number || undefined,
+        notes: formData.specialRequests || undefined,
+        employeeId: formData.employeeId || undefined,
+        optionsSelectionnees: [
+          ...Object.entries(ciSimpleOptions)
+            .filter(([, qty]) => qty > 0)
+            .map(([id, quantite]) => ({ optionId: Number(id), quantite })),
+          ...Object.entries(ciAddressOptions)
+            .filter(([, adrs]) => adrs.length > 0)
+            .map(([id, adresses]) => ({
+              optionId: Number(id),
+              adresses: adresses.map((a): NavetteCIOptionAdresse => ({
+                adresse: a.adresse,
+                lat: a.lat ?? 0,
+                lng: a.lng ?? 0,
+                ...(a.instructions && { instructions: a.instructions }),
+                ...(a.contactNom && { contactNom: a.contactNom }),
+                ...(a.contactTelephone && { contactTelephone: a.contactTelephone }),
+              })),
+            })),
+        ].filter(o => (o as any).quantite > 0 || ((o as any).adresses?.length ?? 0) > 0),
+      };
+      createCIBooking.mutate(ciData);
+      return;
+    }
+
     if (!formData.trajetAeroportId) { toast.error("Veuillez selectionner un trajet"); return; }
 
     const isCompanyPayment = formData.payment_method === 'company_account';
 
     const bookingData: CreateAirportShuttleBookingDto = {
-      serviceType: 'airport_shuttle',
-      trajetAeroportId: formData.trajetAeroportId,
-      direction: formData.direction === 'from_airport' ? 'from_airport' : 'to_airport',
+      trajetAeroportId: formData.trajetAeroportId!,
       isOneWay: !formData.is_round_trip,
+      clientName: formData.clientName,
+      clientPhone: formatPhoneForApi(formData.clientPhone),
+      clientEmail: formData.clientEmail || undefined,
+      clientAddress: formData.clientAddress || undefined,
+      flightNumber: formData.flight_number || undefined,
       pickupDateAller: formData.departure_date,
       pickupTimeAller: formData.departure_time,
       pickupDateRetour: formData.is_round_trip ? formData.return_date : undefined,
       pickupTimeRetour: formData.is_round_trip ? formData.return_time : undefined,
-      passengers: formData.passengers,
-      flightNumber: formData.flight_number || undefined,
       adressePriseEnChargeAller: formData.address,
       adressePriseEnChargeAllerLat: formData.addressLat || undefined,
       adressePriseEnChargeAllerLng: formData.addressLng || undefined,
       adressePriseEnChargeRetour: formData.is_round_trip ? formData.return_address : undefined,
       adressePriseEnChargeRetourLat: formData.is_round_trip ? formData.returnAddressLat || undefined : undefined,
       adressePriseEnChargeRetourLng: formData.is_round_trip ? formData.returnAddressLng || undefined : undefined,
-      clientName: formData.clientName,
-      clientPhone: formatPhoneForApi(formData.clientPhone),
-      clientEmail: formData.clientEmail || undefined,
-      clientAddress: formData.clientAddress,
+      terminalDepartId: formData.terminalDepartId || undefined,
+      terminalRetourId: formData.is_round_trip ? formData.terminalRetourId || undefined : undefined,
+      adresseSupplementAller: formData.adressesSupplementAller.length > 0
+        ? formData.adressesSupplementAller.map(a => ({ adresse: a.adresse, lat: a.lat ?? 0, lng: a.lng ?? 0 }))
+        : undefined,
+      adresseSupplementRetour: formData.is_round_trip && formData.adressesSupplementRetour.length > 0
+        ? formData.adressesSupplementRetour.map(a => ({ adresse: a.adresse, lat: a.lat ?? 0, lng: a.lng ?? 0 }))
+        : undefined,
       siegeBebes: formData.siegeBebes || undefined,
+      siegeBebesRetour: formData.is_round_trip ? formData.siegeBebesRetour || undefined : undefined,
       animalDeCompagnie: formData.animalDeCompagnie || undefined,
-      adresseSupplement: formData.adresseSupplement || undefined,
+      animalDeCompagnieRetour: formData.is_round_trip ? formData.animalDeCompagnieRetour || undefined : undefined,
       specialRequests: formData.specialRequests || undefined,
-      paidBy: isCompanyPayment ? 'company' : 'client',
-      companyCode: user?.companyCode || undefined,
+      canal: 'web',
       employeeId: formData.employeeId || undefined,
-      discountAmount: getRoundTripDiscount() || undefined,
-      discountPercent: formData.is_round_trip ? ROUND_TRIP_DISCOUNT_RATE * 100 : undefined,
     };
 
     console.log('[AIRPORT-SHUTTLE] Booking data:', JSON.stringify(bookingData, null, 2));
@@ -600,12 +753,18 @@ export default function AirportShuttleBookingWizard({
       case 1:
         return !!(formData.employeeId && formData.clientName && formData.clientPhone && isValidPhone(formData.clientPhone));
       case 2: {
+        if (isCIBooking) {
+          const ciBase = !!(formData.address && formData.addressLat && formData.return_address && formData.returnAddressLat && formData.departure_date && formData.departure_time);
+          const ciFlightValid = ciSens === 'airport_to_city' ? !!formData.flight_number : true;
+          return ciBase && ciFlightValid;
+        }
         const baseValid = !!(selectedDepartId && selectedArriveeId && formData.departure_date && formData.departure_time && formData.address);
         const flightValid = formData.direction === 'from_airport' ? !!formData.flight_number : true;
         if (formData.is_round_trip) return baseValid && flightValid && !!(formData.return_date && formData.return_time && formData.return_address);
         return baseValid && flightValid;
       }
       case 3:
+        if (isCIBooking) return !!ciCategoryCode;
         return !!formData.trajetAeroportId;
       case 4:
         return true;
@@ -651,23 +810,46 @@ export default function AirportShuttleBookingWizard({
               </div>
               <h3 className="font-extrabold text-lg text-slate-900">Trajet</h3>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Depart</p>
-                <p className="font-bold text-base text-slate-900">{getVilleName(selectedTrajet?.villeDepart)}</p>
-              </div>
-              <div className="flex-1 px-4">
-                <div className="h-[2px] bg-slate-200 relative">
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-2">
-                    <Plane className="w-4 h-4 text-[#E04A1F]" />
+            {isCIBooking ? (
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#E04A1F] mt-1.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Départ</p>
+                    <p className="font-bold text-sm text-slate-900 break-words">{ciDepartAddressDisplay || formData.address || '—'}</p>
                   </div>
                 </div>
+                <div className="ml-[5px] w-[2px] h-4 bg-slate-200 ml-1" />
+                <div className="flex items-start gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Arrivée</p>
+                    <p className="font-bold text-sm text-slate-900 break-words">{ciArriveeAddressDisplay || formData.return_address || '—'}</p>
+                  </div>
+                </div>
+                {ciDistanceKm > 0 && (
+                  <p className="text-xs text-slate-400 mt-2 text-center">{ciDistanceKm} km estimés</p>
+                )}
               </div>
-              <div className="space-y-1 text-right">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arrivee</p>
-                <p className="font-bold text-base text-slate-900">{getVilleName(selectedTrajet?.villeArrivee)}</p>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Depart</p>
+                  <p className="font-bold text-base text-slate-900">{getVilleName(selectedTrajet?.villeDepart)}</p>
+                </div>
+                <div className="flex-1 px-4">
+                  <div className="h-[2px] bg-slate-200 relative">
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-2">
+                      <Plane className="w-4 h-4 text-[#E04A1F]" />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1 text-right">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arrivee</p>
+                  <p className="font-bold text-base text-slate-900">{getVilleName(selectedTrajet?.villeArrivee)}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
@@ -835,8 +1017,388 @@ export default function AirportShuttleBookingWizard({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       <div className="lg:col-span-8 bg-white rounded-[2rem] shadow-xl shadow-black/5 p-6 md:p-10">
         <AnimatePresence mode="wait">
-          {/* Step 1: Trip details */}
-          {currentStep === 2 && (
+          {/* Step 2 CI: GPS-based booking for Côte d'Ivoire */}
+          {currentStep === 2 && isCIBooking && (
+            <motion.div
+              key="step2-ci"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 border-l-4 border-[#E04A1F] pl-4 mb-2">
+                <h3 className="text-xl font-bold text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  Trajet — Côte d&apos;Ivoire
+                </h3>
+              </div>
+
+              {/* Sens */}
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Sens du trajet</Label>
+                <div className="grid grid-cols-2 gap-3 bg-[#f0f4f8] p-2 rounded-2xl">
+                  {[
+                    { value: 'airport_to_city' as const, label: 'Aéroport → Ville', Icon: PlaneLanding },
+                    { value: 'city_to_airport' as const, label: 'Ville → Aéroport', Icon: PlaneTakeoff },
+                  ].map((option) => {
+                    const active = ciSens === option.value;
+                    return (
+                      <button
+                        type="button"
+                        key={option.value}
+                        onClick={() => {
+                          setCiSens(option.value);
+                          setCiDepartAddressDisplay('');
+                          setCiArriveeAddressDisplay('');
+                          // Réinitialiser les adresses car départ/arrivée s'inversent selon le sens
+                          setFormData(prev => ({
+                            ...prev,
+                            address: '', addressLat: null, addressLng: null,
+                            return_address: '', returnAddressLat: null, returnAddressLng: null,
+                            flight_number: '',
+                          }));
+                        }}
+                        className={`flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm transition-all ${
+                          active ? 'bg-[#ffdbd0] text-[#E04A1F] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        <option.Icon className="w-5 h-5" />
+                        <span>{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Departure — airport SELECT si sens airport_to_city, sinon AddressAutocomplete ville */}
+              <div className="space-y-2">
+                <Label>
+                  {ciSens === 'airport_to_city' ? 'Aéroport de départ *' : 'Adresse de départ (ville) *'}
+                </Label>
+                {ciSens === 'airport_to_city' ? (
+                  <Select
+                    value={formData.address}
+                    onValueChange={(val) => {
+                      const airport = aeroports.find(a => (a.nom || a.name) === val);
+                      const lat = airport?.latitude ?? null;
+                      const lng = airport?.longitude ?? null;
+                      setCiDepartAddressDisplay(val);
+                      setFormData(prev => ({ ...prev, address: val, addressLat: lat, addressLng: lng }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                      <SelectValue placeholder="Choisir un aéroport" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {aeroports.map(a => (
+                        <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                          {a.nom || a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <AddressAutocomplete
+                    placeholder="Ex: Plateau, Abidjan"
+                    value={formData.address}
+                    onChange={(val) => handleChange('address', val)}
+                    onSelect={(address, lat, lng) => {
+                      setCiDepartAddressDisplay(address);
+                      setFormData(prev => ({ ...prev, address, addressLat: lat, addressLng: lng }));
+                    }}
+                    iconColor="text-orange-500"
+                    countryCode="CI"
+                  />
+                )}
+              </div>
+
+              {/* Arrival — AddressAutocomplete ville si sens airport_to_city, sinon airport SELECT */}
+              <div className="space-y-2">
+                <Label>
+                  {ciSens === 'airport_to_city' ? 'Adresse d\'arrivée (ville) *' : 'Aéroport d\'arrivée *'}
+                </Label>
+                {ciSens === 'city_to_airport' ? (
+                  <Select
+                    value={formData.return_address}
+                    onValueChange={(val) => {
+                      const airport = aeroports.find(a => (a.nom || a.name) === val);
+                      const lat = airport?.latitude ?? null;
+                      const lng = airport?.longitude ?? null;
+                      setCiArriveeAddressDisplay(val);
+                      setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                      <SelectValue placeholder="Choisir un aéroport" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {aeroports.map(a => (
+                        <SelectItem key={a.id} value={a.nom || a.name || ''}>
+                          {a.nom || a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <AddressAutocomplete
+                    placeholder="Ex: Cocody, Abidjan"
+                    value={formData.return_address}
+                    onChange={(val) => handleChange('return_address', val)}
+                    onSelect={(address, lat, lng) => {
+                      setCiArriveeAddressDisplay(address);
+                      setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
+                    }}
+                    iconColor="text-blue-500"
+                    countryCode="CI"
+                  />
+                )}
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start bg-slate-50 hover:bg-slate-100 rounded-xl h-12 px-4 font-normal"
+                      >
+                        <CalendarIcon className="w-4 h-4 mr-2 text-slate-400" />
+                        {formData.departure_date
+                          ? format(new Date(formData.departure_date + 'T00:00:00'), "dd/MM/yyyy", { locale: fr })
+                          : <span className="text-slate-500">Sélectionner une date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.departure_date ? new Date(formData.departure_date + 'T00:00:00') : undefined}
+                        onSelect={(date) => handleChange('departure_date', date ? format(date, 'yyyy-MM-dd') : '')}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Heure *</Label>
+                  <div className="bg-slate-50 rounded-xl px-4 h-12 flex items-center">
+                    <TimePicker
+                      value={formData.departure_time}
+                      onChange={(v) => handleChange('departure_time', v)}
+                      placeholder="Choisir une heure"
+                      selectedDate={formData.departure_date}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Passengers & Baggage */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Passagers</Label>
+                  <Select
+                    value={formData.passengers.toString()}
+                    onValueChange={(v) => handleChange('passengers', parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <Users className="w-4 h-4 mr-2" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
+                        <SelectItem key={n} value={n.toString()}>
+                          {n} passager{n > 1 ? 's' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Bagages 23 kg</Label>
+                  <Select
+                    value={ciBagages23.toString()}
+                    onValueChange={(v) => setCiBagages23(parseInt(v))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 11 }, (_, i) => i).map(n => (
+                        <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Bagages 10 kg</Label>
+                  <Select
+                    value={ciBagages10.toString()}
+                    onValueChange={(v) => setCiBagages10(parseInt(v))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 11 }, (_, i) => i).map(n => (
+                        <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Options supplémentaires CI */}
+              {ciOptions.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Options supplémentaires</Label>
+                  <div className="space-y-3">
+                    {ciOptions.map((opt) => {
+                      if (opt.type === 'SIMPLE') {
+                        const qty = ciSimpleOptions[opt.id] ?? 0;
+                        return (
+                          <div key={opt.id} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                              {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                              <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / unité</p>
+                            </div>
+                            <Select
+                              value={qty.toString()}
+                              onValueChange={(v) => setCiSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
+                            >
+                              <SelectTrigger className="w-20 shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: opt.maxQuantite + 1 }, (_, i) => i).map(n => (
+                                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      }
+
+                      if (opt.type === 'ADDRESS') {
+                        const adresses = ciAddressOptions[opt.id] ?? [];
+                        return (
+                          <div key={opt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                                {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                                <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / arrêt</p>
+                              </div>
+                              {adresses.length < opt.maxQuantite && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCiAddressOptions(prev => ({
+                                    ...prev,
+                                    [opt.id]: [...(prev[opt.id] ?? []), { adresse: '', lat: null, lng: null, instructions: '', contactNom: '', contactTelephone: '' }],
+                                  }))}
+                                  className="shrink-0 flex items-center gap-1 text-xs font-bold text-[#E04A1F] hover:underline"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> Ajouter un arrêt
+                                </button>
+                              )}
+                            </div>
+                            {adresses.map((adr, idx) => (
+                              <div key={idx} className="space-y-2 border-t border-slate-200 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arrêt {idx + 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCiAddressOptions(prev => ({
+                                      ...prev,
+                                      [opt.id]: (prev[opt.id] ?? []).filter((_, i) => i !== idx),
+                                    }))}
+                                    className="text-slate-400 hover:text-red-500"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <AddressAutocomplete
+                                  placeholder="Adresse de l'arrêt"
+                                  value={adr.adresse}
+                                  onChange={(val) => setCiAddressOptions(prev => {
+                                    const list = [...(prev[opt.id] ?? [])];
+                                    list[idx] = { ...list[idx], adresse: val, lat: null, lng: null };
+                                    return { ...prev, [opt.id]: list };
+                                  })}
+                                  onSelect={(address, lat, lng) => setCiAddressOptions(prev => {
+                                    const list = [...(prev[opt.id] ?? [])];
+                                    list[idx] = { ...list[idx], adresse: address, lat, lng };
+                                    return { ...prev, [opt.id]: list };
+                                  })}
+                                  countryCode="CI"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="Nom du contact (optionnel)"
+                                    value={adr.contactNom}
+                                    onChange={(e) => setCiAddressOptions(prev => {
+                                      const list = [...(prev[opt.id] ?? [])];
+                                      list[idx] = { ...list[idx], contactNom: e.target.value };
+                                      return { ...prev, [opt.id]: list };
+                                    })}
+                                    className="text-sm"
+                                  />
+                                  <Input
+                                    placeholder="Téléphone contact (optionnel)"
+                                    value={adr.contactTelephone}
+                                    onChange={(e) => setCiAddressOptions(prev => {
+                                      const list = [...(prev[opt.id] ?? [])];
+                                      list[idx] = { ...list[idx], contactTelephone: e.target.value };
+                                      return { ...prev, [opt.id]: list };
+                                    })}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <Input
+                                  placeholder="Instructions (optionnel)"
+                                  value={adr.instructions}
+                                  onChange={(e) => setCiAddressOptions(prev => {
+                                    const list = [...(prev[opt.id] ?? [])];
+                                    list[idx] = { ...list[idx], instructions: e.target.value };
+                                    return { ...prev, [opt.id]: list };
+                                  })}
+                                  className="text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Flight number (when airport_to_city) */}
+              {ciSens === 'airport_to_city' && (
+                <div className="space-y-2">
+                  <Label>Numéro de vol *</Label>
+                  <Input
+                    placeholder="Ex: SN204"
+                    value={formData.flight_number}
+                    onChange={(e) => handleChange('flight_number', e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Notes (optionnel)</Label>
+                <Textarea
+                  placeholder="Informations complémentaires..."
+                  value={formData.specialRequests}
+                  onChange={(e) => handleChange('specialRequests', e.target.value)}
+                  className="h-20"
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 1: Trip details (SN) */}
+          {currentStep === 2 && !isCIBooking && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}
@@ -1113,6 +1675,35 @@ export default function AirportShuttleBookingWizard({
                     countryCode={countryNameToCode(selectedPays)}
                   />
                 </div>
+
+                {/* Terminal Selector for Departure */}
+                {(() => {
+                  const departureVille = selectedDepartId ? allVilles.find(v => v.id === selectedDepartId) : null;
+                  const departureTerminals = departureVille?.terminals ? Array.isArray(departureVille.terminals) ? departureVille.terminals : [] : [];
+                  if (!departureTerminals || departureTerminals.length === 0) return null;
+
+                  return (
+                    <div className="space-y-2">
+                      <Label>Terminal de départ (si applicable)</Label>
+                      <Select
+                        value={formData.terminalDepartId?.toString() || ''}
+                        onValueChange={(v) => handleChange('terminalDepartId', v ? parseInt(v) : null)}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Sélectionner un terminal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">-- Sans terminal --</SelectItem>
+                          {departureTerminals.map((term: any) => (
+                            <SelectItem key={term.id} value={term.id.toString()}>
+                              {term.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* === RETOUR === */}
@@ -1177,6 +1768,35 @@ export default function AirportShuttleBookingWizard({
                       countryCode={countryNameToCode(selectedPays)}
                     />
                   </div>
+
+                  {/* Terminal Selector for Return */}
+                  {(() => {
+                    const returnVille = selectedArriveeId ? allVilles.find(v => v.id === selectedArriveeId) : null;
+                    const returnTerminals = returnVille?.terminals ? Array.isArray(returnVille.terminals) ? returnVille.terminals : [] : [];
+                    if (!returnTerminals || returnTerminals.length === 0) return null;
+
+                    return (
+                      <div className="space-y-2">
+                        <Label>Terminal de retour (si applicable)</Label>
+                        <Select
+                          value={formData.terminalRetourId?.toString() || ''}
+                          onValueChange={(v) => handleChange('terminalRetourId', v ? parseInt(v) : null)}
+                        >
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Sélectionner un terminal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">-- Sans terminal --</SelectItem>
+                            {returnTerminals.map((term: any) => (
+                              <SelectItem key={term.id} value={term.id.toString()}>
+                                {term.nom}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1389,8 +2009,128 @@ export default function AirportShuttleBookingWizard({
             </motion.div>
           )}
 
+          {/* Step 3 CI: Vehicle category selection via quote */}
+          {currentStep === 3 && isCIBooking && (
+            <motion.div
+              key="step3-ci"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <h3 className="text-3xl font-extrabold text-[#171c1f] tracking-tight" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+                  Choisissez votre véhicule
+                </h3>
+                <p className="text-sm text-[#585e6c] mt-1 font-medium">
+                  Sélectionnez le transport adapté à votre trajet en Côte d&apos;Ivoire.
+                </p>
+              </div>
+
+              {ciQuoteLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="w-10 h-10 border-4 border-[#E04A1F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">Calcul du devis en cours...</p>
+                  </div>
+                </div>
+              )}
+
+              {!ciQuoteLoading && (ciQuoteError || !ciQuote) && canFetchCIQuote && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Car className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="font-bold text-slate-700">Impossible de calculer le devis</p>
+                  <p className="text-sm text-slate-400 mt-1">Vérifiez les adresses saisies et réessayez.</p>
+                </div>
+              )}
+
+              {!ciQuoteLoading && !canFetchCIQuote && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MapPin className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="font-bold text-slate-700">Adresses manquantes</p>
+                  <p className="text-sm text-slate-400 mt-1">Revenez à l&apos;étape précédente et saisissez les adresses.</p>
+                </div>
+              )}
+
+              {ciQuote && !ciQuoteLoading && (
+                <>
+                  <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 rounded-xl text-sm text-slate-600">
+                    <MapPin className="w-4 h-4 text-[#E04A1F] shrink-0" />
+                    <span>Distance estimée : <strong>{ciQuote.distanceKm} km</strong></span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {ciQuote.options.map((option: NavetteCIQuoteOption) => {
+                      const isSelected = ciCategoryCode === option.code;
+                      return (
+                        <div
+                          key={option.categoryId}
+                          onClick={() => {
+                            setCiCategoryCode(option.code);
+                            setCiCategoryPrice(option.prix);
+                            setCiDistanceKm(ciQuote.distanceKm);
+                          }}
+                          className={`group flex flex-col md:flex-row items-center gap-6 p-5 rounded-2xl cursor-pointer shadow-xl shadow-black/[0.02] border-2 transition-all ${
+                            isSelected ? 'border-orange-400 bg-[#ffdbd0]/40' : 'border-transparent bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden bg-slate-100 shrink-0">
+                            {option.image ? (
+                              <img src={option.image} alt={option.label} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Car className="w-12 h-12 text-slate-300" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-grow min-w-0 w-full">
+                            <div className="flex justify-between items-start mb-3 gap-3">
+                              <div>
+                                <h3 className="font-extrabold text-xl text-slate-900">{option.label}</h3>
+                                <p className="text-sm text-slate-500">{option.code}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-extrabold text-2xl text-[#E04A1F]">{Number(option.prix).toLocaleString()}</span>
+                                <span className="text-xs font-bold text-slate-500 ml-1">FCFA</span>
+                                {option.minimumApplique && (
+                                  <p className="text-xs text-slate-400">Tarif minimum appliqué</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-4 flex-wrap text-slate-600">
+                              <div className="flex items-center gap-1.5">
+                                <Users className="w-4 h-4" />
+                                <span className="text-sm font-medium">{option.maxPax} passagers max</span>
+                              </div>
+                              {option.maxBagages23kg > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <Plus className="w-4 h-4" />
+                                  <span className="text-sm font-medium">{option.maxBagages23kg} bagage{option.maxBagages23kg > 1 ? 's' : ''} <span className="text-slate-400 font-normal">(23kg)</span></span>
+                                </div>
+                              )}
+                              {option.maxBagages10kg > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                  <Plus className="w-4 h-4" />
+                                  <span className="text-sm font-medium">{option.maxBagages10kg} bagage{option.maxBagages10kg > 1 ? 's' : ''} <span className="text-slate-400 font-normal">(10kg)</span></span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-center w-10 shrink-0">
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-orange-500 bg-[#ffdbd0]' : 'border-slate-300'}`}>
+                              {isSelected && <div className="w-2 h-2 rounded-full bg-[#E04A1F]" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
           {/* Step 3: Vehicle selection (each trajet = 1 vehicle + 1 price) */}
-          {currentStep === 3 && (
+          {currentStep === 3 && !isCIBooking && (
             <motion.div
               key="step3"
               initial={{ opacity: 0, x: 20 }}
@@ -1410,8 +2150,25 @@ export default function AirportShuttleBookingWizard({
                 </p>
               </div>
 
+              {trajetsLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="w-10 h-10 border-4 border-[#E04A1F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">Recherche des véhicules disponibles...</p>
+                  </div>
+                </div>
+              )}
+
+              {!trajetsLoading && trajets.length === 0 && selectedDepartId && selectedArriveeId && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Car className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="font-bold text-slate-700">Aucun véhicule disponible</p>
+                  <p className="text-sm text-slate-400 mt-1">Aucun trajet configuré pour cette route.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4">
-                {matchingTrajets.map(trajet => {
+                {trajets.map(trajet => {
                   const v = trajet.vehicule;
                   const vehiculeName = v?.categorie || v?.marque || `Vehicule`;
                   const vehiculeModel = `${v?.marque || ''} ${v?.modele || v?.model || ''}`.trim();
@@ -1464,13 +2221,13 @@ export default function AirportShuttleBookingWizard({
                           {v?.grandBagage != null && (
                             <div className="flex items-center gap-1.5">
                               <Plus className="w-4 h-4" />
-                              <span className="text-sm font-medium">{v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''}</span>
+                              <span className="text-sm font-medium">{v.grandBagage} grand{Number(v.grandBagage) > 1 ? 's' : ''} <span className="text-slate-400 font-normal">(23kg)</span></span>
                             </div>
                           )}
                           {v?.petitBagage != null && (
                             <div className="flex items-center gap-1.5">
                               <Plus className="w-4 h-4" />
-                              <span className="text-sm font-medium">{v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''}</span>
+                              <span className="text-sm font-medium">{v.petitBagage} petit{Number(v.petitBagage) > 1 ? 's' : ''} <span className="text-slate-400 font-normal">(10kg)</span></span>
                             </div>
                           )}
                         </div>
@@ -1507,8 +2264,8 @@ export default function AirportShuttleBookingWizard({
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              {/* Options */}
-              <div>
+              {/* Options — non-CI uniquement (pour CI les options sont sur step 2) */}
+              {!isCIBooking && <div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-9 h-9 rounded-xl bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F]">
                     <Plus className="w-5 h-5" />
@@ -1520,74 +2277,207 @@ export default function AirportShuttleBookingWizard({
                     Options supplementaires
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-center gap-3">
-                      <Baby className="w-5 h-5 text-slate-500" />
-                      <div>
-                        <p className="font-medium text-slate-800">Sieges bebe</p>
-                        {selectedTrajet?.prixSiegeBebe && (
-                          <p className="text-sm text-slate-500">+{selectedTrajet.prixSiegeBebe.toLocaleString()} FCFA/siege</p>
-                        )}
-                      </div>
-                    </div>
-                    <Select
-                      value={formData.siegeBebes.toString()}
-                      onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3].map(n => (
-                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-center gap-3">
-                      <PawPrint className="w-5 h-5 text-slate-500" />
-                      <div>
-                        <p className="font-medium text-slate-800">Animal</p>
-                        {selectedTrajet?.prixAnimalCompagnie && (
-                          <p className="text-sm text-slate-500">+{selectedTrajet.prixAnimalCompagnie.toLocaleString()} FCFA</p>
-                        )}
+                {/* Aller */}
+                <div className="space-y-3">
+                  {formData.is_round_trip && (
+                    <p className="text-xs font-extrabold text-[#585e6c] uppercase tracking-widest">Aller</p>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <Baby className="w-5 h-5 text-slate-500" />
+                        <div>
+                          <p className="font-medium text-slate-800">Sieges bebe</p>
+                          {selectedTrajet?.prixSiegeBebe && (
+                            <p className="text-sm text-slate-500">+{selectedTrajet.prixSiegeBebe.toLocaleString()} FCFA/siege</p>
+                          )}
+                        </div>
                       </div>
+                      <Select
+                        value={formData.siegeBebes.toString()}
+                        onValueChange={(v) => handleChange('siegeBebes', parseInt(v))}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1].map(n => (
+                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Switch
-                      checked={formData.animalDeCompagnie}
-                      onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
-                    />
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-center gap-3">
-                      <Plus className="w-5 h-5 text-slate-500" />
-                      <div>
-                        <p className="font-medium text-slate-800">Adresse supp.</p>
-                        {selectedTrajet?.prixAdresseSupplementaire && (
-                          <p className="text-sm text-slate-500">+{selectedTrajet.prixAdresseSupplementaire.toLocaleString()} FCFA</p>
+                    <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <PawPrint className="w-5 h-5 text-slate-500" />
+                        <div>
+                          <p className="font-medium text-slate-800">Animal</p>
+                          {selectedTrajet?.prixAnimalCompagnie && (
+                            <p className="text-sm text-slate-500">+{selectedTrajet.prixAnimalCompagnie.toLocaleString()} FCFA</p>
+                          )}
+                        </div>
+                      </div>
+                      <Switch
+                        checked={formData.animalDeCompagnie}
+                        onCheckedChange={(v) => handleChange('animalDeCompagnie', v)}
+                      />
+                    </div>
+
+                    {/* Adresses supp. aller */}
+                    <div className="md:col-span-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-slate-500" />
+                          <p className="font-medium text-slate-800">Adresses supplémentaires</p>
+                          {selectedTrajet?.prixAdresseSupplementaire && (
+                            <span className="text-sm text-slate-500">+{selectedTrajet.prixAdresseSupplementaire.toLocaleString()} FCFA/adresse</span>
+                          )}
+                        </div>
+                        {formData.adressesSupplementAller.length < 3 && (
+                          <button
+                            type="button"
+                            onClick={() => handleChange('adressesSupplementAller', [...formData.adressesSupplementAller, { adresse: '', lat: null, lng: null }])}
+                            className="text-xs font-bold text-[#E04A1F] hover:underline flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Ajouter
+                          </button>
                         )}
                       </div>
+                      {formData.adressesSupplementAller.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <AddressAutocomplete
+                              placeholder={`Adresse supplémentaire ${i + 1}`}
+                              value={item.adresse}
+                              onChange={(val) => {
+                                const updated = [...formData.adressesSupplementAller];
+                                updated[i] = { ...updated[i], adresse: val };
+                                handleChange('adressesSupplementAller', updated);
+                              }}
+                              onSelect={(adresse, lat, lng) => {
+                                const updated = [...formData.adressesSupplementAller];
+                                updated[i] = { adresse, lat, lng };
+                                handleChange('adressesSupplementAller', updated);
+                              }}
+                              countryCode={countryNameToCode(selectedPays)}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleChange('adressesSupplementAller', formData.adressesSupplementAller.filter((_, idx) => idx !== i))}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <Select
-                      value={formData.adresseSupplement.toString()}
-                      onValueChange={(v) => handleChange('adresseSupplement', parseInt(v))}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3].map(n => (
-                          <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
-              </div>
+
+                {/* Retour — uniquement si aller-retour */}
+                {formData.is_round_trip && (
+                  <div className="space-y-3 mt-5">
+                    <p className="text-xs font-extrabold text-[#585e6c] uppercase tracking-widest">Retour</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-3">
+                          <Baby className="w-5 h-5 text-slate-500" />
+                          <div>
+                            <p className="font-medium text-slate-800">Sieges bebe</p>
+                            {selectedTrajet?.prixSiegeBebe && (
+                              <p className="text-sm text-slate-500">+{selectedTrajet.prixSiegeBebe.toLocaleString()} FCFA/siege</p>
+                            )}
+                          </div>
+                        </div>
+                        <Select
+                          value={formData.siegeBebesRetour.toString()}
+                          onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v))}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[0, 1, 2, 3].map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-3">
+                          <PawPrint className="w-5 h-5 text-slate-500" />
+                          <div>
+                            <p className="font-medium text-slate-800">Animal</p>
+                            {selectedTrajet?.prixAnimalCompagnie && (
+                              <p className="text-sm text-slate-500">+{selectedTrajet.prixAnimalCompagnie.toLocaleString()} FCFA</p>
+                            )}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={formData.animalDeCompagnieRetour}
+                          onCheckedChange={(v) => handleChange('animalDeCompagnieRetour', v)}
+                        />
+                      </div>
+
+                      {/* Adresses supp. retour */}
+                      <div className="md:col-span-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-slate-500" />
+                            <p className="font-medium text-slate-800">Adresses supplémentaires</p>
+                            {selectedTrajet?.prixAdresseSupplementaire && (
+                              <span className="text-sm text-slate-500">+{selectedTrajet.prixAdresseSupplementaire.toLocaleString()} FCFA/adresse</span>
+                            )}
+                          </div>
+                          {formData.adressesSupplementRetour.length < 3 && (
+                            <button
+                              type="button"
+                              onClick={() => handleChange('adressesSupplementRetour', [...formData.adressesSupplementRetour, { adresse: '', lat: null, lng: null }])}
+                              className="text-xs font-bold text-[#E04A1F] hover:underline flex items-center gap-1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Ajouter
+                            </button>
+                          )}
+                        </div>
+                        {formData.adressesSupplementRetour.map((item, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <AddressAutocomplete
+                                placeholder={`Adresse supplémentaire ${i + 1}`}
+                                value={item.adresse}
+                                onChange={(val) => {
+                                  const updated = [...formData.adressesSupplementRetour];
+                                  updated[i] = { ...updated[i], adresse: val };
+                                  handleChange('adressesSupplementRetour', updated);
+                                }}
+                                onSelect={(adresse, lat, lng) => {
+                                  const updated = [...formData.adressesSupplementRetour];
+                                  updated[i] = { adresse, lat, lng };
+                                  handleChange('adressesSupplementRetour', updated);
+                                }}
+                                countryCode={countryNameToCode(selectedPays)}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleChange('adressesSupplementRetour', formData.adressesSupplementRetour.filter((_, idx) => idx !== i))}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>}
 
               {/* Payment method */}
               <div>
@@ -1683,12 +2573,12 @@ export default function AirportShuttleBookingWizard({
                       <span className="text-slate-800">+{(selectedTrajet?.prixAnimalCompagnie || 0).toLocaleString()} FCFA</span>
                     </div>
                   )}
-                  {formData.adresseSupplement > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-600">Adresse supp. x{formData.adresseSupplement}</span>
-                      <span className="text-slate-800">+{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adresseSupplement).toLocaleString()} FCFA</span>
+                  {formData.adressesSupplementAller.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm gap-2">
+                      <span className="text-slate-600 truncate">{a.adresse || `Adresse supp. ${i + 1}`}</span>
+                      <span className="text-slate-800 shrink-0">+{(selectedTrajet?.prixAdresseSupplementaire || 0).toLocaleString()} FCFA</span>
                     </div>
-                  )}
+                  ))}
                   {formData.is_round_trip && getRoundTripDiscount() > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-emerald-700 font-medium">Reduction aller-retour (-10%)</span>
@@ -1727,91 +2617,354 @@ export default function AirportShuttleBookingWizard({
             >
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Recapitulatif de la reservation</h3>
 
-              {/* Trip details */}
               <div className="space-y-4">
-                <div className="p-6 rounded-xl bg-slate-50 space-y-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className="text-sm text-slate-500">Trajet</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#ffdbd0] text-orange-700 font-medium">{formData.is_round_trip ? 'Aller-retour' : 'Aller simple'}</span>
+
+                {/* ── Client ── */}
+                <div className="p-5 rounded-xl border border-slate-200 space-y-3">
+                  <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Client</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#E04A1F] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-800">{formData.clientName}</p>
+                      <p className="text-sm text-slate-500">{formData.clientPhone}</p>
+                    </div>
                   </div>
-                  <p className="font-medium text-slate-800">{getVilleName(selectedTrajet?.villeDepart)} → {getVilleName(selectedTrajet?.villeArrivee)}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {formData.clientEmail && (
+                      <div>
+                        <p className="text-xs text-slate-400">Email</p>
+                        <p className="text-sm font-medium text-slate-700 truncate">{formData.clientEmail}</p>
+                      </div>
+                    )}
+                    {formData.clientAddress && (
+                      <div>
+                        <p className="text-xs text-slate-400">Adresse</p>
+                        <p className="text-sm font-medium text-slate-700">{formData.clientAddress}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Aller info */}
-                <div className="p-5 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <PlaneTakeoff className="w-4 h-4 text-[#E04A1F]" />
-                    <p className="text-sm font-semibold text-slate-700">Aller</p>
+                {/* ── Résumé du trajet ── */}
+                <div className="p-5 rounded-xl bg-slate-50 space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Trajet</p>
+                    {isCIBooking ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#ffdbd0] text-orange-700 font-bold">
+                        {ciSens === 'airport_to_city' ? 'Aéroport → Ville' : 'Ville → Aéroport'}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#ffdbd0] text-orange-700 font-bold">
+                          {formData.is_round_trip ? 'Aller-retour' : 'Aller simple'}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium">
+                          {formData.direction === 'from_airport' ? 'Depuis aeroport' : 'Vers aeroport'}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  {isCIBooking ? (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#E04A1F] mt-1.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs text-slate-400">Départ</p>
+                            <p className="text-sm font-bold text-slate-900 break-words">{ciDepartAddressDisplay || formData.address || '—'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs text-slate-400">Arrivée</p>
+                            <p className="text-sm font-bold text-slate-900 break-words">{ciArriveeAddressDisplay || formData.return_address || '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <p className="text-xs text-slate-400">Passagers</p>
+                          <p className="font-medium text-slate-700">{formData.passengers}</p>
+                        </div>
+                        {ciBagages23 > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400">Bagages 23kg</p>
+                            <p className="font-medium text-slate-700">{ciBagages23}</p>
+                          </div>
+                        )}
+                        {ciBagages10 > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400">Bagages 10kg</p>
+                            <p className="font-medium text-slate-700">{ciBagages10}</p>
+                          </div>
+                        )}
+                        {formData.flight_number && (
+                          <div>
+                            <p className="text-xs text-slate-400">Numéro de vol</p>
+                            <p className="font-medium text-slate-700">{formData.flight_number}</p>
+                          </div>
+                        )}
+                        {ciDistanceKm > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400">Distance</p>
+                            <p className="font-medium text-slate-700">{ciDistanceKm} km</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Options supplémentaires sélectionnées */}
+                      {(Object.values(ciSimpleOptions).some(q => q > 0) || Object.values(ciAddressOptions).some(a => a.length > 0)) && (
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <p className="text-xs text-slate-400">Options supplémentaires</p>
+                          {Object.entries(ciSimpleOptions).map(([id, qty]) => {
+                            if (!qty) return null;
+                            const opt = ciOptions.find(o => o.id === Number(id));
+                            if (!opt) return null;
+                            return (
+                              <div key={id} className="flex justify-between text-sm">
+                                <span className="text-slate-600">{opt.label} ×{qty}</span>
+                                <span className="font-medium text-slate-800">+{(opt.prix * qty).toLocaleString()} FCFA</span>
+                              </div>
+                            );
+                          })}
+                          {Object.entries(ciAddressOptions).map(([id, adrs]) => {
+                            if (!adrs.length) return null;
+                            const opt = ciOptions.find(o => o.id === Number(id));
+                            if (!opt) return null;
+                            return (
+                              <div key={id} className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-slate-600">{opt.label} ({adrs.length} arrêt{adrs.length > 1 ? 's' : ''})</span>
+                                  <span className="font-medium text-slate-800">
+                                    {opt.pricingMode === 'FLAT'
+                                      ? `+${(opt.prix * adrs.length).toLocaleString()} FCFA`
+                                      : 'Calculé au km'}
+                                  </span>
+                                </div>
+                                {adrs.map((a, i) => (
+                                  <div key={i} className="flex items-start gap-1.5 pl-3">
+                                    <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                                    <span className="text-xs text-slate-500">{a.adresse || '—'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        {(() => {
+                          const villeDepart = allVilles.find(v => v.id === selectedDepartId);
+                          const villeArrivee = allVilles.find(v => v.id === selectedArriveeId);
+                          const nomDepart = getVilleName(villeDepart) || '—';
+                          const nomArrivee = getVilleName(villeArrivee) || '—';
+                          return (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <PlaneTakeoff className="w-4 h-4 text-[#E04A1F] shrink-0" />
+                                <p className="font-bold text-slate-900">{nomDepart} <span className="text-slate-400">→</span> {nomArrivee}</p>
+                              </div>
+                              {formData.is_round_trip && (
+                                <div className="flex items-center gap-2">
+                                  <PlaneLanding className="w-4 h-4 text-blue-500 shrink-0" />
+                                  <p className="font-bold text-slate-900">{nomArrivee} <span className="text-slate-400">→</span> {nomDepart}</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <p className="text-xs text-slate-400">Passagers</p>
+                          <p className="font-medium text-slate-700">{formData.passengers}</p>
+                        </div>
+                        {formData.direction === 'from_airport' && formData.flight_number && (
+                          <div>
+                            <p className="text-xs text-slate-400">Numero de vol</p>
+                            <p className="font-medium text-slate-700">{formData.flight_number}</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* ── Aller ── */}
+                <div className="p-5 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <PlaneTakeoff className="w-4 h-4 text-[#E04A1F]" />
+                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Aller</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <p className="text-xs text-slate-500">Date & Heure</p>
+                      <p className="text-xs text-slate-400">Date & Heure</p>
                       <p className="font-medium text-slate-800">
                         {formData.departure_date && format(new Date(formData.departure_date), 'dd MMM yyyy', { locale: fr })}
                         {' a '}{formData.departure_time}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Adresse</p>
-                      <p className="text-sm text-slate-800">{formData.address}</p>
+                      <p className="text-xs text-slate-400">Adresse de prise en charge</p>
+                      <p className="text-sm font-medium text-slate-700">{formData.address}</p>
                     </div>
                   </div>
+                  {formData.adressesSupplementAller.length > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1">Arrets supplementaires</p>
+                      <div className="space-y-1">
+                        {formData.adressesSupplementAller.map((a, i) => (
+                          <p key={i} className="text-sm text-slate-700 flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            {a.adresse || '—'}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Retour info */}
+                {/* ── Retour ── */}
                 {formData.is_round_trip && (
-                  <div className="p-5 rounded-xl border border-blue-200 bg-blue-50/30 space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="p-5 rounded-xl border border-blue-200 bg-blue-50/30 space-y-3">
+                    <div className="flex items-center gap-2">
                       <PlaneLanding className="w-4 h-4 text-blue-600" />
-                      <p className="text-sm font-semibold text-slate-700">Retour</p>
+                      <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Retour</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs text-slate-500">Date & Heure</p>
+                        <p className="text-xs text-slate-400">Date & Heure</p>
                         <p className="font-medium text-slate-800">
                           {formData.return_date && format(new Date(formData.return_date), 'dd MMM yyyy', { locale: fr })}
                           {' a '}{formData.return_time}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500">Adresse</p>
-                        <p className="text-sm text-slate-800">{formData.return_address}</p>
+                        <p className="text-xs text-slate-400">Adresse de prise en charge</p>
+                        <p className="text-sm font-medium text-slate-700">{formData.return_address}</p>
                       </div>
+                    </div>
+                    {formData.adressesSupplementRetour.length > 0 && (
+                      <div>
+                        <p className="text-xs text-slate-400 mb-1">Arrets supplementaires</p>
+                        <div className="space-y-1">
+                          {formData.adressesSupplementRetour.map((a, i) => (
+                            <p key={i} className="text-sm text-slate-700 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              {a.adresse || '—'}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Véhicule ── */}
+                {selectedTrajet?.vehicule && (
+                  <div className="p-5 rounded-xl border border-slate-200 space-y-2">
+                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2">Vehicule</p>
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const img = Array.isArray(selectedTrajet.vehicule.image)
+                          ? selectedTrajet.vehicule.image[0]
+                          : selectedTrajet.vehicule.image;
+                        return img ? (
+                          <img src={img} alt="" className="w-16 h-12 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <div className="w-16 h-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                            <Car className="w-6 h-6 text-slate-300" />
+                          </div>
+                        );
+                      })()}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 capitalize">
+                          {selectedTrajet.vehicule.categorie || selectedTrajet.vehicule.marque || 'Vehicule'}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {[selectedTrajet.vehicule.marque, selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model].filter(Boolean).join(' ') || ''}
+                          {[selectedTrajet.vehicule.marque, selectedTrajet.vehicule.modele || selectedTrajet.vehicule.model].filter(Boolean).length > 0 ? ' ou equivalent' : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4 flex-wrap text-slate-600 pt-1">
+                      {selectedTrajet.vehicule.places != null && (
+                        <span className="text-sm"><span className="font-medium">{selectedTrajet.vehicule.places}</span> places</span>
+                      )}
+                      {selectedTrajet.vehicule.grandBagage != null && (
+                        <span className="text-sm"><span className="font-medium">{selectedTrajet.vehicule.grandBagage}</span> grand{Number(selectedTrajet.vehicule.grandBagage) > 1 ? 's' : ''} <span className="text-slate-400">(23kg)</span></span>
+                      )}
+                      {selectedTrajet.vehicule.petitBagage != null && (
+                        <span className="text-sm"><span className="font-medium">{selectedTrajet.vehicule.petitBagage}</span> petit{Number(selectedTrajet.vehicule.petitBagage) > 1 ? 's' : ''} <span className="text-slate-400">(10kg)</span></span>
+                      )}
                     </div>
                   </div>
                 )}
 
-                <div className="p-5 rounded-xl bg-slate-50">
-                  <div className={`grid gap-4 ${formData.direction === 'from_airport' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    <div>
-                      <p className="text-xs text-slate-500">Passagers</p>
-                      <p className="font-medium text-slate-800">{formData.passengers}</p>
+                {/* ── Options ── */}
+                {(formData.siegeBebes > 0 || formData.animalDeCompagnie ||
+                  formData.siegeBebesRetour > 0 || formData.animalDeCompagnieRetour) && (
+                  <div className="p-5 rounded-xl border border-slate-200 space-y-2">
+                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2">Options</p>
+                    <div className="space-y-1.5 text-sm">
+                      {formData.siegeBebes > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Siege bebe (aller)</span>
+                          <span className="font-medium text-slate-800">+{((selectedTrajet?.prixSiegeBebe || 0) * formData.siegeBebes).toLocaleString()} FCFA</span>
+                        </div>
+                      )}
+                      {formData.animalDeCompagnie && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Animal de compagnie (aller)</span>
+                          <span className="font-medium text-slate-800">+{(selectedTrajet?.prixAnimalCompagnie || 0).toLocaleString()} FCFA</span>
+                        </div>
+                      )}
+                      {formData.adressesSupplementAller.map((a, i) => (
+                        <div key={i} className="flex justify-between gap-3">
+                          <span className="text-slate-600 truncate">{a.adresse || `Adresse supp. aller ${i + 1}`}</span>
+                          <span className="font-medium text-slate-800 shrink-0">+{(selectedTrajet?.prixAdresseSupplementaire || 0).toLocaleString()} FCFA</span>
+                        </div>
+                      ))}
+                      {formData.siegeBebesRetour > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Siege bebe (retour)</span>
+                          <span className="font-medium text-slate-800">+{((selectedTrajet?.prixSiegeBebe || 0) * formData.siegeBebesRetour).toLocaleString()} FCFA</span>
+                        </div>
+                      )}
+                      {formData.animalDeCompagnieRetour && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Animal de compagnie (retour)</span>
+                          <span className="font-medium text-slate-800">+{(selectedTrajet?.prixAnimalCompagnie || 0).toLocaleString()} FCFA</span>
+                        </div>
+                      )}
+                      {formData.adressesSupplementRetour.map((a, i) => (
+                        <div key={i} className="flex justify-between gap-3">
+                          <span className="text-slate-600 truncate">{a.adresse || `Adresse supp. retour ${i + 1}`}</span>
+                          <span className="font-medium text-slate-800 shrink-0">+{(selectedTrajet?.prixAdresseSupplementaire || 0).toLocaleString()} FCFA</span>
+                        </div>
+                      ))}
                     </div>
-                    {formData.direction === 'from_airport' && (
-                      <div>
-                        <p className="text-xs text-slate-500">Numero de vol</p>
-                        <p className="font-medium text-slate-800">{formData.flight_number || '—'}</p>
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
+
+                {/* ── Informations supplémentaires ── */}
+                {formData.specialRequests && (
+                  <div className="p-5 rounded-xl border border-slate-200">
+                    <p className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2">Informations supplementaires</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{formData.specialRequests}</p>
+                  </div>
+                )}
+
               </div>
 
-              {/* Client */}
-              <div className="p-6 rounded-xl border border-slate-200">
-                <p className="text-sm text-slate-500 mb-2">Client</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#E04A1F] flex items-center justify-center text-white font-semibold">
-                    {formData.clientName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium text-slate-800">{formData.clientName}</p>
-                    <p className="text-sm text-slate-500">{formData.clientPhone}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment */}
+              {/* ── Paiement & Total ── */}
               <div className="p-6 rounded-xl bg-[#ffdbd0]/40 border-2 border-orange-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-600">Mode de paiement</span>
@@ -1958,7 +3111,7 @@ export default function AirportShuttleBookingWizard({
                   <p className="text-sm font-semibold text-[#171c1f] truncate">
                     {(() => {
                       const arrivee = arriveeOptions.find(v => v.id === selectedArriveeId);
-                      return getVilleName(arrivee) || "—";
+                      return getVilleName(arrivee) || ciArriveeAddressDisplay || formData.return_address || "—";
                     })()}
                   </p>
                 </div>
@@ -1979,17 +3132,61 @@ export default function AirportShuttleBookingWizard({
                 </span>
               </div>
               <div className="flex justify-between gap-2">
-                <span className="text-slate-500 shrink-0">Date &amp; heure</span>
+                <span className="text-slate-500 shrink-0">{formData.is_round_trip ? "Aller" : "Date & heure"}</span>
                 <span className="font-bold text-[#171c1f] text-right">
                   {formData.departure_date
                     ? `${format(new Date(formData.departure_date), "dd MMM", { locale: fr })}, ${formData.departure_time || "—"}`
                     : "—"}
                 </span>
               </div>
+              {formData.is_round_trip && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500 shrink-0">Retour</span>
+                  <span className="font-bold text-[#171c1f] text-right">
+                    {formData.return_date
+                      ? `${format(new Date(formData.return_date), "dd MMM", { locale: fr })}, ${formData.return_time || "—"}`
+                      : "—"}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between gap-2">
                 <span className="text-slate-500 shrink-0">Passagers</span>
                 <span className="font-bold text-[#171c1f]">{formData.passengers}</span>
               </div>
+              {isCIBooking && ciBagages23 > 0 && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500 shrink-0">Bagages 23kg</span>
+                  <span className="font-bold text-[#171c1f]">{ciBagages23}</span>
+                </div>
+              )}
+              {isCIBooking && ciBagages10 > 0 && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500 shrink-0">Bagages 10kg</span>
+                  <span className="font-bold text-[#171c1f]">{ciBagages10}</span>
+                </div>
+              )}
+              {isCIBooking && Object.entries(ciSimpleOptions).map(([id, qty]) => {
+                if (!qty) return null;
+                const opt = ciOptions.find(o => o.id === Number(id));
+                if (!opt) return null;
+                return (
+                  <div key={id} className="flex justify-between gap-2">
+                    <span className="text-slate-500 shrink-0 truncate">{opt.label}</span>
+                    <span className="font-bold text-[#171c1f]">×{qty}</span>
+                  </div>
+                );
+              })}
+              {isCIBooking && Object.entries(ciAddressOptions).map(([id, adrs]) => {
+                if (!adrs.length) return null;
+                const opt = ciOptions.find(o => o.id === Number(id));
+                if (!opt) return null;
+                return (
+                  <div key={id} className="flex justify-between gap-2">
+                    <span className="text-slate-500 shrink-0 truncate">{opt.label}</span>
+                    <span className="font-bold text-[#171c1f]">{adrs.length} arrêt{adrs.length > 1 ? 's' : ''}</span>
+                  </div>
+                );
+              })}
               {selectedTrajet?.vehicule && (
                 <div className="flex justify-between gap-2">
                   <span className="text-slate-500 shrink-0">Vehicule</span>
@@ -2007,12 +3204,42 @@ export default function AirportShuttleBookingWizard({
           <div className="space-y-3 border-t border-[#dfe3e7] pt-6">
             <div className="flex justify-between items-center">
               <span className="text-sm text-slate-500">
-                {formData.is_round_trip ? "Tarif aller-retour" : "Tarif de base"}
+                {isCIBooking ? "Véhicule" : formData.is_round_trip ? "Tarif aller-retour" : "Tarif de base"}
               </span>
               <span className="text-sm font-medium text-[#171c1f]">
-                {selectedTrajet ? `${getTrajetBase().toLocaleString()} FCFA` : "—"}
+                {isCIBooking
+                  ? (ciCategoryPrice > 0 ? `${ciCategoryPrice.toLocaleString()} FCFA` : "—")
+                  : selectedTrajet ? `${getTrajetBase().toLocaleString()} FCFA` : "—"}
               </span>
             </div>
+            {isCIBooking && Object.entries(ciSimpleOptions).map(([id, qty]) => {
+              if (!qty) return null;
+              const opt = ciOptions.find(o => o.id === Number(id));
+              if (!opt) return null;
+              return (
+                <div key={id} className="flex justify-between items-center">
+                  <span className="text-sm text-slate-500">{opt.label} ×{qty}</span>
+                  <span className="text-sm font-medium text-[#171c1f]">
+                    +{(opt.prix * qty).toLocaleString()} FCFA
+                  </span>
+                </div>
+              );
+            })}
+            {isCIBooking && Object.entries(ciAddressOptions).map(([id, adrs]) => {
+              if (!adrs.length) return null;
+              const opt = ciOptions.find(o => o.id === Number(id));
+              if (!opt) return null;
+              return (
+                <div key={id} className="flex justify-between items-center">
+                  <span className="text-sm text-slate-500">{opt.label} ×{adrs.length}</span>
+                  <span className="text-sm font-medium text-[#171c1f]">
+                    {opt.pricingMode === 'FLAT'
+                      ? `+${(opt.prix * adrs.length).toLocaleString()} FCFA`
+                      : 'Calculé au km'}
+                  </span>
+                </div>
+              );
+            })}
             {formData.siegeBebes > 0 && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Sieges bebe (x{formData.siegeBebes})</span>
@@ -2029,11 +3256,11 @@ export default function AirportShuttleBookingWizard({
                 </span>
               </div>
             )}
-            {formData.adresseSupplement > 0 && (
+            {formData.adressesSupplementAller.length > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-500">Arrets sup. (x{formData.adresseSupplement})</span>
+                <span className="text-sm text-slate-500">Arrets sup. (x{formData.adressesSupplementAller.length})</span>
                 <span className="text-sm font-medium text-[#171c1f]">
-                  +{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adresseSupplement).toLocaleString()} FCFA
+                  +{((selectedTrajet?.prixAdresseSupplementaire || 0) * formData.adressesSupplementAller.length).toLocaleString()} FCFA
                 </span>
               </div>
             )}
@@ -2099,12 +3326,12 @@ export default function AirportShuttleBookingWizard({
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={isEdit ? updateBooking.isPending : createBooking.isPending}
+            disabled={isEdit ? updateBooking.isPending : (createBooking.isPending || createCIBooking.isPending)}
             className="bg-[#E04A1F] text-white border-0 gap-2 rounded-full px-8 md:px-10 py-3 font-extrabold text-base shadow-lg shadow-[#E04A1F]/25 hover:shadow-xl active:scale-95 transition-all"
           >
             {isEdit
               ? (updateBooking.isPending ? 'Enregistrement...' : 'Enregistrer les modifications')
-              : (createBooking.isPending ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`)}
+              : ((createBooking.isPending || createCIBooking.isPending) ? 'Confirmation...' : `Confirmer - ${calculateTotal().toLocaleString()} FCFA`)}
           </Button>
         )}
       </div>
