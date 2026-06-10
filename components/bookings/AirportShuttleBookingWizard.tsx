@@ -1105,7 +1105,7 @@ export default function AirportShuttleBookingWizard({
                 />
               </div>
 
-              {/* SECTION ALLER */}
+              {/* SECTION ALLER - COMPLETE */}
               <div className="border border-orange-200 rounded-2xl p-5 space-y-4 bg-orange-50/20">
                 <div className="flex items-center gap-2 mb-2">
                   <PlaneTakeoff className="w-5 h-5 text-[#E04A1F]" />
@@ -1233,43 +1233,195 @@ export default function AirportShuttleBookingWizard({
                   </div>
                 )}
 
-                {/* Options supplémentaires Aller (Siège bébé, Animal) */}
-                <div className="border-t border-slate-200 pt-4 space-y-3">
-                  <p className="text-sm font-semibold text-slate-800">Options aller</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Passagers et Bagages - ALLER */}
+                <div className="border-t border-slate-200 pt-4">
+                  <p className="text-sm font-semibold text-slate-800 mb-3">Passagers & Bagages</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="space-y-2">
-                      <Label>Siège bébé</Label>
+                      <Label>Passagers</Label>
                       <Select
-                        value={formData.siegeBebes?.toString() || '0'}
-                        onValueChange={(v) => handleChange('siegeBebes', parseInt(v) || 0)}
+                        value={formData.passengers.toString()}
+                        onValueChange={(v) => handleChange('passengers', parseInt(v))}
                       >
-                        <SelectTrigger className="bg-white border-0 rounded-xl h-10">
+                        <SelectTrigger className="bg-white border-0 rounded-xl">
+                          <Users className="w-4 h-4 mr-2" />
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {Array.from({ length: 6 }, (_, i) => i).map(n => (
+                          {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
+                            <SelectItem key={n} value={n.toString()}>
+                              {n} passager{n > 1 ? 's' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bagages 23 kg</Label>
+                      <Select
+                        value={ciBagages23.toString()}
+                        onValueChange={(v) => setCiBagages23(parseInt(v))}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 11 }, (_, i) => i).map(n => (
                             <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Animal de compagnie</Label>
-                      <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100">
-                        <input
-                          type="checkbox"
-                          checked={formData.animalDeCompagnie || false}
-                          onChange={(e) => handleChange('animalDeCompagnie', e.target.checked)}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-slate-600">Oui</span>
-                      </div>
+                      <Label>Bagages 10 kg</Label>
+                      <Select
+                        value={ciBagages10.toString()}
+                        onValueChange={(v) => setCiBagages10(parseInt(v))}
+                      >
+                        <SelectTrigger className="bg-white border-0 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 11 }, (_, i) => i).map(n => (
+                            <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
+
+                {/* Options supplémentaires Aller (Simple + Address) */}
+                {ciOptions.length > 0 && (
+                  <div className="border-t border-slate-200 pt-4 space-y-3">
+                    <p className="text-sm font-semibold text-slate-800">Options supplémentaires Aller</p>
+                    <div className="space-y-3">
+                      {ciOptions.map((opt) => {
+                        if (opt.type === 'SIMPLE') {
+                          const qty = ciSimpleOptions[opt.id] ?? 0;
+                          return (
+                            <div key={opt.id} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                                {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                                <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / unité</p>
+                              </div>
+                              <Select
+                                value={qty.toString()}
+                                onValueChange={(v) => setCiSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
+                              >
+                                <SelectTrigger className="w-20 shrink-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: opt.maxQuantite + 1 }, (_, i) => i).map(n => (
+                                    <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          );
+                        }
+
+                        if (opt.type === 'ADDRESS') {
+                          const adresses = ciAddressOptions[opt.id] ?? [];
+                          return (
+                            <div key={opt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                                  {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                                  <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / arrêt</p>
+                                </div>
+                                {adresses.length < opt.maxQuantite && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setCiAddressOptions(prev => ({
+                                      ...prev,
+                                      [opt.id]: [...(prev[opt.id] ?? []), { adresse: '', lat: null, lng: null, instructions: '', contactNom: '', contactTelephone: '' }],
+                                    }))}
+                                    className="shrink-0 flex items-center gap-1 text-xs font-bold text-[#E04A1F] hover:underline"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" /> Ajouter un arrêt
+                                  </button>
+                                )}
+                              </div>
+                              {adresses.map((adr, idx) => (
+                                <div key={idx} className="space-y-2 border-t border-slate-200 pt-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arrêt {idx + 1}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCiAddressOptions(prev => ({
+                                        ...prev,
+                                        [opt.id]: (prev[opt.id] ?? []).filter((_, i) => i !== idx),
+                                      }))}
+                                      className="text-slate-400 hover:text-red-500"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  <AddressAutocomplete
+                                    placeholder="Adresse de l'arrêt"
+                                    value={adr.adresse}
+                                    onChange={(val) => setCiAddressOptions(prev => {
+                                      const list = [...(prev[opt.id] ?? [])];
+                                      list[idx] = { ...list[idx], adresse: val, lat: null, lng: null };
+                                      return { ...prev, [opt.id]: list };
+                                    })}
+                                    onSelect={(address, lat, lng) => setCiAddressOptions(prev => {
+                                      const list = [...(prev[opt.id] ?? [])];
+                                      list[idx] = { ...list[idx], adresse: address, lat, lng };
+                                      return { ...prev, [opt.id]: list };
+                                    })}
+                                    countryCode="CI"
+                                  />
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                      placeholder="Nom du contact (optionnel)"
+                                      value={adr.contactNom}
+                                      onChange={(e) => setCiAddressOptions(prev => {
+                                        const list = [...(prev[opt.id] ?? [])];
+                                        list[idx] = { ...list[idx], contactNom: e.target.value };
+                                        return { ...prev, [opt.id]: list };
+                                      })}
+                                      className="text-sm"
+                                    />
+                                    <Input
+                                      placeholder="Téléphone contact (optionnel)"
+                                      value={adr.contactTelephone}
+                                      onChange={(e) => setCiAddressOptions(prev => {
+                                        const list = [...(prev[opt.id] ?? [])];
+                                        list[idx] = { ...list[idx], contactTelephone: e.target.value };
+                                        return { ...prev, [opt.id]: list };
+                                      })}
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                  <Input
+                                    placeholder="Instructions (optionnel)"
+                                    value={adr.instructions}
+                                    onChange={(e) => setCiAddressOptions(prev => {
+                                      const list = [...(prev[opt.id] ?? [])];
+                                      list[idx] = { ...list[idx], instructions: e.target.value };
+                                      return { ...prev, [opt.id]: list };
+                                    })}
+                                    className="text-sm"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* SECTION RETOUR (visible seulement si aller-retour) */}
+              {/* SECTION RETOUR - COMPLETE (visible seulement si aller-retour) */}
               {formData.is_round_trip && (
                 <div className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/20">
                   <div className="flex items-center gap-2 mb-2">
@@ -1389,224 +1541,192 @@ export default function AirportShuttleBookingWizard({
                     </div>
                   </div>
 
-                  {/* Options supplémentaires Retour (Siège bébé, Animal) */}
-                  <div className="border-t border-slate-200 pt-4 space-y-3">
-                    <p className="text-sm font-semibold text-slate-800">Options retour</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Passagers et Bagages - RETOUR */}
+                  <div className="border-t border-slate-200 pt-4">
+                    <p className="text-sm font-semibold text-slate-800 mb-3">Passagers & Bagages</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-2">
-                        <Label>Siège bébé</Label>
+                        <Label>Passagers</Label>
                         <Select
-                          value={formData.siegeBebesRetour?.toString() || '0'}
-                          onValueChange={(v) => handleChange('siegeBebesRetour', parseInt(v) || 0)}
+                          value={formData.passengers.toString()}
+                          onValueChange={(v) => handleChange('passengers', parseInt(v))}
                         >
-                          <SelectTrigger className="bg-white border-0 rounded-xl h-10">
+                          <SelectTrigger className="bg-white border-0 rounded-xl">
+                            <Users className="w-4 h-4 mr-2" />
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: 6 }, (_, i) => i).map(n => (
+                            {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
+                              <SelectItem key={n} value={n.toString()}>
+                                {n} passager{n > 1 ? 's' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Bagages 23 kg</Label>
+                        <Select
+                          value={ciBagages23.toString()}
+                          onValueChange={(v) => setCiBagages23(parseInt(v))}
+                        >
+                          <SelectTrigger className="bg-white border-0 rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 11 }, (_, i) => i).map(n => (
                               <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Animal de compagnie</Label>
-                        <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-100">
-                          <input
-                            type="checkbox"
-                            checked={formData.animalDeCompagnieRetour || false}
-                            onChange={(e) => handleChange('animalDeCompagnieRetour', e.target.checked)}
-                            className="rounded"
-                          />
-                          <span className="text-sm text-slate-600">Oui</span>
-                        </div>
+                        <Label>Bagages 10 kg</Label>
+                        <Select
+                          value={ciBagages10.toString()}
+                          onValueChange={(v) => setCiBagages10(parseInt(v))}
+                        >
+                          <SelectTrigger className="bg-white border-0 rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 11 }, (_, i) => i).map(n => (
+                              <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Passagers et Bagages (Global) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Passagers</Label>
-                  <Select
-                    value={formData.passengers.toString()}
-                    onValueChange={(v) => handleChange('passengers', parseInt(v))}
-                  >
-                    <SelectTrigger className="bg-slate-50 rounded-xl">
-                      <Users className="w-4 h-4 mr-2" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
-                        <SelectItem key={n} value={n.toString()}>
-                          {n} passager{n > 1 ? 's' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Bagages 23 kg</Label>
-                  <Select
-                    value={ciBagages23.toString()}
-                    onValueChange={(v) => setCiBagages23(parseInt(v))}
-                  >
-                    <SelectTrigger className="bg-slate-50 rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 11 }, (_, i) => i).map(n => (
-                        <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Bagages 10 kg</Label>
-                  <Select
-                    value={ciBagages10.toString()}
-                    onValueChange={(v) => setCiBagages10(parseInt(v))}
-                  >
-                    <SelectTrigger className="bg-slate-50 rounded-xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 11 }, (_, i) => i).map(n => (
-                        <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Options supplémentaires avancées (Adresses supplémentaires) */}
-              {ciOptions.length > 0 && (
-                <div className="space-y-3 border-t border-slate-200 pt-4">
-                  <Label className="text-base font-semibold">Options supplémentaires</Label>
-                  <div className="space-y-3">
-                    {ciOptions.map((opt) => {
-                      if (opt.type === 'SIMPLE') {
-                        const qty = ciSimpleOptions[opt.id] ?? 0;
-                        return (
-                          <div key={opt.id} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
-                              {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
-                              <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / unité</p>
-                            </div>
-                            <Select
-                              value={qty.toString()}
-                              onValueChange={(v) => setCiSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
-                            >
-                              <SelectTrigger className="w-20 shrink-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: opt.maxQuantite + 1 }, (_, i) => i).map(n => (
-                                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        );
-                      }
-
-                      if (opt.type === 'ADDRESS') {
-                        const adresses = ciAddressOptions[opt.id] ?? [];
-                        return (
-                          <div key={opt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
-                                {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
-                                <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / arrêt</p>
-                              </div>
-                              {adresses.length < opt.maxQuantite && (
-                                <button
-                                  type="button"
-                                  onClick={() => setCiAddressOptions(prev => ({
-                                    ...prev,
-                                    [opt.id]: [...(prev[opt.id] ?? []), { adresse: '', lat: null, lng: null, instructions: '', contactNom: '', contactTelephone: '' }],
-                                  }))}
-                                  className="shrink-0 flex items-center gap-1 text-xs font-bold text-[#E04A1F] hover:underline"
+                  {/* Options supplémentaires Retour (Simple + Address) */}
+                  {ciOptions.length > 0 && (
+                    <div className="border-t border-slate-200 pt-4 space-y-3">
+                      <p className="text-sm font-semibold text-slate-800">Options supplémentaires Retour</p>
+                      <div className="space-y-3">
+                        {ciOptions.map((opt) => {
+                          if (opt.type === 'SIMPLE') {
+                            const qty = ciSimpleOptions[opt.id] ?? 0;
+                            return (
+                              <div key={opt.id} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                                  {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                                  <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / unité</p>
+                                </div>
+                                <Select
+                                  value={qty.toString()}
+                                  onValueChange={(v) => setCiSimpleOptions(prev => ({ ...prev, [opt.id]: parseInt(v) }))}
                                 >
-                                  <Plus className="w-3.5 h-3.5" /> Ajouter un arrêt
-                                </button>
-                              )}
-                            </div>
-                            {adresses.map((adr, idx) => (
-                              <div key={idx} className="space-y-2 border-t border-slate-200 pt-3">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arrêt {idx + 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setCiAddressOptions(prev => ({
-                                      ...prev,
-                                      [opt.id]: (prev[opt.id] ?? []).filter((_, i) => i !== idx),
-                                    }))}
-                                    className="text-slate-400 hover:text-red-500"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                <AddressAutocomplete
-                                  placeholder="Adresse de l'arrêt"
-                                  value={adr.adresse}
-                                  onChange={(val) => setCiAddressOptions(prev => {
-                                    const list = [...(prev[opt.id] ?? [])];
-                                    list[idx] = { ...list[idx], adresse: val, lat: null, lng: null };
-                                    return { ...prev, [opt.id]: list };
-                                  })}
-                                  onSelect={(address, lat, lng) => setCiAddressOptions(prev => {
-                                    const list = [...(prev[opt.id] ?? [])];
-                                    list[idx] = { ...list[idx], adresse: address, lat, lng };
-                                    return { ...prev, [opt.id]: list };
-                                  })}
-                                  countryCode="CI"
-                                />
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Input
-                                    placeholder="Nom du contact (optionnel)"
-                                    value={adr.contactNom}
-                                    onChange={(e) => setCiAddressOptions(prev => {
-                                      const list = [...(prev[opt.id] ?? [])];
-                                      list[idx] = { ...list[idx], contactNom: e.target.value };
-                                      return { ...prev, [opt.id]: list };
-                                    })}
-                                    className="text-sm"
-                                  />
-                                  <Input
-                                    placeholder="Téléphone contact (optionnel)"
-                                    value={adr.contactTelephone}
-                                    onChange={(e) => setCiAddressOptions(prev => {
-                                      const list = [...(prev[opt.id] ?? [])];
-                                      list[idx] = { ...list[idx], contactTelephone: e.target.value };
-                                      return { ...prev, [opt.id]: list };
-                                    })}
-                                    className="text-sm"
-                                  />
-                                </div>
-                                <Input
-                                  placeholder="Instructions (optionnel)"
-                                  value={adr.instructions}
-                                  onChange={(e) => setCiAddressOptions(prev => {
-                                    const list = [...(prev[opt.id] ?? [])];
-                                    list[idx] = { ...list[idx], instructions: e.target.value };
-                                    return { ...prev, [opt.id]: list };
-                                  })}
-                                  className="text-sm"
-                                />
+                                  <SelectTrigger className="w-20 shrink-0">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: opt.maxQuantite + 1 }, (_, i) => i).map(n => (
+                                      <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
-                            ))}
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      return null;
-                    })}
-                  </div>
+                          if (opt.type === 'ADDRESS') {
+                            const adresses = ciAddressOptions[opt.id] ?? [];
+                            return (
+                              <div key={opt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-3">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-slate-800 text-sm">{opt.label}</p>
+                                    {opt.description && <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>}
+                                    <p className="text-xs font-bold text-[#E04A1F] mt-1">{opt.prix.toLocaleString()} FCFA / arrêt</p>
+                                  </div>
+                                  {adresses.length < opt.maxQuantite && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCiAddressOptions(prev => ({
+                                        ...prev,
+                                        [opt.id]: [...(prev[opt.id] ?? []), { adresse: '', lat: null, lng: null, instructions: '', contactNom: '', contactTelephone: '' }],
+                                      }))}
+                                      className="shrink-0 flex items-center gap-1 text-xs font-bold text-[#E04A1F] hover:underline"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" /> Ajouter un arrêt
+                                    </button>
+                                  )}
+                                </div>
+                                {adresses.map((adr, idx) => (
+                                  <div key={idx} className="space-y-2 border-t border-slate-200 pt-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Arrêt {idx + 1}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setCiAddressOptions(prev => ({
+                                          ...prev,
+                                          [opt.id]: (prev[opt.id] ?? []).filter((_, i) => i !== idx),
+                                        }))}
+                                        className="text-slate-400 hover:text-red-500"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <AddressAutocomplete
+                                      placeholder="Adresse de l'arrêt"
+                                      value={adr.adresse}
+                                      onChange={(val) => setCiAddressOptions(prev => {
+                                        const list = [...(prev[opt.id] ?? [])];
+                                        list[idx] = { ...list[idx], adresse: val, lat: null, lng: null };
+                                        return { ...prev, [opt.id]: list };
+                                      })}
+                                      onSelect={(address, lat, lng) => setCiAddressOptions(prev => {
+                                        const list = [...(prev[opt.id] ?? [])];
+                                        list[idx] = { ...list[idx], adresse: address, lat, lng };
+                                        return { ...prev, [opt.id]: list };
+                                      })}
+                                      countryCode="CI"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Input
+                                        placeholder="Nom du contact (optionnel)"
+                                        value={adr.contactNom}
+                                        onChange={(e) => setCiAddressOptions(prev => {
+                                          const list = [...(prev[opt.id] ?? [])];
+                                          list[idx] = { ...list[idx], contactNom: e.target.value };
+                                          return { ...prev, [opt.id]: list };
+                                        })}
+                                        className="text-sm"
+                                      />
+                                      <Input
+                                        placeholder="Téléphone contact (optionnel)"
+                                        value={adr.contactTelephone}
+                                        onChange={(e) => setCiAddressOptions(prev => {
+                                          const list = [...(prev[opt.id] ?? [])];
+                                          list[idx] = { ...list[idx], contactTelephone: e.target.value };
+                                          return { ...prev, [opt.id]: list };
+                                        })}
+                                        className="text-sm"
+                                      />
+                                    </div>
+                                    <Input
+                                      placeholder="Instructions (optionnel)"
+                                      value={adr.instructions}
+                                      onChange={(e) => setCiAddressOptions(prev => {
+                                        const list = [...(prev[opt.id] ?? [])];
+                                        list[idx] = { ...list[idx], instructions: e.target.value };
+                                        return { ...prev, [opt.id]: list };
+                                      })}
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
