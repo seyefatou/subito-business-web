@@ -2,7 +2,9 @@
 
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
 import { ArrowLeft, Check, Minus, Plus, CreditCard, Calendar, Users, Wallet, Mail, Phone, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
@@ -41,6 +43,7 @@ export function ReservationWizard({
   onCancel,
 }: ReservationWizardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [state, setState] = useState<ReservationWizardState>({
     step: 1,
@@ -75,20 +78,65 @@ export function ReservationWizard({
     }
   };
 
+  const createReservationMutation = useMutation({
+    mutationFn: (data: any) => api.serviceReservations.create(data),
+    onSuccess: (response) => {
+      toast.success('Réservation confirmée avec succès !');
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['reservations'] });
+        router.push(`/service-reservations?status=CONFIRMÉE`);
+      }, 1500);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erreur lors de la création de la réservation');
+    },
+  });
+
   const handleConfirm = () => {
     const clientData = selectedEmployee || user;
-    // TODO: Créer la réservation
-    console.log('Confirm reservation', {
-      productType,
-      productId,
-      ...state,
-      clientData: {
-        nom: clientData?.nom,
-        prenom: clientData?.prenom,
-        email: clientData?.email,
-        telephone: clientData?.telephone,
-      },
-    });
+
+    if (!clientData?.nom || !clientData?.prenom) {
+      toast.error('Veuillez sélectionner un employé');
+      return;
+    }
+
+    if (!state.dateDebut || !state.dateFin) {
+      toast.error('Veuillez sélectionner les dates');
+      return;
+    }
+
+    if (!state.paymentMethod) {
+      toast.error('Veuillez sélectionner un mode de paiement');
+      return;
+    }
+
+    const reservationData = {
+      serviceType: productType === 'logement' ? 'LOGEMENT' : productType.toUpperCase(),
+      logementId: productType === 'logement' ? productId : undefined,
+      activiteId: productType === 'activite' ? productId : undefined,
+      circuitId: productType === 'circuit' ? productId : undefined,
+      vehiculeLocationId: productType === 'vehicule' ? productId : undefined,
+      employeeId: selectedEmployee?.id || undefined,
+      clientName: `${clientData.prenom} ${clientData.nom}`,
+      clientPhone: clientData.telephone || '',
+      clientEmail: clientData.email,
+      dateDebut: state.dateDebut.toISOString().split('T')[0],
+      dateFin: state.dateFin.toISOString().split('T')[0],
+      heureDebut: state.heureDebut,
+      heureFin: state.heureFin,
+      nombrePersonnes: state.nombrePersonnes,
+      formuleRepas: state.selectedPensions.length > 0 ? state.selectedPensions[0] : undefined,
+      priceOptions: state.selectedPriceOptions.map((id) => ({
+        code: `OPTION_${id}`,
+        quantite: 1,
+      })),
+      notes: `Mode de paiement: ${state.paymentMethod === 'company_account' ? 'Compte entreprise' : 'Client/Employé'}`,
+      canal: 'web',
+    };
+
+    createReservationMutation.mutate(reservationData);
   };
 
   const renderStep = (): StepComponent => {
@@ -300,10 +348,11 @@ export function ReservationWizard({
                 ) : (
                   <Button
                     onClick={handleConfirm}
-                    className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all"
+                    disabled={createReservationMutation.isPending}
+                    className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    Confirmer la réservation
+                    {createReservationMutation.isPending ? 'Confirmation en cours...' : 'Confirmer la réservation'}
                   </Button>
                 )}
               </div>
