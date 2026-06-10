@@ -1502,9 +1502,9 @@ export default function AirportShuttleBookingWizard({
                   {/* Départ Retour (inverse de l'aller) */}
                   <div className="space-y-2">
                     <Label>
-                      {ciSens === 'city_to_airport' ? 'Adresse de départ retour (ville) *' : 'Aéroport de départ retour *'}
+                      {ciSens === 'airport_to_city' ? 'Adresse de départ retour (ville) *' : 'Aéroport de départ retour *'}
                     </Label>
-                    {ciSens === 'city_to_airport' ? (
+                    {ciSens === 'airport_to_city' ? (
                       <AddressAutocomplete
                         placeholder="Ex: Cocody, Abidjan"
                         value={formData.return_address}
@@ -1542,7 +1542,7 @@ export default function AirportShuttleBookingWizard({
                   </div>
 
                   {/* Terminal Départ Retour */}
-                  {ciSens === 'airport_to_city' && (() => {
+                  {ciSens === 'city_to_airport' && (() => {
                     const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
                     const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
@@ -1569,12 +1569,12 @@ export default function AirportShuttleBookingWizard({
                     );
                   })()}
 
-                  {/* Arrivée Retour (l'aéroport inverse) */}
+                  {/* Arrivée Retour (l'inverse du départ retour) */}
                   <div className="space-y-2">
                     <Label>
-                      {ciSens === 'city_to_airport' ? 'Aéroport d\'arrivée retour *' : 'Adresse d\'arrivée retour (ville) *'}
+                      {ciSens === 'airport_to_city' ? 'Aéroport d\'arrivée retour *' : 'Adresse d\'arrivée retour (ville) *'}
                     </Label>
-                    {ciSens === 'city_to_airport' ? (
+                    {ciSens === 'airport_to_city' ? (
                       <Select
                         value={formData.address}
                         onValueChange={(val) => {
@@ -1612,7 +1612,7 @@ export default function AirportShuttleBookingWizard({
                   </div>
 
                   {/* Terminal Arrivée Retour */}
-                  {ciSens === 'city_to_airport' && (() => {
+                  {ciSens === 'airport_to_city' && (() => {
                     const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
                     const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
