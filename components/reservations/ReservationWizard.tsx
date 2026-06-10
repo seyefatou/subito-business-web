@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
-import { ArrowLeft, Check, Minus, Plus, CreditCard, Calendar, Users, Wallet, Mail, Phone, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, CreditCard, Calendar, Users, Wallet, Mail, Phone, User as UserIcon, CheckCircle2, Search } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
@@ -52,6 +53,8 @@ export function ReservationWizard({
     selectedPriceOptions: [],
   });
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingRef, setBookingRef] = useState('');
 
   const isStep2Complete = () => {
     if (productType === 'logement' || productType === 'circuit') {
@@ -80,14 +83,13 @@ export function ReservationWizard({
 
   const createReservationMutation = useMutation({
     mutationFn: (data: any) => api.serviceReservations.create(data),
-    onSuccess: (response) => {
+    onSuccess: (response: any) => {
+      const ref = response?.data?.reservationCode || response?.reservationCode || `SRV-${Date.now()}`;
+      setBookingRef(ref);
+      setBookingSuccess(true);
       toast.success('Réservation confirmée avec succès !');
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['reservations'] });
-        router.push(`/service-reservations?status=CONFIRMÉE`);
-      }, 1500);
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erreur lors de la création de la réservation');
@@ -216,6 +218,115 @@ export function ReservationWizard({
     { title: 'Mode de paiement' },
     { title: 'Confirmation' },
   ];
+
+  if (bookingSuccess) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 space-y-8 py-8"
+      >
+        {/* Hero Section */}
+        <section className="relative overflow-hidden rounded-[2rem] bg-[#E04A1F] p-10 md:p-14 text-white shadow-xl">
+          <div className="relative z-10 flex flex-col items-center text-center gap-6">
+            <div className="bg-white/20 backdrop-blur-md rounded-full p-4 ring-8 ring-white/10">
+              <CheckCircle2 className="w-14 h-14" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-2" style={MANROPE}>
+                Réservation confirmée
+              </h1>
+              <p className="text-white/90 text-base md:text-lg font-medium">
+                Votre {productType === 'logement' ? 'logement' : productType} est réservé et vous recevrez bientôt une confirmation.
+              </p>
+              <p className="text-white/80 text-sm mt-3">
+                Référence : <span className="font-bold text-white">{bookingRef}</span>
+              </p>
+            </div>
+          </div>
+          <div className="absolute -right-20 -top-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute -left-16 -bottom-16 w-60 h-60 bg-white/5 rounded-full blur-3xl" />
+        </section>
+
+        {/* Booking Details */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+            <div className="flex items-center gap-4 mb-5">
+              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#E04A1F]">
+                <Check className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900">{productName}</h3>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Date d'arrivée</span>
+                <span className="font-semibold text-slate-900">
+                  {state.dateDebut ? format(new Date(state.dateDebut), 'dd MMM yyyy', { locale: fr }) : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Date de départ</span>
+                <span className="font-semibold text-slate-900">
+                  {state.dateFin ? format(new Date(state.dateFin), 'dd MMM yyyy', { locale: fr }) : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Voyageurs</span>
+                <span className="font-semibold text-slate-900">{state.nombrePersonnes}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+            <div className="flex items-center gap-4 mb-5">
+              <div className="bg-[#ffdbd0] p-3 rounded-2xl text-[#E04A1F]">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900">Mode de paiement</h3>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-center py-4 bg-[#f0f4f8] rounded-xl">
+                <p className="font-bold text-[#E04A1F] text-center">
+                  {state.paymentMethod === 'company_account'
+                    ? 'Compte entreprise'
+                    : state.paymentMethod === 'client'
+                    ? 'Client/Employé'
+                    : 'Non spécifié'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            onClick={() => router.push(`/tracking`)}
+            className="flex-1 bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2"
+          >
+            <Search className="w-5 h-5" />
+            Suivre ma réservation
+          </Button>
+          <Button
+            onClick={() => {
+              setBookingSuccess(false);
+              setState({
+                step: 1,
+                nombrePersonnes: 1,
+                selectedPensions: [],
+                selectedPriceOptions: [],
+              });
+              setSelectedEmployee(null);
+            }}
+            className="flex-1 py-6 rounded-2xl font-bold text-base bg-slate-100 border-0 hover:bg-slate-200 active:scale-[0.98] transition-all gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Nouvelle réservation
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 py-8">
