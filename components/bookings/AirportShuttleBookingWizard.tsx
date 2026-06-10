@@ -436,13 +436,15 @@ export default function AirportShuttleBookingWizard({
     ? ciOptionsRaw
     : Array.isArray((ciOptionsRaw as any)?.data) ? (ciOptionsRaw as any).data : [];
 
-  // CI: quote for ALLER — fires automatically when step 2 coords are filled
+  // CI: quote — fires automatically when coords are filled
+  // For round-trip, include return coordinates; API calculates both aller and retour prices
   const canFetchCIQuote = isCIBooking
     && formData.addressLat != null && formData.addressLng != null
-    && formData.returnAddressLat != null && formData.returnAddressLng != null;
+    && formData.returnAddressLat != null && formData.returnAddressLng != null
+    && (!formData.is_round_trip || (ciReturnArriveAddressLat != null && ciReturnArriveAddressLng != null));
 
   const { data: ciQuoteRaw, isLoading: ciQuoteLoading, isError: ciQuoteError } = useQuery({
-    queryKey: ['navette-ci-quote', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip],
+    queryKey: ['navette-ci-quote', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, ciReturnArriveAddressLat, ciReturnArriveAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip],
     queryFn: () => api.bookings.navetteCI.getQuote({
       departLat: formData.addressLat!,
       departLng: formData.addressLng!,
@@ -451,31 +453,17 @@ export default function AirportShuttleBookingWizard({
       pax: formData.passengers,
       bagages23: ciBagages23,
       bagages10: ciBagages10,
-      isRoundTrip: formData.is_round_trip,
+      isOneWay: !formData.is_round_trip,
+      ...(formData.is_round_trip && ciReturnArriveAddressLat != null && ciReturnArriveAddressLng != null && {
+        departRetourLat: ciReturnDepartAddressLat!,
+        departRetourLng: ciReturnDepartAddressLng!,
+        arriveeRetourLat: ciReturnArriveAddressLat!,
+        arriveeRetourLng: ciReturnArriveAddressLng!,
+      }),
     }),
     enabled: canFetchCIQuote,
   });
   const ciQuote: NavetteCIQuoteResponse | null = (ciQuoteRaw as any)?.data ?? ciQuoteRaw ?? null;
-
-  // CI: quote for RETOUR (if round-trip) — fires automatically when return coords are filled
-  const canFetchCIReturnQuote = formData.is_round_trip && isCIBooking
-    && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null
-    && ciReturnArriveAddressLat != null && ciReturnArriveAddressLng != null;
-
-  const { data: ciReturnQuoteRaw, isLoading: ciReturnQuoteLoading, isError: ciReturnQuoteError } = useQuery({
-    queryKey: ['navette-ci-quote-return', ciReturnDepartAddressLat, ciReturnDepartAddressLng, ciReturnArriveAddressLat, ciReturnArriveAddressLng, formData.passengers, ciBagages23, ciBagages10],
-    queryFn: () => api.bookings.navetteCI.getQuote({
-      departLat: ciReturnDepartAddressLat!,
-      departLng: ciReturnDepartAddressLng!,
-      arriveeLat: ciReturnArriveAddressLat!,
-      arriveeLng: ciReturnArriveAddressLng!,
-      pax: formData.passengers,
-      bagages23: ciBagages23,
-      bagages10: ciBagages10,
-    }),
-    enabled: canFetchCIReturnQuote,
-  });
-  const ciReturnQuote: NavetteCIQuoteResponse | null = (ciReturnQuoteRaw as any)?.data ?? ciReturnQuoteRaw ?? null;
 
   // Filter by selected country if one is selected
   const filteredVilles = selectedPays
@@ -607,21 +595,17 @@ export default function AirportShuttleBookingWizard({
   };
 
   const calculateCIPriceTotal = (): number => {
-    let total = ciCategoryPrice;
-    // Add return price if round-trip
-    if (formData.is_round_trip && ciReturnQuote) {
-      // Find the selected category from return quote and add its price
-      const returnCategoryOption = ciReturnQuote.options.find(opt => opt.categorie === ciCategoryCode);
-      if (returnCategoryOption) {
-        total += returnCategoryOption.prix;
+    // For round-trip, use the single quote that includes both aller and retour prices
+    if (formData.is_round_trip && ciQuote) {
+      // Find the selected category in the quote and use its total price
+      const selectedOption = ciQuote.options.find(opt => opt.code === ciCategoryCode);
+      if (selectedOption) {
+        // prix field already includes aller + retour with discount applied
+        return selectedOption.prix;
       }
     }
-    // Apply round-trip discount if applicable
-    if (formData.is_round_trip && total > 0) {
-      const discount = Math.round(total * ROUND_TRIP_DISCOUNT_RATE);
-      total -= discount;
-    }
-    return total;
+    // For one-way, just use ciCategoryPrice
+    return ciCategoryPrice;
   };
 
   const calculateTotal = (): number => {
