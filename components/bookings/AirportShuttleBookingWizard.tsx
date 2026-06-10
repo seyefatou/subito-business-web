@@ -1084,6 +1084,28 @@ export default function AirportShuttleBookingWizard({
                 </div>
               </div>
 
+              {/* Round trip toggle for CI */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <ArrowRightLeft className="w-5 h-5 text-slate-500" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-slate-800">Aller-retour</p>
+                      {formData.is_round_trip && (
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-[#E04A1F] text-white">
+                          -10%
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500">Reservez le retour et beneficiez de 10% de reduction</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={formData.is_round_trip}
+                  onCheckedChange={(v) => handleChange('is_round_trip', v)}
+                />
+              </div>
+
               {/* Departure — airport SELECT si sens airport_to_city, sinon AddressAutocomplete ville */}
               <div className="space-y-2">
                 <Label>
