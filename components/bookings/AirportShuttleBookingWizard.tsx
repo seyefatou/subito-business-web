@@ -1126,6 +1126,36 @@ export default function AirportShuttleBookingWizard({
                 )}
               </div>
 
+              {/* Terminal Selector for CI Departure Airport */}
+              {ciSens === 'airport_to_city' && (() => {
+                const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
+                const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+
+                if (!terminals || terminals.length === 0) return null;
+
+                return (
+                  <div className="space-y-2">
+                    <Label>Terminal de l'aéroport de départ</Label>
+                    <Select
+                      value={formData.terminalDepartId?.toString() || ''}
+                      onValueChange={(v) => handleChange('terminalDepartId', v ? parseInt(v) : null)}
+                    >
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Sélectionner un terminal" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">-- Sans terminal --</SelectItem>
+                        {terminals.map((term: any) => (
+                          <SelectItem key={term.id} value={term.id.toString()}>
+                            {term.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })()}
+
               {/* Arrival — AddressAutocomplete ville si sens airport_to_city, sinon airport SELECT */}
               <div className="space-y-2">
                 <Label>
@@ -1167,6 +1197,36 @@ export default function AirportShuttleBookingWizard({
                   />
                 )}
               </div>
+
+              {/* Terminal Selector for CI */}
+              {ciSens === 'city_to_airport' && (() => {
+                const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
+                const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+
+                if (!terminals || terminals.length === 0) return null;
+
+                return (
+                  <div className="space-y-2">
+                    <Label>Terminal de l'aéroport</Label>
+                    <Select
+                      value={formData.terminalRetourId?.toString() || ''}
+                      onValueChange={(v) => handleChange('terminalRetourId', v ? parseInt(v) : null)}
+                    >
+                      <SelectTrigger className="bg-slate-50 border-0 rounded-xl h-12 px-4">
+                        <SelectValue placeholder="Sélectionner un terminal" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">-- Sans terminal --</SelectItem>
+                        {terminals.map((term: any) => (
+                          <SelectItem key={term.id} value={term.id.toString()}>
+                            {term.nom}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })()}
 
               {/* Date & Time */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
