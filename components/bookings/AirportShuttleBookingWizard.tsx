@@ -1118,6 +1118,13 @@ export default function AirportShuttleBookingWizard({
                             return_address: '', returnAddressLat: null, returnAddressLng: null,
                             flight_number: '',
                           }));
+                          // Réinitialiser aussi les coordonnées du retour
+                          setCiReturnDepartAddress('');
+                          setCiReturnDepartAddressLat(null);
+                          setCiReturnDepartAddressLng(null);
+                          setCiReturnArriveAddress('');
+                          setCiReturnArriveAddressLat(null);
+                          setCiReturnArriveAddressLng(null);
                         }}
                         className={`flex items-center justify-center gap-3 p-4 rounded-xl font-bold text-sm transition-all ${
                           active ? 'bg-[#ffdbd0] text-[#E04A1F] shadow-sm' : 'text-slate-500 hover:text-slate-700'
@@ -1244,7 +1251,7 @@ export default function AirportShuttleBookingWizard({
                         const lng = airport?.longitude ?? null;
                         setCiArriveeAddressDisplay(val);
                         setFormData(prev => ({ ...prev, return_address: val, returnAddressLat: lat, returnAddressLng: lng }));
-                        // Auto-remplir l'aéroport de départ du retour avec cet aéroport
+                        // Auto-remplir SEULEMENT l'aéroport de départ du retour (pas la ville)
                         setCiReturnDepartAddress(val);
                         setCiReturnDepartAddressLat(lat);
                         setCiReturnDepartAddressLng(lng);
@@ -1269,7 +1276,7 @@ export default function AirportShuttleBookingWizard({
                       onSelect={(address, lat, lng) => {
                         setCiArriveeAddressDisplay(address);
                         setFormData(prev => ({ ...prev, return_address: address, returnAddressLat: lat, returnAddressLng: lng }));
-                        // Auto-remplir la ville de départ du retour avec cette adresse
+                        // Auto-remplir SEULEMENT l'aéroport de départ du retour (pas la ville)
                         setCiReturnDepartAddress(address);
                         setCiReturnDepartAddressLat(lat);
                         setCiReturnDepartAddressLng(lng);
