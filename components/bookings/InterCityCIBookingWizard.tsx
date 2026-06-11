@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { api, CreateInterCityCIBookingDto, InterCityCIQuoteRequest } from '@/lib/api';
+import { api, CreateInterCityCIBookingDto } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -30,6 +30,8 @@ import {
   Mail,
   Loader2,
   ArrowRight,
+  Plus,
+  X,
 } from 'lucide-react';
 
 const steps = [
@@ -53,7 +55,10 @@ interface FormData {
   scheduledTime: string;
   isOneWay: boolean;
   pax: number;
+  bagages23: number;
+  bagages10: number;
   categoryCode: string;
+  selectedOptions: Array<{ code: string; quantite: number }>;
   paidBy: 'company' | 'client';
 }
 
@@ -78,32 +83,23 @@ export default function InterCityCIBookingWizard() {
     scheduledTime: '',
     isOneWay: true,
     pax: 1,
+    bagages23: 0,
+    bagages10: 0,
     categoryCode: '',
+    selectedOptions: [],
     paidBy: 'company',
   });
 
   // Fetch categories
-  const { data: categories } = useQuery({
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['interville-ci-categories'],
     queryFn: () => api.reference.getInterCityCiCategories(),
   });
 
-  // Fetch quote when we have locations
-  const { data: quote } = useQuery({
-    queryKey: ['interville-ci-quote', formData.departLat, formData.arriveeLat, formData.pax, formData.isOneWay],
-    queryFn: () => {
-      if (!formData.departLat || !formData.arriveeLat) return null;
-      const quoteReq: InterCityCIQuoteRequest = {
-        departLat: formData.departLat,
-        departLng: formData.departLng || 0,
-        arriveeLat: formData.arriveeLat,
-        arriveeLng: formData.arriveeLng || 0,
-        pax: formData.pax,
-        isOneWay: formData.isOneWay,
-      };
-      return api.bookings.getInterCityCiQuote(quoteReq);
-    },
-    enabled: !!(formData.departLat && formData.arriveeLat),
+  // Fetch options
+  const { data: options, isLoading: optionsLoading } = useQuery({
+    queryKey: ['interville-ci-options'],
+    queryFn: () => api.reference.getInterCityCiOptions(),
   });
 
   // Create booking
@@ -124,7 +120,27 @@ export default function InterCityCIBookingWizard() {
   });
 
   const selectedCategory = categories?.find(c => c.code === formData.categoryCode);
-  const categoryPrice = quote?.options.find(o => o.code === formData.categoryCode)?.prix || 0;
+  const selectedCategoryInfo = useMemo(() => {
+    if (!categories || !formData.categoryCode) return null;
+    return categories.find(c => c.code === formData.categoryCode);
+  }, [categories, formData.categoryCode]);
+
+  // Calculate pricing for selected category
+  const categoryPrice = useMemo(() => {
+    if (!selectedCategoryInfo || !selectedCategoryInfo.tarifs[0]) return 0;
+    const tarif = selectedCategoryInfo.tarifs[0];
+    // Distance would need to be calculated - for now showing minimum guaranteed
+    return tarif.minimumGaranti;
+  }, [selectedCategoryInfo]);
+
+  const optionsCost = useMemo(() => {
+    return formData.selectedOptions.reduce((total, opt) => {
+      const optionInfo = options?.find(o => o.code === opt.code);
+      return total + (optionInfo?.prix || 0) * opt.quantite;
+    }, 0);
+  }, [formData.selectedOptions, options]);
+
+  const totalPrice = categoryPrice + optionsCost;
 
   const handleSubmit = () => {
     if (!formData.clientName || !formData.clientPhone || !formData.departAddress || !formData.arriveeAddress) {
@@ -276,6 +292,44 @@ export default function InterCityCIBookingWizard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <Label>Bagages 23kg</Label>
+                    <Select
+                      value={String(formData.bagages23)}
+                      onValueChange={(v) => setFormData({ ...formData, bagages23: parseInt(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 2, 3, 4].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Bagages 10kg</Label>
+                    <Select
+                      value={String(formData.bagages10)}
+                      onValueChange={(v) => setFormData({ ...formData, bagages10: parseInt(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 2, 3, 4].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <Label>Date</Label>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -329,33 +383,116 @@ export default function InterCityCIBookingWizard() {
 
           {currentStep === 3 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Sélection du véhicule</h2>
-              {quote?.options && quote.options.length > 0 ? (
-                <div className="grid gap-4">
-                  {quote.options.map((option) => (
-                    <div
-                      key={option.code}
-                      onClick={() => setFormData({ ...formData, categoryCode: option.code })}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition ${
-                        formData.categoryCode === option.code
-                          ? 'border-orange-500 bg-orange-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-bold text-lg">{option.label}</h3>
-                          <p className="text-sm text-slate-600">Jusqu&apos;à {option.maxPax} passagers</p>
+              <h2 className="text-2xl font-bold">Sélection du véhicule et options</h2>
+
+              {/* Vehicle Categories */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Catégories de véhicules</h3>
+                {categoriesLoading ? (
+                  <p className="text-slate-500">Chargement des catégories...</p>
+                ) : categories && categories.length > 0 ? (
+                  <div className="grid gap-3">
+                    {categories.map((category) => (
+                      <div
+                        key={category.code}
+                        onClick={() => setFormData({ ...formData, categoryCode: category.code })}
+                        className={`p-4 border-2 rounded-xl cursor-pointer transition ${
+                          formData.categoryCode === category.code
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-lg">{category.label}</h4>
+                            <p className="text-sm text-slate-600">
+                              Jusqu&apos;à {category.maxPax} passagers • {category.maxBagages23kg}x23kg • {category.maxBagages10kg}x10kg
+                            </p>
+                          </div>
+                          <Badge className="bg-orange-100 text-orange-700 border-0">
+                            À partir de {category.tarifs[0]?.minimumGaranti.toLocaleString()} FCFA
+                          </Badge>
                         </div>
-                        <Badge className="bg-orange-100 text-orange-700 border-0">
-                          {option.prixAller.toLocaleString()} FCFA
-                        </Badge>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-600">Aucune catégorie disponible</p>
+                )}
+              </div>
+
+              {/* Additional Options */}
+              {options && options.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-slate-200">
+                  <h3 className="font-semibold text-lg">Options supplémentaires</h3>
+                  <div className="grid gap-3">
+                    {options.map((option) => {
+                      const selectedOption = formData.selectedOptions.find(o => o.code === option.code);
+                      const quantity = selectedOption?.quantite || 0;
+
+                      return (
+                        <div key={option.code} className="p-3 border border-slate-200 rounded-lg">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <p className="font-semibold">{option.label}</p>
+                              <p className="text-xs text-slate-500">{option.description}</p>
+                              <p className="text-sm font-bold text-orange-600 mt-1">
+                                {option.prix.toLocaleString()} FCFA {option.pricingMode === 'FLAT' ? '(unitaire)' : '(par km)'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {quantity > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setFormData({
+                                      ...formData,
+                                      selectedOptions: formData.selectedOptions
+                                        .map(o =>
+                                          o.code === option.code && o.quantite > 1
+                                            ? { ...o, quantite: o.quantite - 1 }
+                                            : o
+                                        )
+                                        .filter(o => o.quantite > 0),
+                                    })
+                                  }
+                                >
+                                  −
+                                </Button>
+                              )}
+                              <span className="w-8 text-center font-semibold">{quantity}</span>
+                              {quantity < option.maxQuantite && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    const existing = formData.selectedOptions.find(o => o.code === option.code);
+                                    if (existing) {
+                                      setFormData({
+                                        ...formData,
+                                        selectedOptions: formData.selectedOptions.map(o =>
+                                          o.code === option.code ? { ...o, quantite: o.quantite + 1 } : o
+                                        ),
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        selectedOptions: [...formData.selectedOptions, { code: option.code, quantite: 1 }],
+                                      });
+                                    }
+                                  }}
+                                >
+                                  +
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              ) : (
-                <p className="text-slate-600">Veuillez d'abord remplir les informations du trajet</p>
               )}
             </div>
           )}
@@ -377,12 +514,41 @@ export default function InterCityCIBookingWizard() {
                   <span className="font-semibold">{formData.scheduledDate} à {formData.scheduledTime}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Véhicule:</span>
-                  <span className="font-semibold">{selectedCategory?.label || formData.categoryCode}</span>
+                  <span className="text-slate-600">Passagers:</span>
+                  <span className="font-semibold">{formData.pax}</span>
                 </div>
-                <div className="pt-4 border-t border-slate-200 flex justify-between text-lg">
-                  <span className="font-bold">Total:</span>
-                  <span className="font-bold text-orange-600">{categoryPrice.toLocaleString()} FCFA</span>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Véhicule:</span>
+                  <span className="font-semibold">{selectedCategoryInfo?.label || formData.categoryCode}</span>
+                </div>
+                {formData.selectedOptions.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Options:</span>
+                    <span className="font-semibold">
+                      {formData.selectedOptions
+                        .map(opt => {
+                          const optInfo = options?.find(o => o.code === opt.code);
+                          return `${optInfo?.label} x${opt.quantite}`;
+                        })
+                        .join(', ')}
+                    </span>
+                  </div>
+                )}
+                <div className="pt-4 border-t border-slate-200 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Véhicule:</span>
+                    <span className="font-semibold">{categoryPrice.toLocaleString()} FCFA</span>
+                  </div>
+                  {optionsCost > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Options:</span>
+                      <span className="font-semibold">{optionsCost.toLocaleString()} FCFA</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg pt-2 border-t border-slate-300">
+                    <span className="font-bold">Total:</span>
+                    <span className="font-bold text-orange-600">{totalPrice.toLocaleString()} FCFA</span>
+                  </div>
                 </div>
               </div>
             </div>
