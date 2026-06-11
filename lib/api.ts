@@ -1067,11 +1067,43 @@ export interface PayReservationDto {
   paymentMethod: 'cash' | 'mobile_money' | 'wallet' | 'bank_transfer';
 }
 
+export interface ServiceReservationPension {
+  formule?: string;
+  nbNuits?: number;
+  nbWeekend?: number;
+  prixParNuit?: number;
+  prixWeekend?: number;
+  total?: number;
+}
+
+export interface ServiceReservationPriceOption {
+  titre?: string;
+  code?: string;
+  prix?: number;
+  quantite?: number;
+  total?: number;
+  pricingMode?: string;
+}
+
+export interface ServiceReservationOptions {
+  pension?: ServiceReservationPension;
+  priceOptions?: ServiceReservationPriceOption[];
+}
+
+export interface ServiceReservationPartner {
+  nomPartner?: string;
+  adressePartner?: string;
+  emailPartner?: string;
+  telephonePartner?: string;
+}
+
 export interface ServiceReservationResponse {
   id: number;
   reference?: string;
+  reservationCode?: string;
   serviceType?: string;
   status?: string;
+  paymentStatus?: string;
   totalPrice?: number;
   clientName?: string;
   clientPhone?: string;
@@ -1083,8 +1115,11 @@ export interface ServiceReservationResponse {
   notes?: string;
   employeeId?: number;
   circuit?: Circuit;
+  activite?: Activite;
   logement?: Logement;
   vehiculeLocation?: VehiculeLocation;
+  partner?: ServiceReservationPartner;
+  optionsSupplementaires?: ServiceReservationOptions;
   paidBy?: string;
   paymentMethod?: string;
   createdAt?: string;

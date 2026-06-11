@@ -20,6 +20,7 @@ import {
   Clock,
   Loader2,
   AlertCircle,
+  Compass,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -133,7 +134,7 @@ export default function ServiceReservationTrackingPage() {
                     <Calendar className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Date d'arrivée</p>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Date d&apos;arrivée</p>
                     <p className="text-base font-bold text-[#171c1f]">
                       {format(new Date(reservation.dateDebut), 'dd MMMM yyyy', { locale: fr })}
                     </p>
@@ -189,43 +190,213 @@ export default function ServiceReservationTrackingPage() {
                 </div>
 
                 {/* Logement avec détails */}
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
-                    <Home className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Logement</p>
-                    <p className="text-base font-bold text-[#171c1f]">{reservation.logement?.nom}</p>
-                    <p className="text-xs text-[#585e6c] mt-1">{reservation.logement?.type || 'N/A'}</p>
-                    {reservation.logement?.ville && (
-                      <p className="text-xs text-[#585e6c]">
-                        {reservation.logement.ville}, {reservation.logement.pays}
-                      </p>
-                    )}
-                    <div className="text-xs text-[#585e6c] mt-2">
-                      <p>• {reservation.logement?.nbreChambres} chambre{reservation.logement?.nbreChambres !== 1 ? 's' : ''}</p>
-                      <p>• {reservation.logement?.salleDeBain} salle{reservation.logement?.salleDeBain !== 1 ? 's' : ''} de bain</p>
+                {reservation.logement && (
+                  <>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <Home className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Logement</p>
+                        <p className="text-base font-bold text-[#171c1f]">{reservation.logement.nom}</p>
+                        <p className="text-xs text-[#585e6c] mt-1">{reservation.logement.type || 'N/A'}</p>
+                        {reservation.logement.ville && (
+                          <p className="text-xs text-[#585e6c]">
+                            {reservation.logement.ville}, {reservation.logement.pays}
+                          </p>
+                        )}
+                        <div className="text-xs text-[#585e6c] mt-2">
+                          <p>• {reservation.logement.nbreChambres} chambre{reservation.logement.nbreChambres !== 1 ? 's' : ''}</p>
+                          <p>• {reservation.logement.salleDeBain} salle{reservation.logement.salleDeBain !== 1 ? 's' : ''} de bain</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Image du logement */}
-                {reservation.logement?.images?.[0] && (
-                  <div className="md:col-span-2">
-                    <img
-                      src={reservation.logement.images[0]}
-                      alt={reservation.logement.nom}
-                      className="w-full h-48 object-cover rounded-2xl"
-                    />
-                  </div>
+                    {/* Image du logement */}
+                    {reservation.logement.images?.[0] && (
+                      <div className="md:col-span-2">
+                        <img
+                          src={reservation.logement.images[0]}
+                          alt={reservation.logement.nom}
+                          className="w-full h-48 object-cover rounded-2xl"
+                        />
+                      </div>
+                    )}
+
+                    {/* Conditions d'annulation */}
+                    {reservation.logement.typeAnnulation && (
+                      <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d&apos;annulation</p>
+                        <p className="text-sm text-blue-900">{reservation.logement.typeAnnulation}</p>
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* Conditions d'annulation */}
-                {reservation.logement?.typeAnnulation && (
-                  <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
-                    <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d'annulation</p>
-                    <p className="text-sm text-blue-900">{reservation.logement.typeAnnulation}</p>
-                  </div>
+                {/* Activité avec détails */}
+                {reservation.activite && (
+                  <>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <Compass className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Activité</p>
+                        <p className="text-base font-bold text-[#171c1f]">{reservation.activite.titre}</p>
+                        {reservation.activite.ville && (
+                          <p className="text-xs text-[#585e6c]">
+                            {reservation.activite.ville}
+                          </p>
+                        )}
+                        {reservation.activite.duree && (
+                          <p className="text-xs text-[#585e6c] mt-1">Durée : {reservation.activite.duree}</p>
+                        )}
+                        {reservation.activite.maxParticipants && (
+                          <p className="text-xs text-[#585e6c]">Max : {reservation.activite.maxParticipants} pers.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Image de l&apos;activité */}
+                    {reservation.activite.images?.[0] && (
+                      <div className="md:col-span-2">
+                        <img
+                          src={reservation.activite.images[0]}
+                          alt={reservation.activite.titre}
+                          className="w-full h-48 object-cover rounded-2xl"
+                        />
+                      </div>
+                    )}
+
+                    {/* Description de l&apos;activité */}
+                    {(reservation.activite.descriptionComplete || reservation.activite.descriptionCourte) && (
+                      <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Description</p>
+                        <p className="text-sm text-[#585e6c]">{reservation.activite.descriptionComplete || reservation.activite.descriptionCourte}</p>
+                      </div>
+                    )}
+
+                    {/* Inclus */}
+                    {reservation.activite.inclus && reservation.activite.inclus.length > 0 && (
+                      <div className="md:col-span-2 bg-green-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Inclus</p>
+                        <ul className="space-y-1">
+                          {(Array.isArray(reservation.activite.inclus) ? reservation.activite.inclus : (reservation.activite.inclus as string).split(',')).map((item, idx) => (
+                            <li key={idx} className="text-sm text-green-900 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                              {item.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Non inclus */}
+                    {reservation.activite.nonInclus && reservation.activite.nonInclus.length > 0 && (
+                      <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Non inclus</p>
+                        <ul className="space-y-1">
+                          {(Array.isArray(reservation.activite.nonInclus) ? reservation.activite.nonInclus : (reservation.activite.nonInclus as string).split(',')).map((item, idx) => (
+                            <li key={idx} className="text-sm text-slate-600 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              {item.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Conditions d'annulation */}
+                    {reservation.activite.typeAnnulation && (
+                      <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d&apos;annulation</p>
+                        <p className="text-sm text-blue-900">{reservation.activite.typeAnnulation}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Circuit avec détails */}
+                {reservation.circuit && (
+                  <>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
+                        <Compass className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Circuit</p>
+                        <p className="text-base font-bold text-[#171c1f]">{reservation.circuit.titre}</p>
+                        {reservation.circuit.ville && (
+                          <p className="text-xs text-[#585e6c]">
+                            {reservation.circuit.ville}
+                          </p>
+                        )}
+                        {reservation.circuit.duree && (
+                          <p className="text-xs text-[#585e6c] mt-1">Durée : {reservation.circuit.duree}</p>
+                        )}
+                        {reservation.circuit.maxParticipants && (
+                          <p className="text-xs text-[#585e6c]">Max : {reservation.circuit.maxParticipants} pers.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Image du circuit */}
+                    {reservation.circuit.images?.[0] && (
+                      <div className="md:col-span-2">
+                        <img
+                          src={reservation.circuit.images[0]}
+                          alt={reservation.circuit.titre}
+                          className="w-full h-48 object-cover rounded-2xl"
+                        />
+                      </div>
+                    )}
+
+                    {/* Description du circuit */}
+                    {(reservation.circuit.descriptionComplete || reservation.circuit.descriptionCourte) && (
+                      <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Description</p>
+                        <p className="text-sm text-[#585e6c]">{reservation.circuit.descriptionComplete || reservation.circuit.descriptionCourte}</p>
+                      </div>
+                    )}
+
+                    {/* Inclus */}
+                    {reservation.circuit.inclus && reservation.circuit.inclus.length > 0 && (
+                      <div className="md:col-span-2 bg-green-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Inclus</p>
+                        <ul className="space-y-1">
+                          {(Array.isArray(reservation.circuit.inclus) ? reservation.circuit.inclus : (reservation.circuit.inclus as string).split(',')).map((item, idx) => (
+                            <li key={idx} className="text-sm text-green-900 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                              {item.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Non inclus */}
+                    {reservation.circuit.nonInclus && reservation.circuit.nonInclus.length > 0 && (
+                      <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Non inclus</p>
+                        <ul className="space-y-1">
+                          {(Array.isArray(reservation.circuit.nonInclus) ? reservation.circuit.nonInclus : (reservation.circuit.nonInclus as string).split(',')).map((item, idx) => (
+                            <li key={idx} className="text-sm text-slate-600 flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              {item.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Conditions d'annulation */}
+                    {reservation.circuit.typeAnnulation && (
+                      <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
+                        <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d&apos;annulation</p>
+                        <p className="text-sm text-blue-900">{reservation.circuit.typeAnnulation}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
