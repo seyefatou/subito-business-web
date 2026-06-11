@@ -346,7 +346,156 @@ export interface CreateInterCityBookingDto {
   discountPercent?: number;
   surchargeAmount?: number;
   surchargePercent?: number;
-  canal?: string;
+}
+
+// Inter-City Côte d'Ivoire types
+export interface InterCityCICategory {
+  id: number;
+  code: string;
+  country: string;
+  label: string;
+  maxPax: number;
+  maxBagages23kg: number;
+  maxBagages10kg: number;
+  image: string[];
+  ordre: number;
+  statut: string;
+  tarifs: Array<{
+    id: number;
+    categoryId: number;
+    country: string;
+    prixParKm: number;
+    minimumGaranti: number;
+    statut: string;
+  }>;
+}
+
+export interface InterCityCIOption {
+  id: number;
+  code: string;
+  country: string;
+  label: string;
+  description: string;
+  image: string[];
+  prix: number;
+  maxQuantite: number;
+  type: string;
+  pricingMode: string;
+  ordre: number;
+  statut: string;
+}
+
+export interface InterCityCIQuoteRequest {
+  departLat: number;
+  departLng: number;
+  arriveeLat: number;
+  arriveeLng: number;
+  pax: number;
+  bagages23?: number;
+  bagages10?: number;
+  isOneWay: boolean;
+}
+
+export interface InterCityCIQuoteResponse {
+  isOneWay: boolean;
+  distanceKm: number;
+  distanceRetour?: number;
+  pax: number;
+  bagages23?: number;
+  bagages10?: number;
+  options: Array<{
+    categoryId: number;
+    code: string;
+    label: string;
+    maxPax: number;
+    maxBagages10kg: number;
+    maxBagages23kg: number;
+    image: string[];
+    prixParKm: number;
+    minimumGaranti: number;
+    prixAller: number;
+    prixRetour?: number;
+    prix: number;
+    minimumAppliqueAller: boolean;
+    minimumAppliqueRetour?: boolean;
+  }>;
+}
+
+export interface InterCityCIPriceRequest {
+  categoryCode: string;
+  departLat: number;
+  departLng: number;
+  arriveeLat: number;
+  arriveeLng: number;
+  pax: number;
+  bagages23?: number;
+  bagages10?: number;
+  isOneWay: boolean;
+  options?: Array<{ code: string; quantite: number }>;
+  optionsRetour?: Array<{ code: string; quantite: number }>;
+}
+
+export interface InterCityCIPriceResponse {
+  categoryCode: string;
+  isOneWay: boolean;
+  distanceAller: number;
+  distanceRetour?: number;
+  prixAller: number;
+  prixRetour?: number;
+  aller: {
+    options: Array<{
+      code: string;
+      label: string;
+      type: string;
+      prix: number;
+      quantite: number;
+      total: number;
+    }>;
+    montantOptions: number;
+  };
+  retour?: {
+    options: Array<{
+      code: string;
+      label: string;
+      type: string;
+      prix: number;
+      quantite: number;
+      total: number;
+    }>;
+    montantOptions: number;
+  };
+  total: number;
+}
+
+export interface CreateInterCityCIBookingDto {
+  categoryCode: string;
+  departLat: number;
+  departLng: number;
+  departAddress: string;
+  arriveeLat: number;
+  arriveeLng: number;
+  arriveeAddress: string;
+  pax: number;
+  isOneWay: boolean;
+  paidBy: 'company' | 'client';
+  scheduledDate: string;
+  scheduledTime: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  bagages23?: number;
+  bagages10?: number;
+  options?: Array<{ code: string; quantite: number }>;
+  pickupDateRetour?: string;
+  pickupTimeRetour?: string;
+  departLatRetour?: number;
+  departLngRetour?: number;
+  departAddressRetour?: string;
+  arriveeLatRetour?: number;
+  arriveeLngRetour?: number;
+  arriveeAddressRetour?: string;
+  optionsRetour?: Array<{ code: string; quantite: number }>;
+  specialRequests?: string;
 }
 
 export interface CreateVtcHourlyBookingDto {
@@ -1954,6 +2103,13 @@ class ApiClient {
 
     getPaymentOptions: () =>
       this.request<PaymentOption[]>('/payments/payment-options'),
+
+    // Inter-City CI reference data
+    getInterCityCiCategories: () =>
+      this.request<InterCityCICategory[]>('/bookings/interville-ci/categories'),
+
+    getInterCityCiOptions: () =>
+      this.request<InterCityCIOption[]>('/bookings/interville-ci/options'),
   };
 
   // ==================== BOOKINGS COMPANY ====================
@@ -1964,6 +2120,15 @@ class ApiClient {
 
     createInterCity: (data: CreateInterCityBookingDto) =>
       this.authPost<BookingResponse>('/bookings/inter-city/compagny/create', data),
+
+    createInterCityCi: (data: CreateInterCityCIBookingDto) =>
+      this.authPost<BookingResponse>('/bookings/interville-ci/compagny/create', data),
+
+    getInterCityCiQuote: (data: InterCityCIQuoteRequest) =>
+      this.request<InterCityCIQuoteResponse>('/bookings/interville-ci/quote', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
+
+    getInterCityCiPrice: (data: InterCityCIPriceRequest) =>
+      this.request<InterCityCIPriceResponse>('/bookings/interville-ci/price', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
 
     createVisaAssistance: (data: CreateVisaAssistanceRequestDto) =>
       this.authPost<BookingResponse>('/bookings/visa-assistance/compagny/create', data),
