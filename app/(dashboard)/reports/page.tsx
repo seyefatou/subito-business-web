@@ -48,14 +48,16 @@ import { toast } from "sonner";
 
 const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
 
-const COLORS = ['#E04A1F', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569'];
+const COLORS = ['#E04A1F', '#FF8B6A', '#FFB59A', '#94a3b8', '#64748b', '#475569', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
 
 const SERVICE_LABELS: Record<string, string> = {
   airport_shuttle: 'Navette Aéroport',
-  inter_city: 'Inter-villes',
-  intercity: 'Inter-villes',
+  inter_city: 'Inter-ville (Sénégal)',
+  intercity: 'Inter-ville (Sénégal)',
+  inter_city_ci: 'Inter-ville (Côte d\'Ivoire)',
   vtc_hourly: 'VTC à l\'heure',
   travel_document: 'Document de voyage',
+  visa_assistance: 'Document de voyage',
   flight_reservation: 'Navette Aéroport',
   hotel_reservation: 'Logement',
   flight_and_hotel: 'Vol + Hôtel',
@@ -63,6 +65,9 @@ const SERVICE_LABELS: Record<string, string> = {
   LOGEMENT: 'Logement',
   FLOTTE: 'Location véhicule',
   CIRCUIT: 'Circuit touristique',
+  livraison: 'Livraison',
+  assurance: 'Assurance',
+  // Ajoutez d'autres clés si nécessaire
 };
 
 function extractData<T>(response: unknown): T | null {
@@ -594,6 +599,9 @@ export default function Reports() {
     );
   }
 
+  // Filtrer les services avec valeur > 0 pour le diagramme
+  const pieData = byServiceData.filter(item => item.value > 0);
+
   return (
     <div className="max-w-6xl mx-auto -m-2 md:-m-4 lg:-m-6 space-y-6">
       {/* Hero Header */}
@@ -789,7 +797,7 @@ export default function Reports() {
           >
             Dépenses par service
           </h3>
-          {byServiceData.length === 0 ? (
+          {pieData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-16 h-16 rounded-full bg-[#f0f4f8] flex items-center justify-center mb-3">
                 <BarChart3 className="w-8 h-8 text-[#585e6c]" />
@@ -802,7 +810,7 @@ export default function Reports() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={byServiceData}
+                      data={pieData}
                       cx="50%"
                       cy="50%"
                       innerRadius={50}
@@ -810,7 +818,7 @@ export default function Reports() {
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {byServiceData.map((_, index) => (
+                      {pieData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -821,8 +829,9 @@ export default function Reports() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
+              {/* Légende : afficher TOUS les services, pas seulement les 6 premiers */}
               <div className="grid grid-cols-2 gap-2 mt-4">
-                {byServiceData.slice(0, 6).map((item, index) => (
+                {pieData.map((item, index) => (
                   <div key={item.name} className="flex items-center gap-2 min-w-0">
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                     <span className="text-xs text-[#585e6c] font-medium truncate">{item.name}</span>
@@ -918,7 +927,7 @@ export default function Reports() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service principal</p>
               <p className="text-sm sm:text-xl font-extrabold mt-1 truncate" style={MANROPE}>
-                {byServiceData[0]?.name || '—'}
+                {pieData[0]?.name || '—'}
               </p>
             </div>
             <div>

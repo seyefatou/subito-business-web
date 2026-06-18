@@ -36,6 +36,7 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   intercity: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
+  interville_ci: { label: "Inter-ville CI", icon: Car, color: "bg-emerald-100 text-emerald-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
   ACTIVITE: { label: "Activite", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
@@ -87,28 +88,31 @@ function Tracking() {
   const [filterStatus, setFilterStatus] = useState("all");
   const limit = 10;
 
-  // Fetch all company bookings — 3 types séparés (microservices)
+  // ======== API UNIFIÉE POUR NAVETTES + INTERVILLE CI ========
   const { data: shuttleResponse, isLoading: shuttleLoading } = useQuery({
     queryKey: ['bookings-shuttle', page],
     queryFn: () => api.bookings.airportShuttle.list(page, limit),
   });
+
+  // InterCity (Sénégal) – conserve l'endpoint dédié
   const { data: interCityResponse, isLoading: interCityLoading } = useQuery({
     queryKey: ['bookings-intercity', page],
     queryFn: () => api.bookings.interCity.list(page, limit),
   });
+
+  // VTC
   const { data: vtcResponse, isLoading: vtcLoading } = useQuery({
     queryKey: ['bookings-vtc', page],
     queryFn: () => api.bookings.vtcHourly.list(page, limit),
   });
-  const isLoading = shuttleLoading || interCityLoading || vtcLoading;
 
-  // Fetch travel documents
+  // Travel documents
   const { data: travelDocsResponse, isLoading: travelDocsLoading } = useQuery({
     queryKey: ['travel-docs-compagny', page],
     queryFn: () => api.travelDocuments.list({ page, limit }),
   });
 
-  // Fetch service reservations (activite, logement, flotte)
+  // Service reservations
   const { data: serviceResResponse, isLoading: serviceResLoading } = useQuery({
     queryKey: ['service-reservations-compagny', page],
     queryFn: () => api.serviceReservations.list(page, limit),
@@ -130,13 +134,69 @@ function Tracking() {
     return Number(payload?.total ?? arr.length);
   }
 
-  // Force le serviceType normalisé selon la source (quelle que soit la valeur renvoyée par l'API)
-  const shuttleBookings = extractItems<BookingResponse>(shuttleResponse).map(b => ({ ...b, serviceType: 'airport_shuttle' }));
+  // ---- Séparation des réservations de l'API unifiée (shuttle) ----
+  const allShuttleItems = extractItems<BookingResponse>(shuttleResponse);
+  const shuttleBookings = allShuttleItems
+    .filter(b => b.serviceType === 'AIRPORT_SHUTTLE' || b.serviceType === 'airport_shuttle')
+    .map(b => ({ ...b, serviceType: 'airport_shuttle' }));
+  const interCityCiBookings = allShuttleItems
+    .filter(b => 
+      b.serviceType === 'INTER_CITY_CI' || 
+      b.serviceType === 'inter_city_ci' || 
+      b.serviceType === 'INTERVILLE_CI' || 
+      b.serviceType === 'interville_ci'
+    )
+    .map(b => ({ ...b, serviceType: 'interville_ci' }));
+
+  // Les autres types
   const interCityBookings = extractItems<BookingResponse>(interCityResponse).map(b => ({ ...b, serviceType: 'inter_city' }));
   const vtcBookings = extractItems<BookingResponse>(vtcResponse).map(b => ({ ...b, serviceType: 'vtc_hourly' }));
-  const regularBookings: BookingResponse[] = [...shuttleBookings, ...interCityBookings, ...vtcBookings];
-  const bookingsTotal = extractTotal(shuttleResponse) + extractTotal(interCityResponse) + extractTotal(vtcResponse);
 
+  // ---- FUSION DES ALLER-RETOUR POUR LE SÉNÉGAL ----
+  // Pour les réservations inter_city, on regroupe par bookingCode.
+  // Si on trouve deux entrées avec le même bookingCode mais l'une avec isOneWay === false
+  // et l'autre avec des dates retour, on les fusionne.
+  const mergedInterCity: BookingResponse[] = [];
+  const processedCodes = new Set<string>();
+
+  for (const booking of interCityBookings) {
+    if (processedCodes.has(booking.bookingCode || '')) continue;
+    processedCodes.add(booking.bookingCode || '');
+
+    // Chercher un éventuel "retour" correspondant
+    const retour = interCityBookings.find(
+      b => b.bookingCode === booking.bookingCode && b.id !== booking.id
+    );
+
+    if (retour && (booking as any).isOneWay === false) {
+      // C'est un aller‑retour : on fusionne en additionnant les prix et en prenant la date la plus récente
+      const merged: BookingResponse = {
+        ...booking,
+        totalPrice: Number(booking.totalPrice || 0) + Number(retour.totalPrice || 0),
+        pickupDateRetour: (retour as any).pickupDateRetour || (retour as any).pickupDateAller,
+        pickupTimeRetour: (retour as any).pickupTimeRetour || (retour as any).pickupTimeAller,
+        // On garde le statut de l'aller (ou le plus avancé si besoin)
+      };
+      mergedInterCity.push(merged);
+      processedCodes.add(retour.bookingCode || '');
+    } else {
+      mergedInterCity.push(booking);
+    }
+  }
+
+  const regularBookings: BookingResponse[] = [
+    ...shuttleBookings,
+    ...mergedInterCity,
+    ...vtcBookings,
+    ...interCityCiBookings,
+  ];
+
+  const bookingsTotal =
+    extractTotal(shuttleResponse) +
+    extractTotal(interCityResponse) +  // on garde le total brut pour ne pas fausser la pagination
+    extractTotal(vtcResponse);
+
+  // Travel documents
   const travelDocsArray = extractItems<TravelDocumentResponse>(travelDocsResponse);
   const travelDocsTotal = extractTotal(travelDocsResponse);
 
@@ -154,6 +214,7 @@ function Tracking() {
     updatedAt: td.updatedAt,
   }));
 
+  // Service reservations
   const serviceResArray = extractItems<ServiceReservationResponse>(serviceResResponse);
   const serviceResTotal = extractTotal(serviceResResponse);
 
@@ -174,7 +235,7 @@ function Tracking() {
     updatedAt: sr.updatedAt,
   }));
 
-  // Merge and sort by creation date (most recent first)
+  // Merge and sort
   const bookings: BookingResponse[] = [...regularBookings, ...travelDocsAsBookings, ...serviceResAsBookings].sort(
     (a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
   );
@@ -182,9 +243,9 @@ function Tracking() {
   const totalBookingsCount = bookingsTotal + travelDocsTotal + serviceResTotal;
   const totalPages = Math.ceil(totalBookingsCount / limit) || 1;
 
-  const isLoadingAll = isLoading || travelDocsLoading || serviceResLoading;
+  const isLoadingAll = shuttleLoading || interCityLoading || vtcLoading || travelDocsLoading || serviceResLoading;
 
-  // Exclude rejected payment requests (refused prise en charge) from the tracking table
+  // Filtres
   const rejectedPaymentStatuses = ['rejected', 'refused', 'declined'];
   const visibleBookings = bookings.filter(b => {
     const paymentStatus = String((b as Record<string, unknown>).paymentStatus || '').toLowerCase();
@@ -194,7 +255,6 @@ function Tracking() {
     return true;
   });
 
-  // Client-side filtering
   const filtered = visibleBookings.filter(b => {
     const matchSearch = !searchTerm ||
       (b.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -206,13 +266,13 @@ function Tracking() {
       : t === 'inter_city' ? 'inter_city'
       : t === 'vtc_hourly' ? 'vtc_hourly'
       : t === 'visa_assistance' ? 'visa_assistance'
+      : t === 'interville_ci' || t === 'inter_city_ci' ? 'interville_ci'
       : b.serviceType || '';
     const matchService = filterService === 'all' || normalizedType === filterService;
     const matchStatus = filterStatus === 'all' || b.status === filterStatus;
     return matchSearch && matchService && matchStatus;
   });
 
-  // Stats
   const stats = {
     total: visibleBookings.length,
     confirmed: visibleBookings.filter(b => b.status === 'confirmed').length,
@@ -223,9 +283,9 @@ function Tracking() {
   const getServiceInfo = (type?: string) => serviceLabels[type || ''] || { label: type || 'Autre', icon: Package, color: "bg-slate-100 text-slate-700" };
   const getStatusInfo = (status?: string) => statusLabels[status || ''] || { label: status || 'Inconnu', color: "bg-slate-100 text-slate-700" };
 
-  // Route detail URL per service type
   const getDetailHref = (booking: BookingResponse): string => {
     const t = booking.serviceType || '';
+    if (t === 'interville_ci' || t === 'inter_city_ci') return `/tracking/${booking.id}?type=interville_ci`;
     if (['airport_shuttle', 'inter_city', 'intercity', 'vtc_hourly'].includes(t)) {
       return `/tracking/${booking.id}?type=${t === 'intercity' ? 'inter_city' : t}`;
     }
@@ -234,11 +294,11 @@ function Tracking() {
     return `/tracking/${booking.id}`;
   };
 
-  // Editorial: service quick-filter pills
   const serviceFilters = [
     { id: "all", label: "Tout" },
     { id: "airport_shuttle", label: "Navette" },
     { id: "inter_city", label: "Inter-ville" },
+    { id: "interville_ci", label: "Inter-ville CI" },
     { id: "vtc_hourly", label: "VTC" },
     { id: "visa_assistance", label: "Documents" },
     { id: "ACTIVITE", label: "Activite" },
@@ -246,19 +306,13 @@ function Tracking() {
     { id: "FLOTTE", label: "Location" },
   ];
 
-  // Status pill colors
   const statusPillStyle = (s?: string): { bg: string; text: string; dot: string; pulse?: boolean } => {
     const k = (s || "").toLowerCase();
-    if (k === "completed" || k === "paid")
-      return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
-    if (k === "in_progress" || k === "processing")
-      return { bg: "bg-[#ffdbd0]", text: "text-[#852300]", dot: "bg-[#E04A1F]", pulse: true };
-    if (k === "confirmed")
-      return { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" };
-    if (k === "pending")
-      return { bg: "bg-yellow-100", text: "text-yellow-700", dot: "bg-yellow-500" };
-    if (k === "cancelled" || k === "rejected")
-      return { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" };
+    if (k === "completed" || k === "paid") return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" };
+    if (k === "in_progress" || k === "processing") return { bg: "bg-[#ffdbd0]", text: "text-[#852300]", dot: "bg-[#E04A1F]", pulse: true };
+    if (k === "confirmed") return { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" };
+    if (k === "pending") return { bg: "bg-yellow-100", text: "text-yellow-700", dot: "bg-yellow-500" };
+    if (k === "cancelled" || k === "rejected") return { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" };
     return { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" };
   };
 
@@ -267,10 +321,8 @@ function Tracking() {
       {/* Hero Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1
-            className="text-4xl font-extrabold tracking-tight text-[#171c1f] mb-2"
-            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-          >
+          <h1 className="text-4xl font-extrabold tracking-tight text-[#171c1f] mb-2"
+            style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
             Mes Commandes
           </h1>
           <p className="text-[#585e6c] font-medium">
@@ -309,27 +361,20 @@ function Tracking() {
         </div>
       </div>
 
-      {/* Service Quick Filters (pills) */}
+      {/* Service Quick Filters */}
       <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
         {serviceFilters.map((f) => {
           const active = filterService === f.id;
           return (
-            <button
-              key={f.id}
-              onClick={() => setFilterService(f.id)}
-              className={`px-6 py-2 rounded-full text-sm whitespace-nowrap font-bold transition-all ${
-                active
-                  ? "bg-[#E04A1F] text-white shadow-sm"
-                  : "bg-[#f0f4f8] text-[#585e6c] hover:bg-[#e4e9ed]"
-              }`}
-            >
+            <button key={f.id} onClick={() => setFilterService(f.id)}
+              className={`px-6 py-2 rounded-full text-sm whitespace-nowrap font-bold transition-all ${active ? "bg-[#E04A1F] text-white shadow-sm" : "bg-[#f0f4f8] text-[#585e6c] hover:bg-[#e4e9ed]"}`}>
               {f.label}
             </button>
           );
         })}
       </div>
 
-      {/* Orders Table Container */}
+      {/* Table */}
       <div className="bg-[#f0f4f8] rounded-[2rem] p-4">
         <div className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden">
           {isLoadingAll ? (
@@ -367,45 +412,32 @@ function Tracking() {
                       const code = booking.bookingCode || booking.reference || `#${booking.id}`;
                       const price = booking.totalPrice;
                       const pill = statusPillStyle(booking.status);
-                      const paymentPaid =
-                        String((booking as any).paymentStatus || "").toLowerCase() === "paid";
+                      const paymentPaid = String((booking as any).paymentStatus || "").toLowerCase() === "paid";
                       const href = getDetailHref(booking);
 
                       return (
-                        <motion.tr
-                          key={booking.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                        <motion.tr key={booking.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.02 }}
                           className="hover:bg-[#f0f4f8]/30 transition-colors group cursor-pointer"
-                          onClick={() => window.location.href = href}
-                        >
+                          onClick={() => window.location.href = href}>
                           <td className="px-6 py-5">
-                            <span className="font-mono text-sm font-bold text-[#E04A1F]">
-                              {code}
-                            </span>
+                            <span className="font-mono text-sm font-bold text-[#E04A1F]">{code}</span>
                           </td>
                           <td className="px-4 py-5">
                             <div className="flex items-center gap-3">
                               <div className={`h-10 w-10 rounded-xl ${service.color} flex items-center justify-center shrink-0`}>
                                 <ServiceIcon className="w-4 h-4" />
                               </div>
-                              <span className="font-bold text-sm text-[#171c1f] whitespace-nowrap">
-                                {service.label}
-                              </span>
+                              <span className="font-bold text-sm text-[#171c1f] whitespace-nowrap">{service.label}</span>
                             </div>
                           </td>
                           <td className="px-4 py-5">
                             <div className="text-sm">
                               <p className="font-bold text-[#171c1f]">
-                                {booking.createdAt
-                                  ? format(new Date(booking.createdAt), "dd MMM yyyy", { locale: fr })
-                                  : "-"}
+                                {booking.createdAt ? format(new Date(booking.createdAt), "dd MMM yyyy", { locale: fr }) : "-"}
                               </p>
                               <p className="text-slate-400 text-xs">
-                                {booking.createdAt
-                                  ? format(new Date(booking.createdAt), "HH:mm", { locale: fr })
-                                  : ""}
+                                {booking.createdAt ? format(new Date(booking.createdAt), "HH:mm", { locale: fr }) : ""}
                               </p>
                             </div>
                           </td>
@@ -413,48 +445,30 @@ function Tracking() {
                             <div className="text-sm max-w-[180px]">
                               <p className="font-medium text-[#171c1f] truncate">{name}</p>
                               <p className="text-slate-400 text-xs truncate">
-                                {booking.canal
-                                  ? canalLabels[booking.canal] || booking.canal
-                                  : booking.clientPhone || "—"}
+                                {booking.canal ? canalLabels[booking.canal] || booking.canal : booking.clientPhone || "—"}
                               </p>
                             </div>
                           </td>
                           <td className="px-4 py-5">
-                            <span
-                              className={`px-3 py-1.5 ${pill.bg} ${pill.text} rounded-full text-[11px] font-bold flex items-center gap-2 w-fit whitespace-nowrap`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${pill.dot} ${pill.pulse ? "animate-pulse" : ""}`}
-                              />
+                            <span className={`px-3 py-1.5 ${pill.bg} ${pill.text} rounded-full text-[11px] font-bold flex items-center gap-2 w-fit whitespace-nowrap`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${pill.dot} ${pill.pulse ? "animate-pulse" : ""}`} />
                               {status.label}
                             </span>
                           </td>
                           <td className="px-4 py-5">
                             {paymentPaid ? (
-                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[11px] font-bold whitespace-nowrap">
-                                Paye
-                              </span>
+                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[11px] font-bold whitespace-nowrap">Paye</span>
                             ) : (
-                              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-[11px] font-bold whitespace-nowrap">
-                                Non paye
-                              </span>
+                              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-[11px] font-bold whitespace-nowrap">Non paye</span>
                             )}
                           </td>
                           <td className="px-4 py-5 text-right whitespace-nowrap">
-                            <span
-                              className="font-black text-[#171c1f]"
-                              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-                            >
+                            <span className="font-black text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
                               {price ? Number(price).toLocaleString("fr-FR") + " FCFA" : "-"}
                             </span>
                           </td>
                           <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
-                            <Link
-                              href={href}
-                              className="inline-flex items-center gap-1.5 text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4"
-                            >
-                              Details
-                            </Link>
+                            <Link href={href} className="inline-flex items-center gap-1.5 text-[#E04A1F] font-bold text-sm hover:underline underline-offset-4">Details</Link>
                           </td>
                         </motion.tr>
                       );
@@ -470,15 +484,11 @@ function Tracking() {
         {!isLoadingAll && filtered.length > 0 && (
           <div className="flex flex-col sm:flex-row justify-between items-center px-2 sm:px-6 py-6 gap-4">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Page {page} sur {totalPages} — {totalBookingsCount} resultat
-              {totalBookingsCount > 1 ? "s" : ""}
+              Page {page} sur {totalPages} — {totalBookingsCount} resultat{totalBookingsCount > 1 ? "s" : ""}
             </p>
             <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
+                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronLeft className="w-5 h-5" />
               </button>
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
@@ -487,24 +497,14 @@ function Tracking() {
                 if (p > totalPages) return null;
                 const active = p === page;
                 return (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`h-10 w-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${
-                      active
-                        ? "bg-[#E04A1F] text-white shadow-lg shadow-[#E04A1F]/20"
-                        : "bg-white text-[#171c1f] shadow-sm hover:bg-[#eaeef2]"
-                    }`}
-                  >
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`h-10 w-10 flex items-center justify-center rounded-xl font-bold text-sm transition-all ${active ? "bg-[#E04A1F] text-white shadow-lg shadow-[#E04A1F]/20" : "bg-white text-[#171c1f] shadow-sm hover:bg-[#eaeef2]"}`}>
                     {p}
                   </button>
                 );
               })}
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
+                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -512,67 +512,39 @@ function Tracking() {
         )}
       </div>
 
-      {/* Insights Bento */}
+      {/* Bento stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#E04A1F] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px]">
           <div className="flex justify-between items-start">
             <Package className="w-8 h-8 opacity-50" />
-            <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
-              Total
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">Total</span>
           </div>
           <div>
-            <p
-              className="text-3xl font-black"
-              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-            >
-              {stats.total}
-            </p>
-            <p className="text-white/80 text-sm font-medium">
-              Commandes visibles{filterStatus !== "all" ? " (filtrees)" : ""}
-            </p>
+            <p className="text-3xl font-black" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>{stats.total}</p>
+            <p className="text-white/80 text-sm font-medium">Commandes visibles{filterStatus !== "all" ? " (filtrees)" : ""}</p>
           </div>
         </div>
-
         <div className="bg-[#f0f4f8] p-8 rounded-[2rem] flex flex-col justify-between min-h-[160px]">
           <div className="flex justify-between items-start">
             <Loader2 className="w-8 h-8 text-[#E04A1F]" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              En cours
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">En cours</span>
           </div>
           <div>
-            <p
-              className="text-3xl font-black text-[#171c1f]"
-              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-            >
-              {stats.inProgress}
-            </p>
-            <p className="text-slate-500 text-sm font-medium">
-              Operations actuellement en transit
-            </p>
+            <p className="text-3xl font-black text-[#171c1f]" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>{stats.inProgress}</p>
+            <p className="text-slate-500 text-sm font-medium">Operations actuellement en transit</p>
           </div>
         </div>
-
         <div className="bg-[#171c1f] p-8 rounded-[2rem] text-white flex flex-col justify-between min-h-[160px] relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-sm font-medium text-white/60 mb-2">Statut global</p>
-            <p
-              className="text-xl font-bold"
-              style={{ fontFamily: "Manrope, system-ui, sans-serif" }}
-            >
-              {stats.completed} commande{stats.completed > 1 ? "s" : ""} terminee
-              {stats.completed > 1 ? "s" : ""} avec succes.
+            <p className="text-xl font-bold" style={{ fontFamily: "Manrope, system-ui, sans-serif" }}>
+              {stats.completed} commande{stats.completed > 1 ? "s" : ""} terminee{stats.completed > 1 ? "s" : ""} avec succes.
             </p>
           </div>
           <div className="flex items-center gap-2 relative z-10">
             <CheckCircle2 className="w-5 h-5 text-[#E04A1F]" />
             <span className="text-xs font-bold text-[#E04A1F]">
-              Taux de reussite{" "}
-              {stats.total > 0
-                ? Math.round((stats.completed / stats.total) * 100)
-                : 0}
-              %
+              Taux de reussite {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
             </span>
           </div>
           <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#E04A1F]/20 rounded-full blur-3xl" />

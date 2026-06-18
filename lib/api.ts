@@ -362,6 +362,9 @@ export interface InterCityCICategory {
   statut: string;
   tarifs: Array<{
     id: number;
+    prix: number;
+    prixAller: number;
+    prixRetour: number;
     categoryId: number;
     country: string;
     prixParKm: number;
@@ -756,7 +759,6 @@ export interface DashboardData {
   [key: string]: unknown;
 }
 
-// Booking stats from GET /bookings/compagny/stats
 export interface BookingStatsData {
   totalBookings?: number;
   totalRevenue?: number;
@@ -774,7 +776,6 @@ export interface BookingStatsData {
   [key: string]: unknown;
 }
 
-// Travel document stats from GET /travel-documents/company/stats
 export interface TravelDocStatsData {
   kpis: {
     totalExpenses: number;
@@ -788,7 +789,6 @@ export interface TravelDocStatsData {
   [key: string]: unknown;
 }
 
-// Backward compat alias
 export type StatsData = BookingStatsData;
 
 // ==================== PAYMENT OPTION TYPES ====================
@@ -803,7 +803,6 @@ export interface PaymentOption {
   [key: string]: unknown;
 }
 
-/** Map payment option slugs to valid booking paymentMethod values */
 export function toBookingPaymentMethod(slug: string): string {
   const map: Record<string, string> = {
     wave: 'mobile_money',
@@ -1472,7 +1471,6 @@ export interface InsuranceReferenceItem {
   name?: string;
   label?: string;
   description?: string;
-  // AXA product fields
   kindLabel?: string;
   usageLabel?: string;
   productCode?: string;
@@ -1480,13 +1478,11 @@ export interface InsuranceReferenceItem {
   libelle?: string;
   nom?: string;
   designation?: string;
-  // Brand-specific fields (from /ref/brands)
   brandCode?: string;
   brandLabel?: string;
   typeCode?: string;
   typeLabel?: string;
   country?: string;
-  // Coverage-specific fields (from /ref/coverages)
   categoryId?: number;
   orderGuarantee?: number;
   options?: Array<{ key: string; value: string; label: string }> | null;
@@ -1530,8 +1526,6 @@ export interface CreateInsuranceSimulationDto {
   };
   coverages: Array<{
     code: string;
-    // Per swagger: AXA expects capitalAmount (number). The legacy `option` field
-    // is sent by the older /insurance form; keep both until that flow is rewritten.
     capitalAmount?: number;
     option?: string | null;
   }>;
@@ -1556,10 +1550,8 @@ export interface InsuranceSimulationResponse {
     code: string;
     label?: string;
     premium?: number;
-    // Legacy field surfaced by the older /insurance UI; AXA's canonical response uses {label, premium}.
     option?: string | null;
   }>;
-  // Detailed breakdown — present in actual API responses though not in the swagger sample.
   grossPrime?: number;
   taxe?: number;
   policyCost?: number;
@@ -1602,8 +1594,6 @@ export interface InsuranceContractResponse {
   [key: string]: unknown;
 }
 
-// Insurance payment — shapes inferred from the Bictorys pattern; tighten when the
-// AXA payment schema is confirmed.
 export interface InsurancePaymentCheckoutResponse {
   chargeId?: string;
   checkoutUrl: string;
@@ -1638,7 +1628,6 @@ export interface InsurancePaymentStatusResponse {
 
 // ==================== ERROR TRANSLATION ====================
 const ERROR_TRANSLATIONS: Record<string, string> = {
-  // Auth
   'Unauthorized': 'Non autorisé',
   'Invalid credentials': 'Identifiants incorrects',
   'Invalid email or password': 'Email ou mot de passe incorrect',
@@ -1655,7 +1644,6 @@ const ERROR_TRANSLATIONS: Record<string, string> = {
   'Service Unavailable': 'Service temporairement indisponible',
 };
 
-// Common NestJS validation patterns (regex → French)
 const VALIDATION_PATTERNS: [RegExp, string][] = [
   [/^(\w+) should not be empty$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » est requis`],
   [/^(\w+) must be an? email$/i, (m: string) => `Le champ « ${fieldToFrench(m.match(/^(\w+)/)?.[1] || '')} » doit être un email valide`],
@@ -1698,10 +1686,8 @@ function fieldToFrench(field: string): string {
 }
 
 function translateErrorMessage(msg: string): string {
-  // Direct match
   if (ERROR_TRANSLATIONS[msg]) return ERROR_TRANSLATIONS[msg];
 
-  // Pattern match (NestJS validations)
   for (const [pattern, replacer] of VALIDATION_PATTERNS) {
     if (pattern.test(msg)) {
       return typeof replacer === 'function' ? (replacer as (m: string) => string)(msg) : replacer;
@@ -1900,7 +1886,6 @@ class ApiClient {
         ? translateErrors(rawMsg)
         : fallbackByStatus[response.status] || `Erreur ${response.status}`;
 
-      // 5xx = server error, don't logout
       if (response.status >= 500) {
         console.error(`[API] ${response.status} on ${endpoint}:`, msg);
         throw new Error('Le serveur est temporairement indisponible, réessayez dans un instant');
@@ -1911,12 +1896,10 @@ class ApiClient {
 
         const isAuthEndpoint = endpoint.startsWith('/auth/');
 
-        // Try refresh token (only once, not on auth endpoints)
         if (!isAuthEndpoint && !_isRetryAfterRefresh && typeof window !== 'undefined') {
           const newToken = await this.attemptRefreshToken();
 
           if (newToken) {
-            // Retry the original request with the new token
             const retryOptions = {
               ...options,
               headers: {
@@ -1927,7 +1910,6 @@ class ApiClient {
             return this.request<T>(endpoint, retryOptions, true);
           }
 
-          // Refresh failed — logout
           this.clearAuth();
           window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || '') + '/login?expired=true';
           return new Promise<never>(() => {});
@@ -1943,14 +1925,12 @@ class ApiClient {
     return response.json();
   }
 
-  // Helper: authenticated GET
   private authGet<T>(endpoint: string) {
     return this.request<T>(endpoint, {
       headers: this.getAuthHeader(),
     });
   }
 
-  // Helper: authenticated POST
   private authPost<T>(endpoint: string, body: unknown) {
     return this.request<T>(endpoint, {
       method: 'POST',
@@ -1959,7 +1939,6 @@ class ApiClient {
     });
   }
 
-  // Helper: authenticated PUT
   private authPut<T>(endpoint: string, body?: unknown) {
     return this.request<T>(endpoint, {
       method: 'PUT',
@@ -1968,7 +1947,6 @@ class ApiClient {
     });
   }
 
-  // Helper: authenticated PATCH
   private authPatch<T>(endpoint: string, body?: unknown) {
     return this.request<T>(endpoint, {
       method: 'PATCH',
@@ -1977,7 +1955,6 @@ class ApiClient {
     });
   }
 
-  // Helper: authenticated DELETE
   private authDelete<T>(endpoint: string) {
     return this.request<T>(endpoint, {
       method: 'DELETE',
@@ -1985,7 +1962,6 @@ class ApiClient {
     });
   }
 
-  // Helper: authenticated binary download (PDF, ZIP, etc.)
   private async authDownloadBlob(endpoint: string): Promise<Blob> {
     const url = `${this.baseUrl}${endpoint}`;
     const token = this.getAuthToken();
@@ -2130,6 +2106,8 @@ class ApiClient {
     getInterCityCiPrice: (data: InterCityCIPriceRequest) =>
       this.request<InterCityCIPriceResponse>('/bookings/interville-ci/price', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
 
+    // (Suppression du bloc interCityCi – les réservations CI sont listées via airportShuttle.list)
+
     createVisaAssistance: (data: CreateVisaAssistanceRequestDto) =>
       this.authPost<BookingResponse>('/bookings/visa-assistance/compagny/create', data),
 
@@ -2268,7 +2246,6 @@ class ApiClient {
   };
 
   // ==================== DEPARTMENTS ====================
-  // Users service: /users/companies/departments
   departments = {
     create: (data: CreateDepartmentDto) =>
       this.authPost<DepartmentResponse>('/users/companies/departments', data),
@@ -2287,7 +2264,6 @@ class ApiClient {
   };
 
   // ==================== EMPLOYEES ====================
-  // Users service: /users/companies/employees
   employees = {
     create: (data: CreateEmployeeDto) =>
       this.authPost<EmployeeResponse>('/users/companies/employees', data),
@@ -2361,7 +2337,6 @@ class ApiClient {
     cancel: (id: number, motif?: string) =>
       this.authPatch<ServiceReservationResponse>(`/reservations/company/service-reservations/${id}/cancel`, motif ? { motif } : undefined),
 
-    // Paiement via le service payments
     pay: (id: number, data: PayReservationDto) =>
       this.authPost<ServiceReservationResponse>(`/payments/bictorys/initiate`, {
         serviceType: 'service_reservation',
@@ -2445,7 +2420,6 @@ class ApiClient {
 
   // ==================== INSURANCE COMPANY ====================
   insurance = {
-    // 1. Récupérer les données de référence AXA
     getReference: (type: InsuranceReferenceType, params?: { productCode?: string; categoryCode?: string; brandCode?: string }) => {
       const q = new URLSearchParams();
       if (params?.productCode) q.set('productCode', params.productCode);
@@ -2455,55 +2429,45 @@ class ApiClient {
       return this.authGet<InsuranceReferenceItem[]>(`/insurance/compagny/ref/${type}${qs ? `?${qs}` : ''}`);
     },
 
-    // 1b. Produits par catégorie (path: /ref/categories/{id}/products)
     getProductsByCategory: (categoryId: string | number) =>
       this.authGet<unknown[]>(`/insurance/compagny/ref/categories/${categoryId}/products`),
 
-    // 2. Créer une simulation tarifaire
     createSimulation: (data: CreateInsuranceSimulationDto) =>
       this.authPost<InsuranceSimulationResponse>('/insurance/compagny/simulations', data),
 
-    // 3. Lister les simulations
     listSimulations: (page = 1, limit = 20) =>
       this.authGet<{ data: InsuranceSimulationResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
         `/insurance/compagny/simulations?page=${page}&limit=${limit}`
       ),
 
-    // 4. Télécharger le PDF du devis
     downloadSimulationPdf: (simulationId: number) =>
       this.authDownloadBlob(`/insurance/compagny/simulations/${simulationId}/pdf`),
 
-    // 4b. Initier le paiement checkout d'une simulation (URL hébergée)
     payCheckout: (simulationId: number) =>
       this.authPost<InsurancePaymentCheckoutResponse>(
         `/insurance/compagny/simulations/${simulationId}/pay`,
         {}
       ),
 
-    // 4c. Initier le paiement mobile money direct (push USSD)
     payDirect: (simulationId: number, data: InitiateInsuranceDirectPaymentDto) =>
       this.authPost<InsuranceDirectPaymentResponse>(
         `/insurance/compagny/simulations/${simulationId}/pay/direct`,
         data
       ),
 
-    // 4d. Statut de paiement d'une simulation
     getPaymentStatus: (simulationId: number) =>
       this.authGet<InsurancePaymentStatusResponse>(
         `/insurance/compagny/simulations/${simulationId}/payment-status`
       ),
 
-    // 5. Créer un contrat d'assurance
     createContract: (data: CreateInsuranceContractDto) =>
       this.authPost<InsuranceContractResponse>('/insurance/compagny/contracts', data),
 
-    // 6. Lister les contrats
     listContracts: (page = 1, limit = 20) =>
       this.authGet<{ data: InsuranceContractResponse[]; meta: { page: number; limit: number; total: number; totalPages: number } }>(
         `/insurance/compagny/contracts?page=${page}&limit=${limit}`
       ),
 
-    // 7. Télécharger les documents du contrat (ZIP)
     downloadContractDocuments: (contractNumber: string) =>
       this.authDownloadBlob(`/insurance/compagny/contracts/${contractNumber}/download`),
   };
@@ -2528,7 +2492,6 @@ class ApiClient {
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================
-  // TODO: vérifier le chemin exact du service notifications pour le rôle compagny
   notifications = {
     list: (limit = 100) =>
       this.authGet<NotificationListResponse>(`/admin/admin/messagerie/notifications/compagny?limit=${limit}`),
@@ -2548,7 +2511,6 @@ class ApiClient {
 
   // ==================== BICTORYS PAYMENT ====================
   bictorys = {
-    /** Initier un paiement via Bictorys — retourne checkoutUrl */
     initiate: (data: InitiateBictorysPaymentDto) =>
       this.authPost<BictorysPaymentResponse>('/payments/bictorys/initiate', data),
   };

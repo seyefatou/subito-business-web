@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -11,24 +11,48 @@ const serviceLabels: Record<string, string> = {
   invoice: 'Facture',
   travel_document: 'Document de voyage',
   service_reservation: 'Réservation de service',
-  insurance: 'Assurance',
+  service_reservation_acompte: 'Acompte réservation',
   delivery: 'Livraison',
+  insurance_simulation: 'Simulation assurance',
 };
 
-function getReturnUrl(type?: string | null, id?: string | null): string {
+function getDetailUrl(type?: string | null, id?: string | null): string {
+  if (!type || !id) return '/dashboard';
   switch (type) {
     case 'booking':
-      return '/deliveries';
+      return `/tracking/${id}`;
+    case 'invoice':
+      return `/billing/${id}`;
+    case 'travel_document':
+      return `/travel-documents/${id}`;
+    case 'service_reservation':
+    case 'service_reservation_acompte':
+      return `/service-reservations/${id}`;
+    case 'delivery':
+      return `/deliveries/${id}`;
+    case 'insurance_simulation':
+      return `/insurance/${id}`;
+    default:
+      return '/dashboard';
+  }
+}
+
+function getListUrl(type?: string | null): string {
+  if (!type) return '/dashboard';
+  switch (type) {
+    case 'booking':
+      return '/tracking';
     case 'invoice':
       return '/billing';
     case 'travel_document':
       return '/travel-documents';
     case 'service_reservation':
+    case 'service_reservation_acompte':
       return '/service-reservations';
-    case 'insurance':
-      return '/insurance';
     case 'delivery':
       return '/deliveries';
+    case 'insurance_simulation':
+      return '/insurance';
     default:
       return '/dashboard';
   }
@@ -40,7 +64,8 @@ function PaymentSuccessContent() {
   const id = searchParams.get('id');
 
   const label = type ? serviceLabels[type] || type : 'Service';
-  const returnUrl = getReturnUrl(type, id);
+  const detailUrl = getDetailUrl(type, id);
+  const listUrl = getListUrl(type);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-emerald-50 px-4">
@@ -82,15 +107,16 @@ function PaymentSuccessContent() {
         </div>
 
         <div className="flex flex-col gap-3 pt-2">
-          <Link href={returnUrl}>
-            <Button className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white">
-              Continuer
-              <ArrowRight className="w-4 h-4 ml-2" />
+          <Link href={detailUrl}>
+            <Button className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white gap-2">
+              <Eye className="w-4 h-4" />
+              Voir la réservation
             </Button>
           </Link>
-          <Link href="/dashboard">
-            <Button variant="outline" className="w-full">
-              Retour au tableau de bord
+          <Link href={listUrl}>
+            <Button variant="outline" className="w-full gap-2">
+              <ArrowRight className="w-4 h-4" />
+              Retour à la liste
             </Button>
           </Link>
         </div>

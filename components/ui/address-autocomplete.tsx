@@ -119,7 +119,9 @@ export function AddressAutocomplete({
     if (text.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
+      console.log('[ADDRESS-AUTOCOMPLETE] Searching:', { query: text, countryCode });
       const results = await searchAddresses(text, countryCode);
+      console.log('[ADDRESS-AUTOCOMPLETE] Got results:', { count: results.length, results });
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
       setLoading(false);
@@ -127,7 +129,10 @@ export function AddressAutocomplete({
   };
 
   const handleSelect = (s: AddressSuggestion) => {
-    onSelect(s.display_name, parseFloat(s.lat), parseFloat(s.lon));
+    const lat = parseFloat(s.lat);
+    const lon = parseFloat(s.lon);
+    console.log('[ADDRESS-AUTOCOMPLETE] Selected:', { display_name: s.display_name, lat, lon, countryCode });
+    onSelect(s.display_name, lat, lon);
     setSuggestions([]);
     setShowSuggestions(false);
   };
