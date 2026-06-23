@@ -470,7 +470,7 @@ export default function AirportShuttleBookingWizard({
     (formData.is_round_trip && (formData.siegeBebesRetour > 0 || formData.adressesSupplementRetour?.length > 0));
 
   // CI: price with options — only fetch if options are selected AND quote is ready
-  const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && ciCategoryCode;
+  const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode;
 
   const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
     queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
