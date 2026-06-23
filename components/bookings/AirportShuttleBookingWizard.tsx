@@ -304,6 +304,59 @@ export default function AirportShuttleBookingWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, initialData?.id]);
 
+  // Sync CI options UI states back to formData
+  useEffect(() => {
+    if (!isCIBooking) return;
+
+    // Process "aller" (outbound) options
+    let newSiegeBebes = 0;
+    let newAdressesSupplementAller: AdresseSupplementItem[] = [];
+
+    ciOptions.forEach(opt => {
+      if (opt.type === 'SIMPLE' && opt.code === 'SIEGE_BEBE') {
+        newSiegeBebes = ciSimpleOptions[opt.id] ?? 0;
+      } else if (opt.type === 'ADDRESS' && opt.code === 'ADRESSE_SUPP') {
+        const adresses = ciAddressOptions[opt.id] ?? [];
+        newAdressesSupplementAller = adresses.map(a => ({
+          adresse: a.adresse,
+          lat: a.lat,
+          lng: a.lng,
+        }));
+      }
+    });
+
+    setFormData(prev => ({
+      ...prev,
+      siegeBebes: newSiegeBebes,
+      adressesSupplementAller: newAdressesSupplementAller,
+    }));
+
+    // Process "retour" (return) options if round-trip
+    if (formData.is_round_trip) {
+      let newSiegeBebesRetour = 0;
+      let newAdressesSupplementRetour: AdresseSupplementItem[] = [];
+
+      ciOptions.forEach(opt => {
+        if (opt.type === 'SIMPLE' && opt.code === 'SIEGE_BEBE') {
+          newSiegeBebesRetour = ciReturnSimpleOptions[opt.id] ?? 0;
+        } else if (opt.type === 'ADDRESS' && opt.code === 'ADRESSE_SUPP') {
+          const adresses = ciReturnAddressOptions[opt.id] ?? [];
+          newAdressesSupplementRetour = adresses.map(a => ({
+            adresse: a.adresse,
+            lat: a.lat,
+            lng: a.lng,
+          }));
+        }
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        siegeBebesRetour: newSiegeBebesRetour,
+        adressesSupplementRetour: newAdressesSupplementRetour,
+      }));
+    }
+  }, [ciSimpleOptions, ciAddressOptions, ciReturnSimpleOptions, ciReturnAddressOptions, ciOptions, isCIBooking, formData.is_round_trip]);
+
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
@@ -478,6 +531,19 @@ export default function AirportShuttleBookingWizard({
 
   // CI: price with options — only fetch if options are selected AND quote is ready
   const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode;
+
+  // SUPER SIMPLE DEBUG - juste pour voir quelle condition bloque
+  if (isCIBooking) {
+    console.log('[PRICE CHECK]', {
+      canFetchCIQuote,
+      hasOptions,
+      ciQuote: !!ciQuote,
+      ciCategoryCode: !!ciCategoryCode,
+      canFetchCIPrice,
+      siegeBebes: formData.siegeBebes,
+      adressesSupplementAller: formData.adressesSupplementAller?.length || 0,
+    });
+  }
 
   const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
     queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
