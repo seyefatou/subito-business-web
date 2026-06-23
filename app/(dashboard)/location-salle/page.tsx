@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { MapPin, Users, DollarSign, Phone, Mail } from 'lucide-react';
+import { MapPin, Users, DollarSign, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
@@ -12,10 +12,12 @@ export default function LocationSallePage() {
   const [search, setSearch] = useState('');
   const [ville, setVille] = useState('');
 
-  const { data: lieux, isLoading, error } = useQuery({
+  const { data: response, isLoading, error } = useQuery({
     queryKey: ['lieux', search, ville],
     queryFn: () => api.lieux.list(20, 1, { search: search || undefined, ville: ville || undefined }),
   });
+
+  const lieux = Array.isArray(response) ? response : response?.data || [];
 
   return (
     <div className="space-y-6">
@@ -68,54 +70,79 @@ export default function LocationSallePage() {
             <Link key={lieu.id} href={`/location-salle/${lieu.id}`}>
               <div className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all overflow-hidden cursor-pointer h-full flex flex-col">
                 {/* Image */}
-                <div className="w-full h-40 bg-slate-100 relative">
+                <div className="w-full h-40 bg-slate-100 relative overflow-hidden">
                   {lieu.images && lieu.images.length > 0 ? (
                     <img
-                      src={lieu.images[0]}
+                      src={`https://dev.api.mysubito.net/uploads/${lieu.images[0]}`}
                       alt={lieu.nom}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400">
-                      Pas d'image
-                    </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Content */}
                 <div className="p-5 flex-1 flex flex-col space-y-3">
                   {/* Lieu Info */}
                   <div>
-                    <h3 className="font-bold text-slate-900">{lieu.nom}</h3>
-                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                      <MapPin className="w-3 h-3" />
-                      {lieu.ville} - {lieu.adresseExacte}
+                    <h3 className="font-bold text-slate-900 line-clamp-2">{lieu.nom}</h3>
+                    {lieu.description && (
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{lieu.description}</p>
+                    )}
+                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-2">
+                      <MapPin className="w-3 h-3 flex-shrink-0" />
+                      <span className="line-clamp-1">{lieu.ville}, {lieu.pays}</span>
                     </div>
                   </div>
+
+                  {/* Equipements */}
+                  {lieu.equipements && lieu.equipements.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {lieu.equipements.slice(0, 2).map((eq, idx) => (
+                        <span key={idx} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                          {eq}
+                        </span>
+                      ))}
+                      {lieu.equipements.length > 2 && (
+                        <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                          +{lieu.equipements.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Partner */}
                   <div className="text-xs text-slate-600">
                     Partenaire: <span className="font-semibold">{lieu.partner.nomPartner}</span>
                   </div>
 
-                  {/* Salles */}
-                  <div className="space-y-2">
-                    {lieu.salles.map((salle) => (
-                      <div key={salle.id} className="bg-slate-50 rounded-lg p-3 space-y-1">
-                        <div className="font-semibold text-sm text-slate-800">{salle.nom}</div>
-                        <div className="flex items-center gap-3 text-xs text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            {salle.capacite} personnes
+                  {/* Salles Preview */}
+                  {lieu.salles && lieu.salles.length > 0 && (
+                    <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-100">
+                      {lieu.salles.slice(0, 1).map((salle) => (
+                        <div key={salle.id} className="space-y-1">
+                          <div className="font-semibold text-sm text-slate-800">{salle.nom}</div>
+                          <div className="flex items-center gap-3 text-xs text-slate-600">
+                            <div className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {salle.capacite} pers.
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" />
+                              {salle.prixParHeure.toLocaleString()} FCFA/h
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-semibold text-[#E04A1F]">
-                          <DollarSign className="w-3 h-3" />
-                          {salle.prixParJour.toLocaleString()} FCFA/jour • {salle.prixParHeure.toLocaleString()} FCFA/heure
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                      {lieu.salles.length > 1 && (
+                        <p className="text-xs text-slate-500 pt-1 border-t border-slate-200">
+                          +{lieu.salles.length - 1} autre salle(s)
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* CTA */}

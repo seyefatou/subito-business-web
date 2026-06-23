@@ -1569,17 +1569,32 @@ function translateErrors(raw: string | string[]): string {
 // ==================== LOCATION DE SALLE TYPES ====================
 export interface PriceOption {
   id: number;
-  nom: string;
+  code: string;
+  titre: string;
+  description: string | null;
   prix: number;
-  description?: string;
+  pricingMode: string;
+  isActive: boolean;
+  salleId: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Salle {
   id: number;
   nom: string;
+  description: string;
   capacite: number;
   prixParJour: number;
   prixParHeure: number;
+  acompteRequis: boolean;
+  acompteType: string | null;
+  acompteValeur: number | null;
+  images: string[];
+  equipements: string[];
+  lieuId: number;
+  createdAt: string;
+  updatedAt: string;
   priceOptions: PriceOption[];
 }
 
@@ -1592,12 +1607,18 @@ export interface Partner {
 export interface Lieu {
   id: number;
   nom: string;
+  description: string;
+  pays: string;
   ville: string;
   adresseExacte: string;
   images: string[];
+  equipements: string[];
   isPublier: boolean;
   isActive: boolean;
+  blockedByAdmin: boolean;
   partnerId: number;
+  createdAt: string;
+  updatedAt: string;
   salles: Salle[];
   partner: Partner;
 }
@@ -1606,6 +1627,10 @@ export interface LieuxListResponse {
   message: string;
   status: number;
   data: Lieu[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
 }
 
 export interface LieuxDetailResponse {
