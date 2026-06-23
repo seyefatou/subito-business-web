@@ -349,8 +349,15 @@ export default function AirportShuttleBookingWizard({
     ? paysResponse
     : Array.isArray((paysResponse as any)?.data) ? (paysResponse as any).data : [];
   const pays: string[] = paysArr
-    .map((p: unknown) => typeof p === 'string' ? p : (p as Record<string, unknown>)?.nom as string || '')
-    .filter(Boolean);
+    .map((p: unknown) => {
+      if (typeof p === 'string') return p;
+      if (p && typeof p === 'object') {
+        const nom = (p as Record<string, unknown>)?.nom;
+        return typeof nom === 'string' ? nom : null;
+      }
+      return null;
+    })
+    .filter((p): p is string => p !== null);
 
   // Search trajets dynamically when both villes are selected
   const { data: trajetsResponse, isFetching: trajetsLoading } = useQuery({
@@ -471,6 +478,21 @@ export default function AirportShuttleBookingWizard({
 
   // CI: price with options — only fetch if options are selected AND quote is ready
   const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode;
+
+  // DEBUG
+  React.useEffect(() => {
+    if (isCIBooking && (formData.siegeBebes > 0 || formData.adressesSupplementAller?.length > 0)) {
+      console.log('[CI PRICE DEBUG]', {
+        canFetchCIQuote,
+        hasOptions,
+        ciQuote: !!ciQuote,
+        ciCategoryCode,
+        canFetchCIPrice,
+        siegeBebes: formData.siegeBebes,
+        adressesSupplementAller: formData.adressesSupplementAller?.length,
+      });
+    }
+  }, [isCIBooking, formData.siegeBebes, formData.adressesSupplementAller, canFetchCIQuote, hasOptions, ciQuote, ciCategoryCode, canFetchCIPrice]);
 
   const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
     queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
