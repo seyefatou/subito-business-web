@@ -451,6 +451,8 @@ export default function AirportShuttleBookingWizard({
     let newSiegeBebes = 0;
     let newAdressesSupplementAller: AdresseSupplementItem[] = [];
 
+    if (!ciOptions || ciOptions.length === 0) return;
+
     ciOptions.forEach(opt => {
       if (opt.type === 'SIMPLE' && opt.code === 'SIEGE_BEBE') {
         newSiegeBebes = ciSimpleOptions[opt.id] ?? 0;
@@ -530,7 +532,8 @@ export default function AirportShuttleBookingWizard({
     (formData.is_round_trip && (formData.siegeBebesRetour > 0 || formData.adressesSupplementRetour?.length > 0));
 
   // CI: price with options — only fetch if options are selected AND quote is ready
-  const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode;
+  const canFetchCIPrice = !!(canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode);
+
 
   const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
     queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
@@ -578,7 +581,7 @@ export default function AirportShuttleBookingWizard({
         bagages23: ciBagages23,
         bagages10: ciBagages10,
         isOneWay: !formData.is_round_trip,
-        sens: formData.direction === 'from_airport' ? 'airport_to_city' : 'city_to_airport',
+        sens: ciSens,
         options: options.length > 0 ? options : undefined,
         optionsRetour: formData.is_round_trip && optionsRetour.length > 0 ? optionsRetour : undefined,
         ...(formData.is_round_trip && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null && {
@@ -889,12 +892,10 @@ export default function AirportShuttleBookingWizard({
                 ...(a.contactTelephone && { contactTelephone: a.contactTelephone }),
               })),
             })),
-          ...(formData.is_round_trip &&
-            Object.entries(ciReturnSimpleOptions)
+          ...(formData.is_round_trip ? Object.entries(ciReturnSimpleOptions)
               .filter(([, qty]) => qty > 0)
-              .map(([id, quantite]) => ({ optionId: Number(id), quantite, forReturn: true }))),
-          ...(formData.is_round_trip &&
-            Object.entries(ciReturnAddressOptions)
+              .map(([id, quantite]) => ({ optionId: Number(id), quantite, forReturn: true })) : []),
+          ...(formData.is_round_trip ? Object.entries(ciReturnAddressOptions)
               .filter(([, adrs]) => adrs.length > 0)
               .map(([id, adresses]) => ({
                 optionId: Number(id),
@@ -907,7 +908,7 @@ export default function AirportShuttleBookingWizard({
                   ...(a.contactNom && { contactNom: a.contactNom }),
                   ...(a.contactTelephone && { contactTelephone: a.contactTelephone }),
                 })),
-              }))),
+              })) : []),
         ].filter(o => (o as any).quantite > 0 || ((o as any).adresses?.length ?? 0) > 0),
       };
       createCIBooking.mutate(ciData);
@@ -3946,7 +3947,7 @@ export default function AirportShuttleBookingWizard({
                 </div>
               );
             })}
-            {formData.siegeBebes > 0 && (
+            {!isCIBooking && formData.siegeBebes > 0 && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Sieges bebe (x{formData.siegeBebes})</span>
                 <span className="text-sm font-medium text-[#171c1f]">
@@ -3954,7 +3955,7 @@ export default function AirportShuttleBookingWizard({
                 </span>
               </div>
             )}
-            {formData.animalDeCompagnie && (
+            {!isCIBooking && formData.animalDeCompagnie && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Animal a bord</span>
                 <span className="text-sm font-medium text-[#171c1f]">
@@ -3962,7 +3963,7 @@ export default function AirportShuttleBookingWizard({
                 </span>
               </div>
             )}
-            {formData.adressesSupplementAller.length > 0 && (
+            {!isCIBooking && formData.adressesSupplementAller.length > 0 && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Arrets sup. (x{formData.adressesSupplementAller.length})</span>
                 <span className="text-sm font-medium text-[#171c1f]">
