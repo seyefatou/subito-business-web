@@ -465,6 +465,81 @@ export default function AirportShuttleBookingWizard({
   });
   const ciQuote: NavetteCIQuoteResponse | null = (ciQuoteRaw as any)?.data ?? ciQuoteRaw ?? null;
 
+  // CI: detect if options are selected
+  const hasOptions = (formData.siegeBebes > 0) || (formData.adressesSupplementAller?.length > 0) ||
+    (formData.is_round_trip && (formData.siegeBebesRetour > 0 || formData.adressesSupplementRetour?.length > 0));
+
+  // CI: price with options — only fetch if options are selected AND quote is ready
+  const canFetchCIPrice = canFetchCIQuote && hasOptions && ciQuote && ciCategoryCode;
+
+  const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
+    queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
+    queryFn: () => {
+      // Build options array
+      const options: any[] = [];
+      if (formData.siegeBebes > 0) {
+        options.push({ code: 'SIEGE_BEBE', quantite: formData.siegeBebes });
+      }
+      if (formData.adressesSupplementAller?.length > 0) {
+        options.push({
+          code: 'ADRESSE_SUPP',
+          adresses: formData.adressesSupplementAller.map(a => ({
+            adresse: a.adresse,
+            lat: a.lat,
+            lng: a.lng,
+          })),
+        });
+      }
+
+      const optionsRetour: any[] = [];
+      if (formData.is_round_trip) {
+        if (formData.siegeBebesRetour > 0) {
+          optionsRetour.push({ code: 'SIEGE_BEBE', quantite: formData.siegeBebesRetour });
+        }
+        if (formData.adressesSupplementRetour?.length > 0) {
+          optionsRetour.push({
+            code: 'ADRESSE_SUPP',
+            adresses: formData.adressesSupplementRetour.map(a => ({
+              adresse: a.adresse,
+              lat: a.lat,
+              lng: a.lng,
+            })),
+          });
+        }
+      }
+
+      return api.bookings.navetteCI.getPrice({
+        categoryCode: ciCategoryCode,
+        departLat: formData.addressLat!,
+        departLng: formData.addressLng!,
+        arriveeLat: formData.returnAddressLat!,
+        arriveeLng: formData.returnAddressLng!,
+        pax: formData.passengers,
+        bagages23: ciBagages23,
+        bagages10: ciBagages10,
+        isOneWay: !formData.is_round_trip,
+        sens: formData.direction === 'from_airport' ? 'airport_to_city' : 'city_to_airport',
+        options: options.length > 0 ? options : undefined,
+        optionsRetour: formData.is_round_trip && optionsRetour.length > 0 ? optionsRetour : undefined,
+        ...(formData.is_round_trip && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null && {
+          departRetourLat: ciReturnDepartAddressLat!,
+          departRetourLng: ciReturnDepartAddressLng!,
+          arriveeRetourLat: ciReturnArriveAddressLat!,
+          arriveeRetourLng: ciReturnArriveAddressLng!,
+        }),
+      });
+    },
+    enabled: canFetchCIPrice,
+  });
+  const ciPrice = (ciPriceRaw as any)?.data ?? ciPriceRaw ?? null;
+
+  // Update price when ciPrice changes (options added)
+  React.useEffect(() => {
+    if (ciPrice && ciPrice.total) {
+      setCiCategoryPrice(ciPrice.total);
+    }
+  }, [ciPrice]);
+
   // Filter by selected country if one is selected
   const filteredVilles = selectedPays
     ? allVilles.filter(v => v.pays?.toLowerCase() === selectedPays.toLowerCase())
