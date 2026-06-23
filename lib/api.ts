@@ -1566,6 +1566,55 @@ function translateErrors(raw: string | string[]): string {
   return translateErrorMessage(raw);
 }
 
+// ==================== LOCATION DE SALLE TYPES ====================
+export interface PriceOption {
+  id: number;
+  nom: string;
+  prix: number;
+  description?: string;
+}
+
+export interface Salle {
+  id: number;
+  nom: string;
+  capacite: number;
+  prixParJour: number;
+  prixParHeure: number;
+  priceOptions: PriceOption[];
+}
+
+export interface Partner {
+  id: number;
+  nomPartner: string;
+  logo: string | null;
+}
+
+export interface Lieu {
+  id: number;
+  nom: string;
+  ville: string;
+  adresseExacte: string;
+  images: string[];
+  isPublier: boolean;
+  isActive: boolean;
+  partnerId: number;
+  salles: Salle[];
+  partner: Partner;
+}
+
+export interface LieuxListResponse {
+  message: string;
+  status: number;
+  data: Lieu[];
+}
+
+export interface LieuxDetailResponse {
+  message?: string;
+  statusCode?: number;
+  data?: Lieu;
+  error?: string;
+}
+
 // ==================== API CLIENT ====================
 class ApiClient {
   private baseUrl: string;
@@ -2351,6 +2400,19 @@ class ApiClient {
     /** Initier un paiement via Bictorys — retourne checkoutUrl */
     initiate: (data: InitiateBictorysPaymentDto) =>
       this.authPost<BictorysPaymentResponse>('/payments/bictorys/initiate', data),
+  };
+
+  // ==================== LOCATION DE SALLE (LIEUX) ====================
+  lieux = {
+    /** Lister tous les lieux publiqués */
+    list: (pageSize = 20, page = 1, params?: { groupBy?: string; highlight?: string; ville?: string; search?: string }) =>
+      this.request<Lieu[]>(
+        `/catalog/lieux?pageSize=${pageSize}&page=${page}${params?.groupBy ? `&groupBy=${params.groupBy}` : ''}${params?.highlight ? `&highlight=${params.highlight}` : ''}${params?.ville ? `&ville=${params.ville}` : ''}${params?.search ? `&search=${encodeURIComponent(params.search)}` : ''}`
+      ),
+
+    /** Récupérer le détail d'un lieu */
+    detail: (id: number) =>
+      this.request<Lieu>(`/catalog/lieux/${id}`),
   };
 
 }

@@ -68,6 +68,7 @@ const navigation: NavigationItem[] = [
   { name: "Documents Voyage", href: "/travel-documents", icon: FileText },
   { name: "Activite", href: "/service-reservations?type=ACTIVITE", icon: Compass },
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
+  { name: "Location de salle", href: "/location-salle", icon: Building2 },
   { name: "Location de vehicule", href: "/location-vehicule", icon: Car },
   { name: "Assurance", href: "/assurance", icon: Shield },
   { name: "Suivi commandes", href: "/tracking", icon: MapPin },
