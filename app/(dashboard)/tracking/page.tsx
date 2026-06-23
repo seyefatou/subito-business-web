@@ -87,6 +87,11 @@ function Tracking() {
   const [filterStatus, setFilterStatus] = useState("all");
   const limit = 10;
 
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterService, filterStatus]);
+
   // Fetch all company bookings — 3 types séparés (microservices)
   const { data: shuttleResponse, isLoading: shuttleLoading } = useQuery({
     queryKey: ['bookings-shuttle', page],
