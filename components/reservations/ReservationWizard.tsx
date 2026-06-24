@@ -58,14 +58,14 @@ export function ReservationWizard({
   const [bookingId, setBookingId] = useState<number | null>(null);
 
   const isStep2Complete = () => {
-    if (productType === 'logement' || productType === 'circuit' || productType === 'salle') {
+    if (productType === 'logement' || productType === 'circuit') {
       return !!state.dateDebut && !!state.dateFin;
+    }
+    if (productType === 'salle' || productType === 'vehicule') {
+      return !!state.dateDebut && !!state.dateFin && !!state.heureDebut && !!state.heureFin;
     }
     if (productType === 'activite') {
       return !!state.dateDebut;
-    }
-    if (productType === 'vehicule') {
-      return !!state.dateDebut && !!state.dateFin && !!state.heureDebut && !!state.heureFin;
     }
     return false;
   };
@@ -436,6 +436,8 @@ export function ReservationWizard({
                     productId={productId}
                     dateDebut={state.dateDebut}
                     dateFin={state.dateFin}
+                    heureDebut={state.heureDebut}
+                    heureFin={state.heureFin}
                     nombrePersonnes={state.nombrePersonnes}
                     pensionIds={state.selectedPensions}
                     priceOptionIds={state.selectedPriceOptions}
@@ -936,7 +938,7 @@ interface DateSectionProps {
 
 function DateSection({ productType, state, setState }: DateSectionProps) {
 
-  if (productType === 'vehicule') {
+  if (productType === 'vehicule' || productType === 'salle') {
     return (
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
         <h3 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>

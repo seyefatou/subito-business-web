@@ -8,10 +8,12 @@ import { formatPrice, getPricingModeLabel } from '@/lib/booking-utils';
 const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
 
 interface PriceCalculatorProps {
-  productType: 'logement' | 'activite' | 'circuit' | 'vehicule';
+  productType: 'logement' | 'activite' | 'circuit' | 'vehicule' | 'salle';
   productId: number;
   dateDebut?: Date;
   dateFin?: Date;
+  heureDebut?: string;
+  heureFin?: string;
   nombrePersonnes?: number;
   pensionIds?: number[];
   priceOptionIds?: number[];
@@ -24,6 +26,8 @@ export function PriceCalculator({
   productId,
   dateDebut,
   dateFin,
+  heureDebut,
+  heureFin,
   nombrePersonnes = 1,
   pensionIds = [],
   priceOptionIds = [],
@@ -31,7 +35,7 @@ export function PriceCalculator({
   priceOptions = [],
 }: PriceCalculatorProps) {
   const { data: quoteResponse, isLoading, error } = useQuery({
-    queryKey: ['quote', productType, productId, dateDebut, dateFin, nombrePersonnes, pensionIds, priceOptionIds],
+    queryKey: ['quote', productType, productId, dateDebut, dateFin, heureDebut, heureFin, nombrePersonnes, pensionIds, priceOptionIds],
     queryFn: () => {
       const params: any = {
         nombrePersonnes,
@@ -39,6 +43,8 @@ export function PriceCalculator({
 
       if (dateDebut) params.dateDebut = dateDebut.toISOString();
       if (dateFin) params.dateFin = dateFin.toISOString();
+      if (heureDebut) params.heureDebut = heureDebut;
+      if (heureFin) params.heureFin = heureFin;
 
       // Map pension IDs to formule code
       if (pensionIds.length > 0) {
