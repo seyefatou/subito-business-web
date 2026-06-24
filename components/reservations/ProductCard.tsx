@@ -1,17 +1,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Star, MapPin } from 'lucide-react';
-import { Logement, Activite, Circuit, VehiculeLocation } from '@/lib/api';
+import { Logement, Activite, Circuit, VehiculeLocation, Salle } from '@/lib/api';
 import { formatPrice } from '@/lib/booking-utils';
 import { Button } from '@/components/ui/button';
 
 const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
 
-type Product = Logement | Activite | Circuit | VehiculeLocation;
+type Product = Logement | Activite | Circuit | VehiculeLocation | Salle;
 
 interface ProductCardProps {
   product: Product;
-  productType: 'logement' | 'activite' | 'circuit' | 'vehicule';
+  productType: 'logement' | 'activite' | 'circuit' | 'vehicule' | 'salle';
 }
 
 export function ProductCard({ product, productType }: ProductCardProps) {
@@ -51,7 +51,7 @@ export function ProductCard({ product, productType }: ProductCardProps) {
   const image = getImage(product);
   const rating = getRating(product) as number | null;
   const title = getTitle(product);
-  const location = getLocation(product);
+  const location = getLocation(product) as string | null;
 
   return (
     <Link href={`/service-reservations/${productType}/${product.id}`}>

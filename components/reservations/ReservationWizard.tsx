@@ -58,7 +58,7 @@ export function ReservationWizard({
   const [bookingId, setBookingId] = useState<number | null>(null);
 
   const isStep2Complete = () => {
-    if (productType === 'logement' || productType === 'circuit') {
+    if (productType === 'logement' || productType === 'circuit' || productType === 'salle') {
       return !!state.dateDebut && !!state.dateFin;
     }
     if (productType === 'activite') {
@@ -130,6 +130,7 @@ export function ReservationWizard({
       activiteId: productType === 'activite' ? productId : undefined,
       circuitId: productType === 'circuit' ? productId : undefined,
       vehiculeLocationId: productType === 'vehicule' ? productId : undefined,
+      salleId: productType === 'salle' ? productId : undefined,
       employeeId: selectedEmployee?.id || undefined,
       clientName: `${clientData.prenom} ${clientData.nom}`,
       clientPhone: clientData.telephone || '',
@@ -794,7 +795,7 @@ function Step4Confirmation({
           </div>
 
           {/* Dates */}
-          {(productType === 'logement' || productType === 'circuit') && (
+          {(productType === 'logement' || productType === 'circuit' || productType === 'salle') && (
             <div className="flex items-start gap-4 pb-6 md:pb-0 md:border-b-0 border-b border-slate-100 md:col-span-2">
               <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
                 <Calendar className="w-5 h-5 text-amber-600" />
@@ -1019,7 +1020,7 @@ function DateSection({ productType, state, setState }: DateSectionProps) {
           </div>
         )}
 
-        {(productType === 'logement' || productType === 'circuit' || productType === 'vehicule') && (
+        {(productType === 'logement' || productType === 'circuit' || productType === 'vehicule' || productType === 'salle') && (
           <div>
             <label className="block text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">
               Date de départ

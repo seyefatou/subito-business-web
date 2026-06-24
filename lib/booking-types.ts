@@ -1,4 +1,4 @@
-export type ProductType = 'logement' | 'activite' | 'circuit' | 'vehicule';
+export type ProductType = 'logement' | 'activite' | 'circuit' | 'vehicule' | 'salle';
 
 export interface SelectedOptions {
   pensionIds?: number[];
