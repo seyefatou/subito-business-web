@@ -5,10 +5,11 @@ import { api, Salle } from '@/lib/api';
 import { MapPin, Users, DollarSign, ArrowLeft, Phone, Mail, Clock, AlertCircle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 export default function LieuDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   const lieuId = parseInt(id as string);
 
   const { data: lieu, isLoading, error } = useQuery({
@@ -234,7 +235,10 @@ export default function LieuDetailPage() {
                       )}
 
                       {/* CTA */}
-                      <Button className="w-full bg-[#E04A1F] hover:bg-[#d4421a]">
+                      <Button
+                        className="w-full bg-[#E04A1F] hover:bg-[#d4421a]"
+                        onClick={() => router.push(`/location-salle/${lieu.id}/reservation?salle=${salle.id}`)}
+                      >
                         Réserver cette salle
                       </Button>
                     </div>
