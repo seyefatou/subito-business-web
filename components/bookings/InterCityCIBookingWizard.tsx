@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { api, CreateInterCityCIBookingDto } from '@/lib/api';
+import { api, CreateInterCityBookingDto } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -94,18 +94,20 @@ export default function InterCityCIBookingWizard() {
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['interville-ci-categories'],
     queryFn: () => api.reference.getInterCityCiCategories(),
+    select: (response: any) => response?.data || response,
   });
 
   // Fetch options
   const { data: options, isLoading: optionsLoading } = useQuery({
     queryKey: ['interville-ci-options'],
     queryFn: () => api.reference.getInterCityCiOptions(),
+    select: (response: any) => response?.data || response,
   });
 
   // Create booking
   const { mutate: createBooking, isPending } = useMutation({
-    mutationFn: async (data: CreateInterCityCIBookingDto) => {
-      return api.bookings.createInterCityCi(data);
+    mutationFn: async (data: CreateInterCityBookingDto) => {
+      return api.bookings.createInterCity(data);
     },
     onSuccess: (response) => {
       setBookingReference(response.data.bookingCode || '');
@@ -119,10 +121,10 @@ export default function InterCityCIBookingWizard() {
     },
   });
 
-  const selectedCategory = categories?.find(c => c.code === formData.categoryCode);
+  const selectedCategory = categories?.find((c: any) => c.code === formData.categoryCode);
   const selectedCategoryInfo = useMemo(() => {
     if (!categories || !formData.categoryCode) return null;
-    return categories.find(c => c.code === formData.categoryCode);
+    return categories.find((c: any) => c.code === formData.categoryCode);
   }, [categories, formData.categoryCode]);
 
   // Calculate pricing for selected category
@@ -135,7 +137,7 @@ export default function InterCityCIBookingWizard() {
 
   const optionsCost = useMemo(() => {
     return formData.selectedOptions.reduce((total, opt) => {
-      const optionInfo = options?.find(o => o.code === opt.code);
+      const optionInfo = options?.find((o: any) => o.code === opt.code);
       return total + (optionInfo?.prix || 0) * opt.quantite;
     }, 0);
   }, [formData.selectedOptions, options]);
@@ -153,7 +155,7 @@ export default function InterCityCIBookingWizard() {
       return;
     }
 
-    const bookingData: CreateInterCityCIBookingDto = {
+    const bookingData: CreateInterCityBookingDto = {
       categoryCode: formData.categoryCode,
       departLat: formData.departLat || 0,
       departLng: formData.departLng || 0,
@@ -251,7 +253,7 @@ export default function InterCityCIBookingWizard() {
                   <PhoneInput
                     value={formData.clientPhone}
                     onChange={(value) => setFormData({ ...formData, clientPhone: value })}
-                    defaultCountry="CI"
+                    defaultCountryCode="CI"
                   />
                 </div>
               </div>
@@ -265,8 +267,7 @@ export default function InterCityCIBookingWizard() {
                 <div>
                   <Label>Lieu de départ</Label>
                   <AddressAutocomplete
-                    defaultCountry="Côte d'Ivoire"
-                    onSelect={(address) =>
+                                        onSelect={(address) =>
                       setFormData({
                         ...formData,
                         departAddress: address.address || '',
@@ -279,8 +280,7 @@ export default function InterCityCIBookingWizard() {
                 <div>
                   <Label>Destination</Label>
                   <AddressAutocomplete
-                    defaultCountry="Côte d'Ivoire"
-                    onSelect={(address) =>
+                                        onSelect={(address) =>
                       setFormData({
                         ...formData,
                         arriveeAddress: address.address || '',
@@ -427,7 +427,7 @@ export default function InterCityCIBookingWizard() {
                   <h3 className="font-semibold text-lg">Options supplémentaires</h3>
                   <div className="grid gap-3">
                     {options.map((option) => {
-                      const selectedOption = formData.selectedOptions.find(o => o.code === option.code);
+                      const selectedOption = formData.selectedOptions.find((o: any) => o.code === option.code);
                       const quantity = selectedOption?.quantite || 0;
 
                       return (
@@ -454,7 +454,7 @@ export default function InterCityCIBookingWizard() {
                                             ? { ...o, quantite: o.quantite - 1 }
                                             : o
                                         )
-                                        .filter(o => o.quantite > 0),
+                                        .filter((o: any) => o.quantite > 0),
                                     })
                                   }
                                 >
@@ -467,7 +467,7 @@ export default function InterCityCIBookingWizard() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    const existing = formData.selectedOptions.find(o => o.code === option.code);
+                                    const existing = formData.selectedOptions.find((o: any) => o.code === option.code);
                                     if (existing) {
                                       setFormData({
                                         ...formData,
@@ -527,7 +527,7 @@ export default function InterCityCIBookingWizard() {
                     <span className="font-semibold">
                       {formData.selectedOptions
                         .map(opt => {
-                          const optInfo = options?.find(o => o.code === opt.code);
+                          const optInfo = options?.find((o: any) => o.code === opt.code);
                           return `${optInfo?.label} x${opt.quantite}`;
                         })
                         .join(', ')}

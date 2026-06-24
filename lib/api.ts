@@ -297,14 +297,26 @@ export interface CreateAirportShuttleBookingDto {
 }
 
 export interface CreateInterCityBookingDto {
-  serviceType: 'one_way' | 'round_trip';
-  trajetInterVilleId: number;
+  serviceType?: 'one_way' | 'round_trip';
+  trajetInterVilleId?: number;
   vehiculeId?: number;
-  departureCity: string;
-  arrivalCity: string;
-  isOneWay: boolean;
-  pickupDateAller: string;
-  pickupTimeAller: string;
+  departureCity?: string;
+  arrivalCity?: string;
+  isOneWay?: boolean;
+  categoryCode?: string;
+  pays?: string;
+  departLat?: number;
+  departLng?: number;
+  departAddress?: string;
+  arriveeLat?: number;
+  arriveeLng?: number;
+  arriveeAddress?: string;
+  pax?: number;
+  paidBy?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  pickupDateAller?: string;
+  pickupTimeAller?: string;
   pickupDateRetour?: string;
   pickupTimeRetour?: string;
   adressePriseEnChargeDepartAller?: string;
@@ -319,10 +331,10 @@ export interface CreateInterCityBookingDto {
   adressePriseEnChargeArriveeRetour?: string;
   adressePriseEnChargeArriveeRetourLat?: number;
   adressePriseEnChargeArriveeRetourLng?: number;
-  clientName: string;
-  clientPhone: string;
+  clientName?: string;
+  clientPhone?: string;
   clientEmail?: string;
-  clientAddress: string;
+  clientAddress?: string;
   siegeBebes?: number;
   animalDeCompagnie?: boolean;
   siegeBebesRetour?: number;
@@ -361,7 +373,7 @@ export interface CreateVtcHourlyBookingDto {
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
-  clientAddress: string;
+  clientAddress?: string;
   notes?: string;
   paidBy: 'company' | 'client';
   paymentMethod?: string;
@@ -379,7 +391,7 @@ export interface CreateVisaAssistanceRequestDto {
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
-  clientAddress: string;
+  clientAddress?: string;
   visaType?: string;
   destinationCountry?: string;
   specialRequests?: string;
@@ -1993,6 +2005,12 @@ class ApiClient {
 
     getPaymentOptions: () =>
       this.request<PaymentOption[]>('/payments/payment-options'),
+
+    getInterCityCiCategories: () =>
+      this.request<any[]>('/bookings/inter-city/ci/categories'),
+
+    getInterCityCiOptions: () =>
+      this.request<any[]>('/bookings/inter-city/ci/options'),
   };
 
   // ==================== BOOKINGS COMPANY ====================
