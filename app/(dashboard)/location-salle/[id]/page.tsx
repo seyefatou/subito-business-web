@@ -237,7 +237,7 @@ export default function LieuDetailPage() {
                       {/* CTA */}
                       <Button
                         className="w-full bg-[#E04A1F] hover:bg-[#d4421a]"
-                        onClick={() => router.push(`/location-salle/${lieu.id}/reservation?salle=${salle.id}`)}
+                        onClick={() => router.push(`/service-reservations/salle/${salle.id}/wizard`)}
                       >
                         Réserver cette salle
                       </Button>
