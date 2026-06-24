@@ -237,9 +237,9 @@ function Tracking() {
       return `/tracking/${booking.id}?type=${t === 'intercity' ? 'inter_city' : t}`;
     }
     if (t === 'visa_assistance') return `/travel-documents/${booking.id}`;
-    // Service reservations (SALLE, LOGEMENT, ACTIVITE, CIRCUIT, FLOTTE, HOTEL)
+    // Service reservations go to their own tracking page with proper details
     if (['SALLE', 'FLOTTE', 'LOGEMENT', 'ACTIVITE', 'CIRCUIT', 'HOTEL'].includes(t)) {
-      return `/tracking/${booking.id}?type=${t.toLowerCase()}`;
+      return `/service-reservations/${booking.id}/tracking`;
     }
     return `/tracking/${booking.id}`;
   };
