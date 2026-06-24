@@ -98,7 +98,7 @@ export default function ServiceReservationTrackingPage() {
               Suivi de réservation
             </p>
             <h1 className="text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
-              {(reservation.logement as any)?.nom || (reservation.activite as any)?.nom || (reservation.circuit as any)?.nom || (reservation.salle as any)?.nom || 'Réservation'}
+              {(reservation.logement as any)?.nom || (reservation.activite as any)?.nom || (reservation.circuit as any)?.nom || 'Réservation'}
             </h1>
           </div>
           <Badge className={`${status.color} border-0 px-4 py-2 text-sm font-bold`}>
@@ -394,64 +394,6 @@ export default function ServiceReservationTrackingPage() {
                       <div className="md:col-span-2 bg-blue-50 rounded-2xl p-4">
                         <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Politique d&apos;annulation</p>
                         <p className="text-sm text-blue-900">{reservation.circuit.typeAnnulation}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Salle avec détails */}
-                {reservation.salle && (
-                  <>
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0">
-                        <Building2 className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Salle</p>
-                        <p className="text-base font-bold text-[#171c1f]">{reservation.salle.nom}</p>
-                        {reservation.salle.capacite && (
-                          <p className="text-xs text-[#585e6c] mt-1">Capacité: {reservation.salle.capacite} personnes</p>
-                        )}
-                        {reservation.salle.equipements && reservation.salle.equipements.length > 0 && (
-                          <p className="text-xs text-[#585e6c] mt-2">
-                            Équipements: {reservation.salle.equipements.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Horaires de la salle */}
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
-                        <Clock className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Horaires de la réservation</p>
-                        <p className="text-base font-bold text-[#171c1f]">
-                          {reservation.heureDebut ? reservation.heureDebut : 'Journée complète'}
-                        </p>
-                        {reservation.heureFin && (
-                          <p className="text-xs text-[#585e6c] mt-1">à {reservation.heureFin}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Image de la salle */}
-                    {reservation.salle.images?.[0] && (
-                      <div className="md:col-span-2">
-                        <img
-                          src={reservation.salle.images[0]}
-                          alt={reservation.salle.nom}
-                          className="w-full h-48 object-cover rounded-2xl"
-                        />
-                      </div>
-                    )}
-
-                    {/* Description de la salle */}
-                    {reservation.salle.description && (
-                      <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
-                        <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Description</p>
-                        <p className="text-sm text-[#585e6c]">{reservation.salle.description}</p>
                       </div>
                     )}
                   </>
