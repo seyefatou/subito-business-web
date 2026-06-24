@@ -2074,6 +2074,8 @@ class ApiClient {
         this.request<NavetteCIOption[]>('/bookings/airport-shuttle/ci/options'),
       getQuote: (data: { departLat: number; departLng: number; arriveeLat: number; arriveeLng: number; pax: number; bagages23: number; bagages10: number; isOneWay?: boolean; departRetourLat?: number; departRetourLng?: number; arriveeRetourLat?: number; arriveeRetourLng?: number }) =>
         this.authPost<NavetteCIQuoteResponse>('/bookings/airport-shuttle/ci/quote', data),
+      getPrice: (data: any) =>
+        this.authPost<any>('/bookings/airport-shuttle/ci/price', data),
       create: (data: CreateNavetteCIBookingDto) =>
         this.authPost<BookingResponse>('/bookings/airport-shuttle/ci/compagny/create', data),
     },

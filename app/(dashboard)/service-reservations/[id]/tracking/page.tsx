@@ -50,7 +50,7 @@ export default function ServiceReservationTrackingPage() {
     enabled: !isNaN(id),
   });
 
-  const reservation = response?.data;
+  const reservation = response?.data as any;
 
   if (isLoading) {
     return (
@@ -115,7 +115,7 @@ export default function ServiceReservationTrackingPage() {
               <h2 className="text-lg font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
                 Référence de réservation
               </h2>
-              <p className="text-2xl font-bold text-[#E04A1F]">{reservation.reservationCode}</p>
+              <p className="text-2xl font-bold text-[#E04A1F]">{reservation.reservationCode || 'N/A'}</p>
               <p className="text-sm text-[#585e6c] mt-2">
                 Créée le {format(new Date(reservation.createdAt), 'dd MMMM yyyy à HH:mm', { locale: fr })}
               </p>
@@ -281,7 +281,7 @@ export default function ServiceReservationTrackingPage() {
                       <div className="md:col-span-2 bg-green-50 rounded-2xl p-4">
                         <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Inclus</p>
                         <ul className="space-y-1">
-                          {(Array.isArray(reservation.activite.inclus) ? reservation.activite.inclus : (reservation.activite.inclus as string).split(',')).map((item, idx) => (
+                          {(Array.isArray(reservation.activite.inclus) ? reservation.activite.inclus : (reservation.activite.inclus as string).split(',')).map((item: string, idx: number) => (
                             <li key={idx} className="text-sm text-green-900 flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
                               {item.trim()}
@@ -296,7 +296,7 @@ export default function ServiceReservationTrackingPage() {
                       <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
                         <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Non inclus</p>
                         <ul className="space-y-1">
-                          {(Array.isArray(reservation.activite.nonInclus) ? reservation.activite.nonInclus : (reservation.activite.nonInclus as string).split(',')).map((item, idx) => (
+                          {(Array.isArray(reservation.activite.nonInclus) ? reservation.activite.nonInclus : (reservation.activite.nonInclus as string).split(',')).map((item: string, idx: number) => (
                             <li key={idx} className="text-sm text-slate-600 flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               {item.trim()}
@@ -364,7 +364,7 @@ export default function ServiceReservationTrackingPage() {
                       <div className="md:col-span-2 bg-green-50 rounded-2xl p-4">
                         <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-2">Inclus</p>
                         <ul className="space-y-1">
-                          {(Array.isArray(reservation.circuit.inclus) ? reservation.circuit.inclus : (reservation.circuit.inclus as string).split(',')).map((item, idx) => (
+                          {(Array.isArray(reservation.circuit.inclus) ? reservation.circuit.inclus : (reservation.circuit.inclus as string).split(',')).map((item: string, idx: number) => (
                             <li key={idx} className="text-sm text-green-900 flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
                               {item.trim()}
@@ -379,7 +379,7 @@ export default function ServiceReservationTrackingPage() {
                       <div className="md:col-span-2 bg-slate-50 rounded-2xl p-4">
                         <p className="text-xs font-bold text-slate-700 uppercase tracking-widest mb-2">Non inclus</p>
                         <ul className="space-y-1">
-                          {(Array.isArray(reservation.circuit.nonInclus) ? reservation.circuit.nonInclus : (reservation.circuit.nonInclus as string).split(',')).map((item, idx) => (
+                          {(Array.isArray(reservation.circuit.nonInclus) ? reservation.circuit.nonInclus : (reservation.circuit.nonInclus as string).split(',')).map((item: string, idx: number) => (
                             <li key={idx} className="text-sm text-slate-600 flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               {item.trim()}
@@ -465,7 +465,7 @@ export default function ServiceReservationTrackingPage() {
                       <div>
                         <p className="text-base font-extrabold text-[#171c1f] mb-4">Options supplémentaires</p>
                         <div className="space-y-3">
-                          {reservation.optionsSupplementaires.priceOptions.map((option, idx) => (
+                          {reservation.optionsSupplementaires.priceOptions.map((option: any, idx: number) => (
                             <div key={idx} className="bg-slate-50 rounded-xl p-4">
                               <div className="flex justify-between items-start mb-3">
                                 <div>

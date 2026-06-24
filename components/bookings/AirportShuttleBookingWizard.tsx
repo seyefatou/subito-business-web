@@ -1363,7 +1363,7 @@ export default function AirportShuttleBookingWizard({
                 {/* Terminal Départ */}
                 {ciSens === 'airport_to_city' && (() => {
                   const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.address);
-                  const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                  const terminals = (selectedAirport as any)?.terminals ? Array.isArray((selectedAirport as any).terminals) ? (selectedAirport as any).terminals : [] : [];
                   if (!terminals || terminals.length === 0) return null;
                   return (
                     <div className="space-y-2">
@@ -1437,7 +1437,7 @@ export default function AirportShuttleBookingWizard({
                 {/* Terminal Arrivée */}
                 {ciSens === 'city_to_airport' && (() => {
                   const selectedAirport = aeroports.find(a => (a.nom || a.name) === formData.return_address);
-                  const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                  const terminals = (selectedAirport as any)?.terminals ? Array.isArray((selectedAirport as any).terminals) ? (selectedAirport as any).terminals : [] : [];
                   if (!terminals || terminals.length === 0) return null;
                   return (
                     <div className="space-y-2">
@@ -1756,7 +1756,7 @@ export default function AirportShuttleBookingWizard({
                   {/* Terminal Départ Retour */}
                   {ciSens === 'city_to_airport' && ciReturnDepartAddress && (() => {
                     const selectedAirport = aeroports.find(a => (a.nom || a.name) === ciReturnDepartAddress);
-                    const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                    const terminals = (selectedAirport as any)?.terminals ? Array.isArray((selectedAirport as any).terminals) ? (selectedAirport as any).terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
                     return (
                       <div className="space-y-2">
@@ -1828,7 +1828,7 @@ export default function AirportShuttleBookingWizard({
                   {/* Terminal Arrivée Retour */}
                   {ciSens === 'airport_to_city' && ciReturnArriveAddress && (() => {
                     const selectedAirport = aeroports.find(a => (a.nom || a.name) === ciReturnArriveAddress);
-                    const terminals = selectedAirport?.terminals ? Array.isArray(selectedAirport.terminals) ? selectedAirport.terminals : [] : [];
+                    const terminals = (selectedAirport as any)?.terminals ? Array.isArray((selectedAirport as any).terminals) ? (selectedAirport as any).terminals : [] : [];
                     if (!terminals || terminals.length === 0) return null;
                     return (
                       <div className="space-y-2">
@@ -2381,7 +2381,7 @@ export default function AirportShuttleBookingWizard({
                   // Determine which airport to check based on direction
                   const airportId = formData.direction === 'to_airport' ? selectedArriveeId : selectedDepartId;
                   const airportVille = airportId ? allVilles.find(v => v.id === airportId) : null;
-                  const terminals = airportVille?.terminals ? Array.isArray(airportVille.terminals) ? airportVille.terminals : [] : [];
+                  const terminals = (airportVille as any)?.terminals ? Array.isArray((airportVille as any).terminals) ? (airportVille as any).terminals : [] : [];
 
                   if (!terminals || terminals.length === 0) return null;
 
@@ -2478,7 +2478,7 @@ export default function AirportShuttleBookingWizard({
                     // So if direction was 'to_airport', we return from the airport
                     const returnAirportId = formData.direction === 'to_airport' ? selectedArriveeId : selectedDepartId;
                     const returnAirportVille = returnAirportId ? allVilles.find(v => v.id === returnAirportId) : null;
-                    const returnTerminals = returnAirportVille?.terminals ? Array.isArray(returnAirportVille.terminals) ? returnAirportVille.terminals : [] : [];
+                    const returnTerminals = (returnAirportVille as any)?.terminals ? Array.isArray((returnAirportVille as any).terminals) ? (returnAirportVille as any).terminals : [] : [];
 
                     if (!returnTerminals || returnTerminals.length === 0) return null;
 
