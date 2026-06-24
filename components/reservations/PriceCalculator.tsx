@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { api, QuoteResponseDto } from '@/lib/api';
@@ -98,7 +99,7 @@ export function PriceCalculator({
   const quote = quoteResponse?.data as QuoteResponseDto | undefined;
 
   // Notify parent of availability errors
-  React.useEffect(() => {
+  useEffect(() => {
     if (onAvailabilityError) {
       const isUnavailable = (error as any)?.status === 409 || error?.message?.includes('indisponible') || error?.message?.includes('disponible');
       onAvailabilityError(!!error && isUnavailable);
