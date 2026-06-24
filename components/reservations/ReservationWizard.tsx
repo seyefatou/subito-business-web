@@ -1070,7 +1070,7 @@ function ParticipantsSection({ capacite, state, setState }: ParticipantsSectionP
       <h3 className="text-base font-extrabold text-[#171c1f] mb-4" style={MANROPE}>
         Nombre de personnes
       </h3>
-      <div className="flex items-center justify-between border border-slate-200 rounded-xl px-3 py-2 w-fit">
+      <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 w-fit">
         <button
           onClick={() =>
             setState((prev) => ({
@@ -1082,9 +1082,20 @@ function ParticipantsSection({ capacite, state, setState }: ParticipantsSectionP
         >
           <Minus className="w-4 h-4" />
         </button>
-        <span className="text-lg font-extrabold text-[#171c1f] px-6" style={MANROPE}>
-          {state.nombrePersonnes}
-        </span>
+        <input
+          type="number"
+          min="1"
+          max={capacite}
+          value={state.nombrePersonnes}
+          onChange={(e) => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value) && value >= 1 && value <= capacite) {
+              setState((prev) => ({ ...prev, nombrePersonnes: value }));
+            }
+          }}
+          className="w-16 text-center text-lg font-extrabold text-[#171c1f] border-0 focus:outline-none focus:ring-0"
+          style={MANROPE}
+        />
         <button
           onClick={() =>
             setState((prev) => ({
