@@ -429,8 +429,8 @@ export function ReservationWizard({
                 <p className="text-sm font-bold text-[#171c1f]">{productName}</p>
               </div>
 
-              {/* Pricing */}
-              {state.step >= 2 && (
+{/* Pricing */}
+              {state.step >= 1 && (
                 isStep2Complete() ? (
                   <PriceCalculator
                     productType={productType}
