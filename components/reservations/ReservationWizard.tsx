@@ -949,14 +949,21 @@ function DateSection({ productType, state, setState }: DateSectionProps) {
             <label className="block text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">
               Date et heure de début
             </label>
-            <div className="space-y-2">
-              {/* Date debut */}
-              {/* Heure debut */}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                value={state.dateDebut ? state.dateDebut.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : undefined;
+                  setState((prev) => ({ ...prev, dateDebut: date }));
+                }}
+                className="border border-slate-200 rounded-xl px-4 py-3 text-sm"
+              />
               <input
                 type="time"
                 value={state.heureDebut || ''}
                 onChange={(e) => setState((prev) => ({ ...prev, heureDebut: e.target.value }))}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
+                className="border border-slate-200 rounded-xl px-4 py-3 text-sm"
               />
             </div>
           </div>
@@ -964,14 +971,21 @@ function DateSection({ productType, state, setState }: DateSectionProps) {
             <label className="block text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">
               Date et heure de fin
             </label>
-            <div className="space-y-2">
-              {/* Date fin */}
-              {/* Heure fin */}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                value={state.dateFin ? state.dateFin.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : undefined;
+                  setState((prev) => ({ ...prev, dateFin: date }));
+                }}
+                className="border border-slate-200 rounded-xl px-4 py-3 text-sm"
+              />
               <input
                 type="time"
                 value={state.heureFin || ''}
                 onChange={(e) => setState((prev) => ({ ...prev, heureFin: e.target.value }))}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm"
+                className="border border-slate-200 rounded-xl px-4 py-3 text-sm"
               />
             </div>
           </div>
