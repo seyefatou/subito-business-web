@@ -306,7 +306,7 @@ export function ReservationWizard({
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
           <Button
-            onClick={() => bookingId && router.push(`/service-reservations/${bookingId}/tracking`)}
+            onClick={() => bookingId && router.push(`/tracking/${bookingId}?type=${productType}`)}
             disabled={!bookingId}
             className="flex-1 bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-[0.98] gap-2 disabled:opacity-50"
           >

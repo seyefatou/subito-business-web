@@ -49,6 +49,11 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   intercity: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
+  salle: { label: "Salle", icon: Building2, color: "bg-orange-100 text-orange-700" },
+  logement: { label: "Logement", icon: Home, color: "bg-cyan-100 text-cyan-700" },
+  activite: { label: "Activité", icon: Star, color: "bg-pink-100 text-pink-700" },
+  circuit: { label: "Circuit", icon: MapPin, color: "bg-indigo-100 text-indigo-700" },
+  vehicule: { label: "Location Véhicule", icon: Car, color: "bg-yellow-100 text-yellow-700" },
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -95,6 +100,7 @@ export default function TrackingDetailPage() {
       const t = (serviceType || "").toLowerCase();
       if (t === "inter_city" || t === "intercity") return api.bookings.interCity.get(id);
       if (t === "vtc_hourly") return api.bookings.vtcHourly.get(id);
+      if (t === "salle" || t === "service_reservation" || t === "logement" || t === "activite" || t === "circuit" || t === "vehicule") return api.serviceReservations.get(id);
       return api.bookings.airportShuttle.get(id);
     },
     enabled: !isNaN(id),
