@@ -196,7 +196,7 @@ export default function InterCityCIBookingWizard() {
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Steps */}
         <div className="flex items-center justify-between">
-          {steps.map((step, idx) => {
+          {steps.map((step: any, idx: number) => {
             const Icon = step.icon;
             const isActive = step.id === currentStep;
             const isCompleted = step.id < currentStep;
@@ -267,7 +267,9 @@ export default function InterCityCIBookingWizard() {
                 <div>
                   <Label>Lieu de départ</Label>
                   <AddressAutocomplete
-                                        onSelect={(address) =>
+                    value={formData.departAddress || ''}
+                    onChange={(val) => setFormData({ ...formData, departAddress: val })}
+                    onSelect={(address: any) =>
                       setFormData({
                         ...formData,
                         departAddress: address.address || '',
@@ -280,7 +282,9 @@ export default function InterCityCIBookingWizard() {
                 <div>
                   <Label>Destination</Label>
                   <AddressAutocomplete
-                                        onSelect={(address) =>
+                    value={formData.arriveeAddress || ''}
+                    onChange={(val) => setFormData({ ...formData, arriveeAddress: val })}
+                    onSelect={(address: any) =>
                       setFormData({
                         ...formData,
                         arriveeAddress: address.address || '',
@@ -301,7 +305,7 @@ export default function InterCityCIBookingWizard() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[0, 1, 2, 3, 4].map((n) => (
+                        {[0, 1, 2, 3, 4].map((n: number) => (
                           <SelectItem key={n} value={String(n)}>
                             {n}
                           </SelectItem>
@@ -319,7 +323,7 @@ export default function InterCityCIBookingWizard() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[0, 1, 2, 3, 4].map((n) => (
+                        {[0, 1, 2, 3, 4].map((n: number) => (
                           <SelectItem key={n} value={String(n)}>
                             {n}
                           </SelectItem>
@@ -369,7 +373,7 @@ export default function InterCityCIBookingWizard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[1, 2, 3, 4, 5, 6].map((n) => (
+                      {[1, 2, 3, 4, 5, 6].map((n: number) => (
                         <SelectItem key={n} value={String(n)}>
                           {n} personne{n > 1 ? 's' : ''}
                         </SelectItem>
@@ -392,7 +396,7 @@ export default function InterCityCIBookingWizard() {
                   <p className="text-slate-500">Chargement des catégories...</p>
                 ) : categories && categories.length > 0 ? (
                   <div className="grid gap-3">
-                    {categories.map((category) => (
+                    {categories.map((category: any) => (
                       <div
                         key={category.code}
                         onClick={() => setFormData({ ...formData, categoryCode: category.code })}
@@ -426,7 +430,7 @@ export default function InterCityCIBookingWizard() {
                 <div className="space-y-3 pt-4 border-t border-slate-200">
                   <h3 className="font-semibold text-lg">Options supplémentaires</h3>
                   <div className="grid gap-3">
-                    {options.map((option) => {
+                    {options.map((option: any) => {
                       const selectedOption = formData.selectedOptions.find((o: any) => o.code === option.code);
                       const quantity = selectedOption?.quantite || 0;
 
