@@ -76,7 +76,7 @@ export default function ServiceReservationTrackingPage() {
   }
 
   const numberOfNights = Math.ceil(
-    (new Date(reservation.dateFin).getTime() - new Date(reservation.dateDebut).getTime()) /
+    (new Date(reservation.dateFin || '').getTime() - new Date(reservation.dateDebut || '').getTime()) /
       (1000 * 60 * 60 * 24)
   );
 
@@ -98,7 +98,7 @@ export default function ServiceReservationTrackingPage() {
               Suivi de réservation
             </p>
             <h1 className="text-3xl font-extrabold text-[#171c1f]" style={MANROPE}>
-              {reservation.logement?.nom || reservation.activite?.nom || reservation.circuit?.nom || 'Réservation'}
+              {(reservation.logement as any)?.nom || (reservation.activite as any)?.nom || (reservation.circuit as any)?.nom || 'Réservation'}
             </h1>
           </div>
           <Badge className={`${status.color} border-0 px-4 py-2 text-sm font-bold`}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, Salle } from '@/lib/api';
 import { MapPin, Users, DollarSign, ArrowLeft, Phone, Mail, Clock, AlertCircle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -110,7 +110,7 @@ export default function LieuDetailPage() {
               <div className="pt-4 border-t border-slate-200 space-y-2">
                 <p className="text-sm font-semibold text-slate-700">Équipements du lieu</p>
                 <div className="flex flex-wrap gap-2">
-                  {lieu.equipements.map((eq, idx) => (
+                  {lieu.equipements.map((eq: string, idx: number) => (
                     <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
                       {eq}
                     </span>
@@ -130,7 +130,7 @@ export default function LieuDetailPage() {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
             <h2 className="text-xl font-bold text-slate-900">Salles disponibles ({lieu.salles.length})</h2>
             <div className="space-y-6">
-              {lieu.salles.map((salle) => {
+              {lieu.salles.map((salle: Salle) => {
                 const salleImageUrl = salle.images?.[0] ? `https://dev.api.mysubito.net/uploads/${salle.images[0]}` : null;
                 return (
                   <div key={salle.id} className="border border-slate-200 rounded-xl overflow-hidden">
@@ -176,7 +176,7 @@ export default function LieuDetailPage() {
                         <div className="space-y-2">
                           <p className="text-sm font-semibold text-slate-700">Équipements de la salle</p>
                           <div className="flex flex-wrap gap-2">
-                            {salle.equipements.map((eq, idx) => (
+                            {salle.equipements.map((eq: string, idx: number) => (
                               <span key={idx} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
                                 {eq}
                               </span>
@@ -225,7 +225,7 @@ export default function LieuDetailPage() {
                                   )}
                                 </div>
                                 <p className="font-bold text-slate-900 ml-2 flex-shrink-0">
-                                  {opt.prix.toLocaleString()} FCFA
+                                  {(opt.prix ?? 0).toLocaleString()} FCFA
                                 </p>
                               </div>
                             ))}
@@ -262,14 +262,14 @@ export default function LieuDetailPage() {
                   <div className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-600 font-semibold">CAPACITÉ MAX</p>
                     <p className="font-bold text-2xl text-slate-900 mt-1">
-                      {Math.max(...lieu.salles.map(s => s.capacite))} personnes
+                      {Math.max(...lieu.salles.map((s: Salle) => s.capacite))} personnes
                     </p>
                   </div>
 
                   <div className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-600 font-semibold">PRIX MIN/HEURE</p>
                     <p className="font-bold text-2xl text-[#E04A1F] mt-1">
-                      {Math.min(...lieu.salles.map(s => s.prixParHeure)).toLocaleString()} FCFA
+                      {Math.min(...lieu.salles.map((s: Salle) => s.prixParHeure)).toLocaleString()} FCFA
                     </p>
                   </div>
                 </>

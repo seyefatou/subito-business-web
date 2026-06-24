@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, Salle } from '@/lib/api';
 import Link from 'next/link';
 import { MapPin, Users, DollarSign, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -100,7 +100,7 @@ export default function LocationSallePage() {
                   {/* Equipements */}
                   {lieu.equipements && lieu.equipements.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {lieu.equipements.slice(0, 2).map((eq, idx) => (
+                      {lieu.equipements.slice(0, 2).map((eq: string, idx: number) => (
                         <span key={idx} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
                           {eq}
                         </span>
@@ -121,7 +121,7 @@ export default function LocationSallePage() {
                   {/* Salles Preview */}
                   {lieu.salles && lieu.salles.length > 0 && (
                     <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-100">
-                      {lieu.salles.slice(0, 1).map((salle) => (
+                      {lieu.salles.slice(0, 1).map((salle: Salle) => (
                         <div key={salle.id} className="space-y-1">
                           <div className="font-semibold text-sm text-slate-800">{salle.nom}</div>
                           <div className="flex items-center gap-3 text-xs text-slate-600">

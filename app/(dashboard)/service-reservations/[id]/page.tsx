@@ -63,7 +63,7 @@ export default function ServiceReservationDetailPage() {
     enabled: !isNaN(id),
   });
 
-  const reservation = response?.data;
+  const reservation = response?.data as any;
 
   if (isLoading) {
     return (
@@ -89,7 +89,7 @@ export default function ServiceReservationDetailPage() {
   }
 
   const numberOfNights = Math.ceil(
-    (new Date(reservation.dateFin).getTime() - new Date(reservation.dateDebut).getTime()) /
+    (new Date(reservation.dateFin || '').getTime() - new Date(reservation.dateDebut || '').getTime()) /
       (1000 * 60 * 60 * 24)
   );
 
@@ -118,7 +118,7 @@ export default function ServiceReservationDetailPage() {
               Réservations
             </Link>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-[#E04A1F] font-semibold">{reservation.reservationCode}</span>
+            <span className="text-[#E04A1F] font-semibold">{reservation.reservationCode || 'N/A'}</span>
           </nav>
           <h1
             className="text-4xl font-extrabold tracking-tight text-[#171c1f]"
@@ -341,7 +341,7 @@ export default function ServiceReservationDetailPage() {
                   <div>
                     <p className="text-base font-extrabold text-[#171c1f] mb-4">Options supplémentaires</p>
                     <div className="space-y-3">
-                      {reservation.optionsSupplementaires.priceOptions.map((option, idx) => (
+                      {reservation.optionsSupplementaires.priceOptions.map((option: any, idx: number) => (
                         <div key={idx} className="bg-slate-50 rounded-xl p-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
