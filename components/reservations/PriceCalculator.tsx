@@ -76,6 +76,10 @@ export function PriceCalculator({
           params.serviceType = 'FLOTTE';
           params.vehiculeLocationId = productId;
           break;
+        case 'salle':
+          params.serviceType = 'SALLE';
+          params.salleId = productId;
+          break;
       }
 
       return api.serviceReservations.quote(params);

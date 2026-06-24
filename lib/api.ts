@@ -1012,11 +1012,12 @@ export interface CreateServiceReservationDto {
 }
 
 export interface QuoteRequestDto {
-  serviceType?: 'ACTIVITE' | 'LOGEMENT' | 'CIRCUIT' | 'FLOTTE';
+  serviceType?: 'ACTIVITE' | 'LOGEMENT' | 'CIRCUIT' | 'FLOTTE' | 'SALLE';
   activiteId?: number;
   circuitId?: number;
   logementId?: number;
   chambreId?: number;
+  salleId?: number;
   vehiculeLocationId?: number;
   dateDebut?: string;
   dateFin?: string;
