@@ -19,6 +19,7 @@ interface PriceCalculatorProps {
   priceOptionIds?: number[];
   pensions?: any[];
   priceOptions?: any[];
+  onAvailabilityError?: (hasError: boolean) => void;
 }
 
 export function PriceCalculator({
@@ -33,6 +34,7 @@ export function PriceCalculator({
   priceOptionIds = [],
   pensions = [],
   priceOptions = [],
+  onAvailabilityError,
 }: PriceCalculatorProps) {
   const { data: quoteResponse, isLoading, error } = useQuery({
     queryKey: ['quote', productType, productId, dateDebut, dateFin, heureDebut, heureFin, nombrePersonnes, pensionIds, priceOptionIds],
@@ -95,6 +97,14 @@ export function PriceCalculator({
 
   const quote = quoteResponse?.data as QuoteResponseDto | undefined;
 
+  // Notify parent of availability errors
+  React.useEffect(() => {
+    if (onAvailabilityError) {
+      const isUnavailable = (error as any)?.status === 409 || error?.message?.includes('indisponible') || error?.message?.includes('disponible');
+      onAvailabilityError(!!error && isUnavailable);
+    }
+  }, [error, onAvailabilityError]);
+
   if (isLoading) {
     return (
       <div className="space-y-3 p-4 bg-slate-50 rounded-xl">
@@ -107,10 +117,16 @@ export function PriceCalculator({
   }
 
   if (error) {
+    const isUnavailable = (error as any)?.status === 409 || error.message?.includes('indisponible') || error.message?.includes('disponible');
+    const errorTitle = isUnavailable ? '❌ Service indisponible' : '⚠️ Erreur lors du calcul du prix';
+    const errorMessage = isUnavailable
+      ? 'Cette salle n\'est pas disponible pour les dates/heures sélectionnées. Veuillez choisir d\'autres dates.'
+      : error.message;
+
     return (
       <div className="space-y-3 p-4 bg-red-50 rounded-xl border border-red-200">
-        <p className="text-sm text-red-800">⚠️ Erreur lors du calcul du prix</p>
-        <p className="text-xs text-red-600">{error.message}</p>
+        <p className="text-sm font-semibold text-red-800">{errorTitle}</p>
+        <p className="text-xs text-red-600">{errorMessage}</p>
       </div>
     );
   }

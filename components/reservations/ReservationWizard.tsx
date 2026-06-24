@@ -56,6 +56,7 @@ export function ReservationWizard({
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
   const [bookingId, setBookingId] = useState<number | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
 
   const isStep2Complete = () => {
     if (productType === 'logement' || productType === 'circuit') {
@@ -443,6 +444,7 @@ export function ReservationWizard({
                     priceOptionIds={state.selectedPriceOptions}
                     pensions={pensions}
                     priceOptions={priceOptions}
+                    onAvailabilityError={setIsUnavailable}
                   />
                 ) : (
                   <div className="space-y-3 p-4 bg-slate-50 rounded-xl">
@@ -476,7 +478,8 @@ export function ReservationWizard({
                 ) : (
                   <Button
                     onClick={handleConfirm}
-                    disabled={createReservationMutation.isPending}
+                    disabled={createReservationMutation.isPending || isUnavailable}
+                    title={isUnavailable ? 'Veuillez choisir d\'autres dates' : ''}
                     className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-4 h-4 mr-2" />
