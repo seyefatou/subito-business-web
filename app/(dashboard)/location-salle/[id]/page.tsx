@@ -14,6 +14,7 @@ export default function LieuDetailPage() {
   const { data: lieu, isLoading, error } = useQuery({
     queryKey: ['lieu', lieuId],
     queryFn: () => api.lieux.detail(lieuId),
+    select: (response: any) => response?.data || response,
   });
 
   if (isLoading) {
@@ -66,14 +67,14 @@ export default function LieuDetailPage() {
                   }}
                 />
               ) : (
-                <p className="text-slate-400">Pas d'image</p>
+                <p className="text-slate-400">Pas d&apos;image</p>
               )}
             </div>
 
             {/* Thumbs */}
             {lieu.images && lieu.images.length > 1 && (
               <div className="p-4 flex gap-2 overflow-x-auto">
-                {lieu.images.map((img, idx) => (
+                {lieu.images.map((img: string, idx: number) => (
                   <img
                     key={idx}
                     src={`https://dev.api.mysubito.net/uploads/${img}`}

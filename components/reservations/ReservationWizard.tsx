@@ -262,7 +262,7 @@ export function ReservationWizard({
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-slate-500">Date d'arrivée</span>
+                <span className="text-slate-500">Date d&apos;arrivée</span>
                 <span className="font-semibold text-slate-900">
                   {state.dateDebut ? format(new Date(state.dateDebut), 'dd MMM yyyy', { locale: fr }) : '-'}
                 </span>

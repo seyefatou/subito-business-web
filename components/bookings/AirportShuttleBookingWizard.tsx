@@ -1367,7 +1367,7 @@ export default function AirportShuttleBookingWizard({
                   if (!terminals || terminals.length === 0) return null;
                   return (
                     <div className="space-y-2">
-                      <Label>Terminal de l'aéroport de départ</Label>
+                      <Label>Terminal de l&apos;aéroport de départ</Label>
                       <Select
                         value={formData.terminalDepartId?.toString() || 'none'}
                         onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
@@ -1441,7 +1441,7 @@ export default function AirportShuttleBookingWizard({
                   if (!terminals || terminals.length === 0) return null;
                   return (
                     <div className="space-y-2">
-                      <Label>Terminal de l'aéroport d'arrivée</Label>
+                      <Label>Terminal de l&apos;aéroport d&apos;arrivée</Label>
                       <Select
                         value={formData.terminalRetourId?.toString() || 'none'}
                         onValueChange={(v) => handleChange('terminalRetourId', v === 'none' ? null : parseInt(v))}
@@ -1832,7 +1832,7 @@ export default function AirportShuttleBookingWizard({
                     if (!terminals || terminals.length === 0) return null;
                     return (
                       <div className="space-y-2">
-                        <Label>Terminal d'arrivée retour</Label>
+                        <Label>Terminal d&apos;arrivée retour</Label>
                         <Select
                           value={formData.terminalDepartId?.toString() || 'none'}
                           onValueChange={(v) => handleChange('terminalDepartId', v === 'none' ? null : parseInt(v))}
