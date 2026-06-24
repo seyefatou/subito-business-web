@@ -41,6 +41,8 @@ const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{
   ACTIVITE: { label: "Activite", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-cyan-100 text-cyan-700" },
   FLOTTE: { label: "Location de vehicule", icon: Car, color: "bg-pink-100 text-pink-700" },
+  SALLE: { label: "Salle", icon: Package, color: "bg-orange-100 text-orange-700" },
+  CIRCUIT: { label: "Circuit", icon: MapPin, color: "bg-indigo-100 text-indigo-700" },
 };
 
 const canalLabels: Record<string, string> = {
@@ -235,7 +237,10 @@ function Tracking() {
       return `/tracking/${booking.id}?type=${t === 'intercity' ? 'inter_city' : t}`;
     }
     if (t === 'visa_assistance') return `/travel-documents/${booking.id}`;
-    if (['FLOTTE', 'LOGEMENT', 'ACTIVITE', 'HOTEL'].includes(t)) return `/service-reservations/${booking.id}`;
+    // Service reservations (SALLE, LOGEMENT, ACTIVITE, CIRCUIT, FLOTTE, HOTEL)
+    if (['SALLE', 'FLOTTE', 'LOGEMENT', 'ACTIVITE', 'CIRCUIT', 'HOTEL'].includes(t)) {
+      return `/tracking/${booking.id}?type=${t.toLowerCase()}`;
+    }
     return `/tracking/${booking.id}`;
   };
 
@@ -249,6 +254,8 @@ function Tracking() {
     { id: "ACTIVITE", label: "Activite" },
     { id: "LOGEMENT", label: "Logement" },
     { id: "FLOTTE", label: "Location" },
+    { id: "SALLE", label: "Salle" },
+    { id: "CIRCUIT", label: "Circuit" },
   ];
 
   // Status pill colors
