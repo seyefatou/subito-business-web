@@ -135,12 +135,14 @@ export default function InterCityCIBookingWizard() {
     mutationFn: async (data: any) => {
       return api.bookings.intervilleCi.create(data);
     },
-    onSuccess: (response) => {
-      setBookingReference(response.data.bookingCode || '');
+    onSuccess: (response: any) => {
+      const booking = response?.data || response;
+      const bookingCode = booking.bookingCode || '';
+      setBookingReference(bookingCode);
       setBookingSuccess(true);
       toast.success('Réservation créée avec succès!');
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      setTimeout(() => router.push('/service-reservations'), 2000);
+      setTimeout(() => router.push(`/tracking/${bookingCode}`), 2000);
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Erreur lors de la création de la réservation');
