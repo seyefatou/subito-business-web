@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -30,8 +31,10 @@ import {
   Mail,
   Loader2,
   ArrowRight,
+  ArrowRightLeft,
   Plus,
   X,
+  CheckCircle2,
 } from 'lucide-react';
 
 const steps = [
@@ -445,6 +448,24 @@ export default function InterCityCIBookingWizard() {
                     countryCode="CI"
                   />
                 </div>
+
+                {/* Aller-retour toggle */}
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-5 mt-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#E04A1F] truncate">Aller-retour</p>
+                      <p className="text-xs text-slate-500">Reserver le retour</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={!formData.isOneWay}
+                    onCheckedChange={(v) => setFormData({ ...formData, isOneWay: !v })}
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Bagages 23kg</Label>
