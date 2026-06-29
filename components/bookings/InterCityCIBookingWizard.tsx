@@ -303,6 +303,7 @@ export default function InterCityCIBookingWizard() {
                         departLng: address.lng || null,
                       })
                     }
+                    countryCode="CI"
                   />
                 </div>
                 <div>
@@ -318,6 +319,7 @@ export default function InterCityCIBookingWizard() {
                         arriveeLng: address.lng || null,
                       })
                     }
+                    countryCode="CI"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
