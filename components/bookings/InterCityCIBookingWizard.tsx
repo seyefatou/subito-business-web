@@ -71,7 +71,8 @@ interface FormData {
   bagages23: number;
   bagages10: number;
   categoryCode: string;
-  selectedOptions: Array<{ code: string; quantite: number }>;
+  selectedOptionsAller: Array<{ code: string; quantite: number }>;
+  selectedOptionsRetour: Array<{ code: string; quantite: number }>;
   paidBy: 'company' | 'client';
 }
 
@@ -109,7 +110,8 @@ export default function InterCityCIBookingWizard() {
     bagages23: 0,
     bagages10: 0,
     categoryCode: '',
-    selectedOptions: [],
+    selectedOptionsAller: [],
+    selectedOptionsRetour: [],
     paidBy: 'company',
   });
 
@@ -185,11 +187,16 @@ export default function InterCityCIBookingWizard() {
   }, [selectedCategoryInfo]);
 
   const optionsCost = useMemo(() => {
-    return formData.selectedOptions.reduce((total, opt) => {
+    const allerCost = formData.selectedOptionsAller.reduce((total, opt) => {
       const optionInfo = options?.find((o: any) => o.code === opt.code);
       return total + (optionInfo?.prix || 0) * opt.quantite;
     }, 0);
-  }, [formData.selectedOptions, options]);
+    const retourCost = formData.selectedOptionsRetour.reduce((total, opt) => {
+      const optionInfo = options?.find((o: any) => o.code === opt.code);
+      return total + (optionInfo?.prix || 0) * opt.quantite;
+    }, 0);
+    return allerCost + retourCost;
+  }, [formData.selectedOptionsAller, formData.selectedOptionsRetour, options]);
 
   const totalPrice = categoryPrice + optionsCost;
 
@@ -336,11 +343,20 @@ export default function InterCityCIBookingWizard() {
                         scheduledDate: '',
                         scheduledTime: '',
                         isOneWay: true,
+                        departRetourAddress: '',
+                        departRetourLat: null,
+                        departRetourLng: null,
+                        arriveeRetourAddress: '',
+                        arriveeRetourLat: null,
+                        arriveeRetourLng: null,
+                        scheduledDateRetour: '',
+                        scheduledTimeRetour: '',
                         pax: 1,
                         bagages23: 0,
                         bagages10: 0,
                         categoryCode: '',
-                        selectedOptions: [],
+                        selectedOptionsAller: [],
+                        selectedOptionsRetour: [],
                         paidBy: 'company',
                       });
                       setCurrentStep(2);
@@ -509,6 +525,82 @@ export default function InterCityCIBookingWizard() {
                       />
                     </div>
                   </div>
+
+                  {/* Options supplémentaires - Aller */}
+                  {options && options.length > 0 && (
+                    <div className="pt-4 border-t border-slate-200 space-y-3">
+                      <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-[#E04A1F]" />
+                        Options supplémentaires
+                      </h4>
+                      <div className="space-y-2">
+                        {options.map((option: any) => {
+                          const selectedOption = formData.selectedOptionsAller.find((o: any) => o.code === option.code);
+                          const quantity = selectedOption?.quantite || 0;
+
+                          return (
+                            <div key={option.code} className="p-2 border border-slate-200 rounded-lg hover:border-orange-200 transition">
+                              <div className="flex justify-between items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-sm text-slate-900">{option.label}</p>
+                                  <p className="text-xs text-slate-600">{option.prix.toLocaleString()} FCFA</p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {quantity > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() =>
+                                        setFormData({
+                                          ...formData,
+                                          selectedOptionsAller: formData.selectedOptionsAller
+                                            .map(o =>
+                                              o.code === option.code && o.quantite > 1
+                                                ? { ...o, quantite: o.quantite - 1 }
+                                                : o
+                                            )
+                                            .filter((o: any) => o.quantite > 0),
+                                        })
+                                      }
+                                    >
+                                      −
+                                    </Button>
+                                  )}
+                                  <span className="w-6 text-center font-semibold text-sm">{quantity}</span>
+                                  {quantity < option.maxQuantite && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => {
+                                        const existing = formData.selectedOptionsAller.find((o: any) => o.code === option.code);
+                                        if (existing) {
+                                          setFormData({
+                                            ...formData,
+                                            selectedOptionsAller: formData.selectedOptionsAller.map(o =>
+                                              o.code === option.code ? { ...o, quantite: o.quantite + 1 } : o
+                                            ),
+                                          });
+                                        } else {
+                                          setFormData({
+                                            ...formData,
+                                            selectedOptionsAller: [...formData.selectedOptionsAller, { code: option.code, quantite: 1 }],
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      +
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -599,6 +691,82 @@ export default function InterCityCIBookingWizard() {
                         />
                       </div>
                     </div>
+
+                    {/* Options supplémentaires - Retour */}
+                    {options && options.length > 0 && (
+                      <div className="pt-4 border-t border-orange-200 space-y-3">
+                        <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                          <Plus className="w-4 h-4 text-[#E04A1F]" />
+                          Options supplémentaires
+                        </h4>
+                        <div className="space-y-2">
+                          {options.map((option: any) => {
+                            const selectedOption = formData.selectedOptionsRetour.find((o: any) => o.code === option.code);
+                            const quantity = selectedOption?.quantite || 0;
+
+                            return (
+                              <div key={option.code} className="p-2 border border-orange-200 rounded-lg hover:border-orange-300 transition bg-white/50">
+                                <div className="flex justify-between items-center gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm text-slate-900">{option.label}</p>
+                                    <p className="text-xs text-slate-600">{option.prix.toLocaleString()} FCFA</p>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {quantity > 0 && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() =>
+                                          setFormData({
+                                            ...formData,
+                                            selectedOptionsRetour: formData.selectedOptionsRetour
+                                              .map(o =>
+                                                o.code === option.code && o.quantite > 1
+                                                  ? { ...o, quantite: o.quantite - 1 }
+                                                  : o
+                                              )
+                                              .filter((o: any) => o.quantite > 0),
+                                          })
+                                        }
+                                      >
+                                        −
+                                      </Button>
+                                    )}
+                                    <span className="w-6 text-center font-semibold text-sm">{quantity}</span>
+                                    {quantity < option.maxQuantite && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => {
+                                          const existing = formData.selectedOptionsRetour.find((o: any) => o.code === option.code);
+                                          if (existing) {
+                                            setFormData({
+                                              ...formData,
+                                              selectedOptionsRetour: formData.selectedOptionsRetour.map(o =>
+                                                o.code === option.code ? { ...o, quantite: o.quantite + 1 } : o
+                                              ),
+                                            });
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              selectedOptionsRetour: [...formData.selectedOptionsRetour, { code: option.code, quantite: 1 }],
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        +
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -666,82 +834,6 @@ export default function InterCityCIBookingWizard() {
                 </div>
               </div>
 
-              {/* OPTIONS SUPPLÉMENTAIRES SECTION */}
-              {options && options.length > 0 && (
-                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
-                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900">
-                    <Plus className="w-5 h-5 text-[#E04A1F]" />
-                    Options supplémentaires
-                  </h3>
-                  <div className="space-y-3">
-                    {options.map((option: any) => {
-                      const selectedOption = formData.selectedOptions.find((o: any) => o.code === option.code);
-                      const quantity = selectedOption?.quantite || 0;
-
-                      return (
-                        <div key={option.code} className="p-3 border border-slate-200 rounded-lg hover:border-orange-200 transition">
-                          <div className="flex justify-between items-center">
-                            <div className="flex-1">
-                              <p className="font-semibold text-slate-900">{option.label}</p>
-                              <p className="text-xs text-slate-500">{option.description}</p>
-                              <p className="text-sm font-bold text-orange-600 mt-1">
-                                {option.prix.toLocaleString()} FCFA {option.pricingMode === 'FLAT' ? '(unitaire)' : '(par km)'}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {quantity > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setFormData({
-                                      ...formData,
-                                      selectedOptions: formData.selectedOptions
-                                        .map(o =>
-                                          o.code === option.code && o.quantite > 1
-                                            ? { ...o, quantite: o.quantite - 1 }
-                                            : o
-                                        )
-                                        .filter((o: any) => o.quantite > 0),
-                                    })
-                                  }
-                                >
-                                  −
-                                </Button>
-                              )}
-                              <span className="w-8 text-center font-semibold">{quantity}</span>
-                              {quantity < option.maxQuantite && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    const existing = formData.selectedOptions.find((o: any) => o.code === option.code);
-                                    if (existing) {
-                                      setFormData({
-                                        ...formData,
-                                        selectedOptions: formData.selectedOptions.map(o =>
-                                          o.code === option.code ? { ...o, quantite: o.quantite + 1 } : o
-                                        ),
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        selectedOptions: [...formData.selectedOptions, { code: option.code, quantite: 1 }],
-                                      });
-                                    }
-                                  }}
-                                >
-                                  +
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -811,16 +903,20 @@ export default function InterCityCIBookingWizard() {
                   <span className="text-slate-600">Véhicule:</span>
                   <span className="font-semibold">{selectedCategoryInfo?.label || formData.categoryCode}</span>
                 </div>
-                {formData.selectedOptions.length > 0 && (
+                {(formData.selectedOptionsAller.length > 0 || formData.selectedOptionsRetour.length > 0) && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Options:</span>
                     <span className="font-semibold">
-                      {formData.selectedOptions
-                        .map(opt => {
+                      {[
+                        ...formData.selectedOptionsAller.map(opt => {
                           const optInfo = options?.find((o: any) => o.code === opt.code);
                           return `${optInfo?.label} x${opt.quantite}`;
-                        })
-                        .join(', ')}
+                        }),
+                        ...formData.selectedOptionsRetour.map(opt => {
+                          const optInfo = options?.find((o: any) => o.code === opt.code);
+                          return `${optInfo?.label} x${opt.quantite}`;
+                        }),
+                      ].join(', ')}
                     </span>
                   </div>
                 )}
