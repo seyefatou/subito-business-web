@@ -755,16 +755,22 @@ export default function AirportShuttleBookingWizard({
   };
 
   const calculateCIPriceTotal = (): number => {
+    if (!ciCategoryCode) return 0;
+
+    // Try to use price with options first (if available)
+    if (ciPricesWithOptions?.has(ciCategoryCode)) {
+      return ciPricesWithOptions.get(ciCategoryCode) || 0;
+    }
+
     // For round-trip, use the single quote that includes both aller and retour prices
     if (formData.is_round_trip && ciQuote) {
-      // Find the selected category in the quote and use its total price
       const selectedOption = ciQuote.options.find(opt => opt.code === ciCategoryCode);
       if (selectedOption) {
-        // prix field already includes aller + retour with discount applied
         return selectedOption.prix;
       }
     }
-    // For one-way, just use ciCategoryPrice
+
+    // Fallback to ciCategoryPrice
     return ciCategoryPrice;
   };
 
@@ -3463,10 +3469,10 @@ export default function AirportShuttleBookingWizard({
                         )}
                       </div>
 
-                      {/* Options supplémentaires sélectionnées */}
+                      {/* Options supplémentaires sélectionnées - ALLER */}
                       {(Object.values(ciSimpleOptions).some(q => q > 0) || Object.values(ciAddressOptions).some(a => a.length > 0)) && (
                         <div className="pt-2 border-t border-slate-200 space-y-2">
-                          <p className="text-xs text-slate-400">Options supplémentaires</p>
+                          <p className="text-xs text-slate-400">Options supplémentaires (Aller)</p>
                           {Object.entries(ciSimpleOptions).map(([id, qty]) => {
                             if (!qty) return null;
                             const opt = ciOptions.find(o => o.id === Number(id));
@@ -3479,6 +3485,47 @@ export default function AirportShuttleBookingWizard({
                             );
                           })}
                           {Object.entries(ciAddressOptions).map(([id, adrs]) => {
+                            if (!adrs.length) return null;
+                            const opt = ciOptions.find(o => o.id === Number(id));
+                            if (!opt) return null;
+                            return (
+                              <div key={id} className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-slate-600">{opt.label} ({adrs.length} arrêt{adrs.length > 1 ? 's' : ''})</span>
+                                  <span className="font-medium text-slate-800">
+                                    {opt.pricingMode === 'FLAT'
+                                      ? `+${(opt.prix * adrs.length).toLocaleString()} FCFA`
+                                      : 'Calculé au km'}
+                                  </span>
+                                </div>
+                                {adrs.map((a, i) => (
+                                  <div key={i} className="flex items-start gap-1.5 pl-3">
+                                    <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                                    <span className="text-xs text-slate-500">{a.adresse || '—'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Options supplémentaires sélectionnées - RETOUR (si aller-retour) */}
+                      {formData.is_round_trip && (Object.values(ciReturnSimpleOptions).some(q => q > 0) || Object.values(ciReturnAddressOptions).some(a => a.length > 0)) && (
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <p className="text-xs text-slate-400">Options supplémentaires (Retour)</p>
+                          {Object.entries(ciReturnSimpleOptions).map(([id, qty]) => {
+                            if (!qty) return null;
+                            const opt = ciOptions.find(o => o.id === Number(id));
+                            if (!opt) return null;
+                            return (
+                              <div key={id} className="flex justify-between text-sm">
+                                <span className="text-slate-600">{opt.label} ×{qty}</span>
+                                <span className="font-medium text-slate-800">+{(opt.prix * qty).toLocaleString()} FCFA</span>
+                              </div>
+                            );
+                          })}
+                          {Object.entries(ciReturnAddressOptions).map(([id, adrs]) => {
                             if (!adrs.length) return null;
                             const opt = ciOptions.find(o => o.id === Number(id));
                             if (!opt) return null;
