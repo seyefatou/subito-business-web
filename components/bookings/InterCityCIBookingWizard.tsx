@@ -295,12 +295,12 @@ export default function InterCityCIBookingWizard() {
                   <AddressAutocomplete
                     value={formData.departAddress || ''}
                     onChange={(val) => setFormData({ ...formData, departAddress: val })}
-                    onSelect={(address: any) =>
+                    onSelect={(address: string, lat: number, lng: number) =>
                       setFormData({
                         ...formData,
-                        departAddress: address.address || '',
-                        departLat: address.lat || null,
-                        departLng: address.lng || null,
+                        departAddress: address,
+                        departLat: lat,
+                        departLng: lng,
                       })
                     }
                     countryCode="CI"
@@ -311,12 +311,12 @@ export default function InterCityCIBookingWizard() {
                   <AddressAutocomplete
                     value={formData.arriveeAddress || ''}
                     onChange={(val) => setFormData({ ...formData, arriveeAddress: val })}
-                    onSelect={(address: any) =>
+                    onSelect={(address: string, lat: number, lng: number) =>
                       setFormData({
                         ...formData,
-                        arriveeAddress: address.address || '',
-                        arriveeLat: address.lat || null,
-                        arriveeLng: address.lng || null,
+                        arriveeAddress: address,
+                        arriveeLat: lat,
+                        arriveeLng: lng,
                       })
                     }
                     countryCode="CI"
