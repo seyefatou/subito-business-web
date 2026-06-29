@@ -2099,6 +2099,20 @@ class ApiClient {
         this.authPost<BookingResponse>('/bookings/airport-shuttle/ci/compagny/create', data),
     },
 
+    // Inter-ville CI
+    intervilleCi: {
+      getCategories: () =>
+        this.request<any[]>('/bookings/interville-ci/categories'),
+      getOptions: () =>
+        this.request<any[]>('/bookings/interville-ci/options'),
+      getQuote: (data: { departLat: number; departLng: number; arriveeLat: number; arriveeLng: number; pax: number; bagages23: number; bagages10: number; isOneWay?: boolean; departRetourLat?: number; departRetourLng?: number; arriveeRetourLat?: number; arriveeRetourLng?: number }) =>
+        this.authPost<any>('/bookings/interville-ci/quote', data),
+      getPrice: (data: any) =>
+        this.authPost<any>('/bookings/interville-ci/price', data),
+      create: (data: any) =>
+        this.authPost<BookingResponse>('/bookings/interville-ci/compagny/create', data),
+    },
+
     // Dashboard & Stats
     dashboard: () =>
       this.authGet<DashboardData>('/bookings/compagny/dashboard'),

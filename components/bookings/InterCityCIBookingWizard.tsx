@@ -132,8 +132,8 @@ export default function InterCityCIBookingWizard() {
 
   // Create booking
   const { mutate: createBooking, isPending } = useMutation({
-    mutationFn: async (data: CreateInterCityBookingDto) => {
-      return api.bookings.createInterCity(data);
+    mutationFn: async (data: any) => {
+      return api.bookings.intervilleCi.create(data);
     },
     onSuccess: (response) => {
       setBookingReference(response.data.bookingCode || '');
