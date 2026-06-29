@@ -665,63 +665,24 @@ export default function InterCityCIBookingWizard() {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Sélection du véhicule et options</h2>
-
-              {/* Vehicle Categories */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg">Catégories de véhicules</h3>
-                {categoriesLoading ? (
-                  <p className="text-slate-500">Chargement des catégories...</p>
-                ) : categories && categories.length > 0 ? (
-                  <div className="grid gap-3">
-                    {categories.map((category: any) => (
-                      <div
-                        key={category.code}
-                        onClick={() => setFormData({ ...formData, categoryCode: category.code })}
-                        className={`p-4 border-2 rounded-xl cursor-pointer transition ${
-                          formData.categoryCode === category.code
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-bold text-lg">{category.label}</h4>
-                            <p className="text-sm text-slate-600">
-                              Jusqu&apos;à {category.maxPax} passagers • {category.maxBagages23kg}x23kg • {category.maxBagages10kg}x10kg
-                            </p>
-                          </div>
-                          <Badge className="bg-orange-100 text-orange-700 border-0">
-                            À partir de {category.tarifs[0]?.minimumGaranti.toLocaleString()} FCFA
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-600">Aucune catégorie disponible</p>
-                )}
-              </div>
-
-              {/* Additional Options */}
+              {/* OPTIONS SUPPLÉMENTAIRES SECTION */}
               {options && options.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-slate-200">
-                  <h3 className="font-semibold text-lg">Options supplémentaires</h3>
-                  <div className="grid gap-3">
+                <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
+                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                    <Plus className="w-5 h-5 text-[#E04A1F]" />
+                    Options supplémentaires
+                  </h3>
+                  <div className="space-y-3">
                     {options.map((option: any) => {
                       const selectedOption = formData.selectedOptions.find((o: any) => o.code === option.code);
                       const quantity = selectedOption?.quantite || 0;
 
                       return (
-                        <div key={option.code} className="p-3 border border-slate-200 rounded-lg">
+                        <div key={option.code} className="p-3 border border-slate-200 rounded-lg hover:border-orange-200 transition">
                           <div className="flex justify-between items-center">
                             <div className="flex-1">
-                              <p className="font-semibold">{option.label}</p>
+                              <p className="font-semibold text-slate-900">{option.label}</p>
                               <p className="text-xs text-slate-500">{option.description}</p>
                               <p className="text-sm font-bold text-orange-600 mt-1">
                                 {option.prix.toLocaleString()} FCFA {option.pricingMode === 'FLAT' ? '(unitaire)' : '(par km)'}
@@ -781,6 +742,48 @@ export default function InterCityCIBookingWizard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold">Sélection du véhicule</h2>
+
+              {/* Vehicle Categories */}
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Catégories de véhicules</h3>
+                {categoriesLoading ? (
+                  <p className="text-slate-500">Chargement des catégories...</p>
+                ) : categories && categories.length > 0 ? (
+                  <div className="grid gap-3">
+                    {categories.map((category: any) => (
+                      <div
+                        key={category.code}
+                        onClick={() => setFormData({ ...formData, categoryCode: category.code })}
+                        className={`p-4 border-2 rounded-xl cursor-pointer transition ${
+                          formData.categoryCode === category.code
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-lg">{category.label}</h4>
+                            <p className="text-sm text-slate-600">
+                              Jusqu&apos;à {category.maxPax} passagers • {category.maxBagages23kg}x23kg • {category.maxBagages10kg}x10kg
+                            </p>
+                          </div>
+                          <Badge className="bg-orange-100 text-orange-700 border-0">
+                            À partir de {category.tarifs[0]?.minimumGaranti.toLocaleString()} FCFA
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-600">Aucune catégorie disponible</p>
+                )}
+              </div>
             </div>
           )}
 
