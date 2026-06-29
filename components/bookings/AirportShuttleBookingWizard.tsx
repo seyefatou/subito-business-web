@@ -545,14 +545,17 @@ export default function AirportShuttleBookingWizard({
         options.push({ code: 'SIEGE_BEBE', quantite: formData.siegeBebes });
       }
       if (formData.adressesSupplementAller?.length > 0) {
-        options.push({
-          code: 'ADRESSE_SUPP',
-          adresses: formData.adressesSupplementAller.map(a => ({
-            adresse: a.adresse,
-            lat: a.lat,
-            lng: a.lng,
-          })),
-        });
+        const validAddresses = formData.adressesSupplementAller.filter(a => a.adresse && a.lat != null && a.lng != null);
+        if (validAddresses.length > 0) {
+          options.push({
+            code: 'ADRESSE_SUPP',
+            adresses: validAddresses.map(a => ({
+              adresse: a.adresse,
+              lat: a.lat,
+              lng: a.lng,
+            })),
+          });
+        }
       }
 
       const optionsRetour: any[] = [];
@@ -561,14 +564,17 @@ export default function AirportShuttleBookingWizard({
           optionsRetour.push({ code: 'SIEGE_BEBE', quantite: formData.siegeBebesRetour });
         }
         if (formData.adressesSupplementRetour?.length > 0) {
-          optionsRetour.push({
-            code: 'ADRESSE_SUPP',
-            adresses: formData.adressesSupplementRetour.map(a => ({
-              adresse: a.adresse,
-              lat: a.lat,
-              lng: a.lng,
-            })),
-          });
+          const validAddresses = formData.adressesSupplementRetour.filter(a => a.adresse && a.lat != null && a.lng != null);
+          if (validAddresses.length > 0) {
+            optionsRetour.push({
+              code: 'ADRESSE_SUPP',
+              adresses: validAddresses.map(a => ({
+                adresse: a.adresse,
+                lat: a.lat,
+                lng: a.lng,
+              })),
+            });
+          }
         }
       }
 
