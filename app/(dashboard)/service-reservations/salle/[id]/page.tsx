@@ -70,7 +70,7 @@ export default function SalleDetailPage() {
       {salle.images?.[0] && (
         <div className="rounded-2xl overflow-hidden h-96 bg-slate-100">
           <img
-            src={`https://dev.api.mysubito.net/uploads/${salle.images[0]}`}
+            src={`https://dev.api.mysubito.net/api/catalog/uploads/salles/${salle.images[0]}`}
             alt={salle.nom}
             className="w-full h-full object-cover"
             onError={(e) => {

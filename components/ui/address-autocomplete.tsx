@@ -61,8 +61,7 @@ export function countryNameToCode(name: string): string {
 
 const JOLOF_BASE_URL = process.env.NEXT_PUBLIC_JOLOF_API_URL || 'https://map.jolofmobility.com';
 
-export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
-  if (!query || query.length < 2) return [];
+async function searchAddressesWithJolof(query: string, countryCode: string): Promise<AddressSuggestion[]> {
   try {
     const params = new URLSearchParams({
       query,
@@ -70,7 +69,9 @@ export async function searchAddresses(query: string, countryCode = 'sn'): Promis
       language: 'fr',
       country: countryCode.toUpperCase(),
     });
-    const res = await fetch(`${JOLOF_BASE_URL}/api/geocoding/autocomplete?${params.toString()}`);
+    const res = await fetch(`${JOLOF_BASE_URL}/api/geocoding/autocomplete?${params.toString()}`, {
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) return [];
     const json = await res.json();
     if (!json?.success || !Array.isArray(json.data)) return [];
@@ -84,6 +85,65 @@ export async function searchAddresses(query: string, countryCode = 'sn'): Promis
   } catch {
     return [];
   }
+}
+
+async function searchAddressesWithNominatim(query: string, countryCode: string): Promise<AddressSuggestion[]> {
+  try {
+    const countryMap: Record<string, string> = {
+      'sn': 'Senegal',
+      'ci': "Côte d'Ivoire",
+      'ml': 'Mali',
+      'gn': 'Guinea',
+      'bf': 'Burkina Faso',
+      'bj': 'Benin',
+      'tg': 'Togo',
+      'ne': 'Niger',
+      'mr': 'Mauritania',
+      'gm': 'Gambia',
+      'cm': 'Cameroon',
+      'ga': 'Gabon',
+      'cg': 'Congo',
+      'ma': 'Morocco',
+      'tn': 'Tunisia',
+      'fr': 'France',
+    };
+    const country = countryMap[countryCode.toLowerCase()] || 'Senegal';
+    const params = new URLSearchParams({
+      q: query,
+      limit: '6',
+      countrycodes: countryCode.toUpperCase(),
+      format: 'json',
+      addressdetails: '0',
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      signal: AbortSignal.timeout(5000),
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (!Array.isArray(json)) return [];
+    return json
+      .map((item: any) => ({
+        display_name: item.display_name || item.name,
+        lat: String(item.lat),
+        lon: String(item.lon),
+      }))
+      .filter((s: AddressSuggestion) => Boolean(s.display_name));
+  } catch {
+    return [];
+  }
+}
+
+export async function searchAddresses(query: string, countryCode = 'sn'): Promise<AddressSuggestion[]> {
+  if (!query || query.length < 2) return [];
+
+  let results = await searchAddressesWithJolof(query, countryCode);
+
+  if (results.length === 0) {
+    results = await searchAddressesWithNominatim(query, countryCode);
+  }
+
+  return results;
 }
 
 export function AddressAutocomplete({

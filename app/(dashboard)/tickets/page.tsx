@@ -89,8 +89,7 @@ export default function TicketsPage() {
   });
 
   const raw = ticketsResponse as any;
-  const tickets: TicketResponse[] =
-    raw?.data?.data || raw?.data?.items || raw?.data || raw?.items || [];
+  const tickets: TicketResponse[] = Array.isArray(raw) ? raw : (raw?.data?.data || raw?.data?.items || raw?.data || raw?.items || []);
 
   const sortedTickets = [...tickets].sort(
     (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()

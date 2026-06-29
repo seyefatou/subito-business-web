@@ -39,7 +39,7 @@ export default function LieuDetailPage() {
     );
   }
 
-  const imageUrl = lieu.images?.[0] ? `https://dev.api.mysubito.net/uploads/${lieu.images[0]}` : null;
+  const imageUrl = lieu.images?.[0] ? `https://dev.api.mysubito.net/api/catalog/uploads/lieux/${lieu.images[0]}` : null;
 
   return (
     <div className="space-y-6">
@@ -78,7 +78,7 @@ export default function LieuDetailPage() {
                 {lieu.images.map((img: string, idx: number) => (
                   <img
                     key={idx}
-                    src={`https://dev.api.mysubito.net/uploads/${img}`}
+                    src={`https://dev.api.mysubito.net/api/catalog/uploads/lieux/${img}`}
                     alt={`${lieu.nom} ${idx + 1}`}
                     className="w-16 h-16 rounded object-cover flex-shrink-0"
                     onError={(e) => {
@@ -132,7 +132,7 @@ export default function LieuDetailPage() {
             <h2 className="text-xl font-bold text-slate-900">Salles disponibles ({lieu.salles.length})</h2>
             <div className="space-y-6">
               {lieu.salles.map((salle: Salle) => {
-                const salleImageUrl = salle.images?.[0] ? `https://dev.api.mysubito.net/uploads/${salle.images[0]}` : null;
+                const salleImageUrl = salle.images?.[0] ? `https://dev.api.mysubito.net/api/catalog/uploads/salles/${salle.images[0]}` : null;
                 return (
                   <div key={salle.id} className="border border-slate-200 rounded-xl overflow-hidden">
                     {/* Salle Image */}

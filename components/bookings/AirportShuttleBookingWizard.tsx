@@ -531,13 +531,14 @@ export default function AirportShuttleBookingWizard({
   const hasOptions = (formData.siegeBebes > 0) || (formData.adressesSupplementAller?.length > 0) ||
     (formData.is_round_trip && (formData.siegeBebesRetour > 0 || formData.adressesSupplementRetour?.length > 0));
 
-  // CI: price with options — only fetch if options are selected AND quote is ready
-  const canFetchCIPrice = !!(canFetchCIQuote && hasOptions && ciQuote && !!ciCategoryCode);
+  // CI: price with options — fetch for ALL categories if options selected
+  const canFetchCIPriceWithOptions = !!(canFetchCIQuote && hasOptions && ciQuote);
 
+  const { data: ciPricesWithOptionsRaw, isLoading: ciPricesWithOptionsLoading } = useQuery({
+    queryKey: ['navette-ci-prices-with-options', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller?.length ?? 0, formData.adressesSupplementRetour?.length ?? 0],
+    queryFn: async () => {
+      if (!ciQuote?.options) return null;
 
-  const { data: ciPriceRaw, isLoading: ciPriceLoading } = useQuery({
-    queryKey: ['navette-ci-price', formData.addressLat, formData.addressLng, formData.returnAddressLat, formData.returnAddressLng, formData.passengers, ciBagages23, ciBagages10, formData.is_round_trip, formData.siegeBebes, formData.siegeBebesRetour, formData.adressesSupplementAller, formData.adressesSupplementRetour, ciCategoryCode],
-    queryFn: () => {
       // Build options array
       const options: any[] = [];
       if (formData.siegeBebes > 0) {
@@ -571,37 +572,58 @@ export default function AirportShuttleBookingWizard({
         }
       }
 
-      return api.bookings.navetteCI.getPrice({
-        categoryCode: ciCategoryCode,
-        departLat: formData.addressLat!,
-        departLng: formData.addressLng!,
-        arriveeLat: formData.returnAddressLat!,
-        arriveeLng: formData.returnAddressLng!,
-        pax: formData.passengers,
-        bagages23: ciBagages23,
-        bagages10: ciBagages10,
-        isOneWay: !formData.is_round_trip,
-        sens: ciSens,
-        options: options.length > 0 ? options : undefined,
-        optionsRetour: formData.is_round_trip && optionsRetour.length > 0 ? optionsRetour : undefined,
-        ...(formData.is_round_trip && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null && {
-          departRetourLat: ciReturnDepartAddressLat!,
-          departRetourLng: ciReturnDepartAddressLng!,
-          arriveeRetourLat: ciReturnArriveAddressLat!,
-          arriveeRetourLng: ciReturnArriveAddressLng!,
-        }),
-      });
+      try {
+        // Fetch price for each category in the quote
+        const pricesMap = new Map();
+        await Promise.all(
+          ciQuote.options.map(async (opt: NavetteCIQuoteOption) => {
+            try {
+              const result = await api.bookings.navetteCI.getPrice({
+                categoryCode: opt.code,
+                departLat: formData.addressLat!,
+                departLng: formData.addressLng!,
+                arriveeLat: formData.returnAddressLat!,
+                arriveeLng: formData.returnAddressLng!,
+                pax: formData.passengers,
+                bagages23: ciBagages23,
+                bagages10: ciBagages10,
+                isOneWay: !formData.is_round_trip,
+                sens: ciSens,
+                options: options.length > 0 ? options : undefined,
+                optionsRetour: formData.is_round_trip && optionsRetour.length > 0 ? optionsRetour : undefined,
+                ...(formData.is_round_trip && ciReturnDepartAddressLat != null && ciReturnDepartAddressLng != null && {
+                  departRetourLat: ciReturnDepartAddressLat!,
+                  departRetourLng: ciReturnDepartAddressLng!,
+                  arriveeRetourLat: ciReturnArriveAddressLat!,
+                  arriveeRetourLng: ciReturnArriveAddressLng!,
+                }),
+              });
+              const price = (result as any)?.data?.total ?? result?.total ?? opt.prix;
+              pricesMap.set(opt.code, price);
+            } catch (err) {
+              console.error(`❌ Error fetching price for ${opt.code}:`, err);
+              pricesMap.set(opt.code, opt.prix);
+            }
+          })
+        );
+        return pricesMap;
+      } catch (err) {
+        console.error('❌ CI Prices error:', err);
+        throw err;
+      }
     },
-    enabled: canFetchCIPrice,
+    enabled: canFetchCIPriceWithOptions,
   });
-  const ciPrice = (ciPriceRaw as any)?.data ?? ciPriceRaw ?? null;
 
-  // Update price when ciPrice changes (options added)
+  const ciPricesWithOptions = ciPricesWithOptionsRaw instanceof Map ? ciPricesWithOptionsRaw : null;
+
+  // Update price when options prices become available
   React.useEffect(() => {
-    if (ciPrice && ciPrice.total) {
-      setCiCategoryPrice(ciPrice.total);
+    if (ciCategoryCode && ciPricesWithOptions?.has(ciCategoryCode)) {
+      const newPrice = ciPricesWithOptions.get(ciCategoryCode);
+      setCiCategoryPrice(newPrice);
     }
-  }, [ciPrice]);
+  }, [ciPricesWithOptions, ciCategoryCode]);
 
   // Filter by selected country if one is selected
   const filteredVilles = selectedPays
@@ -2773,7 +2795,8 @@ export default function AirportShuttleBookingWizard({
                           key={option.categoryId}
                           onClick={() => {
                             setCiCategoryCode(option.code);
-                            setCiCategoryPrice(option.prix);
+                            const priceWithOptions = ciPricesWithOptions?.get(option.code);
+                            setCiCategoryPrice(priceWithOptions ?? option.prix);
                             setCiDistanceKm(ciQuote.distanceKm);
                           }}
                           className={`group flex flex-col md:flex-row items-center gap-6 p-5 rounded-2xl cursor-pointer shadow-xl shadow-black/[0.02] border-2 transition-all ${
@@ -2796,10 +2819,27 @@ export default function AirportShuttleBookingWizard({
                                 <p className="text-sm text-slate-500">{option.code}</p>
                               </div>
                               <div className="text-right shrink-0">
-                                <span className="font-extrabold text-2xl text-[#E04A1F]">{Number(option.prix).toLocaleString()}</span>
-                                <span className="text-xs font-bold text-slate-500 ml-1">FCFA</span>
-                                {option.minimumApplique && (
-                                  <p className="text-xs text-slate-400">Tarif minimum appliqué</p>
+                                {ciPricesWithOptionsLoading && hasOptions && (
+                                  <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin text-[#E04A1F]" />
+                                    <span className="text-xs text-slate-500">Calcul prix...</span>
+                                  </div>
+                                )}
+                                {!ciPricesWithOptionsLoading && (
+                                  <>
+                                    <span className="font-extrabold text-2xl text-[#E04A1F]">
+                                      {Number(
+                                        ciPricesWithOptions?.get(option.code) ?? option.prix
+                                      ).toLocaleString()}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-500 ml-1">FCFA</span>
+                                    {hasOptions && ciPricesWithOptions?.has(option.code) && (
+                                      <p className="text-xs text-green-600 font-medium mt-0.5">Avec options</p>
+                                    )}
+                                    {option.minimumApplique && (
+                                      <p className="text-xs text-slate-400">Tarif minimum appliqué</p>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>

@@ -961,6 +961,11 @@ export default function InterCityBookingWizard({
                               <Select
                                 value={selectedPays}
                                 onValueChange={(v) => {
+                                  if (v === 'Côte d\'Ivoire' || v === 'CI') {
+                                    const url = `/inter-city-ci${formData.employeeId ? `?employeeId=${formData.employeeId}` : ''}`;
+                                    router.push(url);
+                                    return;
+                                  }
                                   setSelectedPays(v);
                                   setSelectedDepartId(null);
                                   setSelectedArriveeId(null);

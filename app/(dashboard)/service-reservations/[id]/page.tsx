@@ -141,13 +141,13 @@ export default function ServiceReservationDetailPage() {
 
       {/* Status and Service Badges */}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge className={`${serviceType.color} border-0 px-4 py-2 text-sm font-bold`}>
+        <Badge className={`${serviceType.color} border-0 px-3 py-1`}>
           {serviceType.label}
         </Badge>
-        <Badge className={`${status.color} border-0 px-4 py-2 text-sm font-bold`}>
+        <Badge className={`${status.color} border-0 px-3 py-1`}>
           {status.label}
         </Badge>
-        <Badge className={`${paymentStatus.color} border-0 px-4 py-2 text-sm font-bold`}>
+        <Badge className={`${paymentStatus.color} border-0 px-3 py-1`}>
           {paymentStatus.label}
         </Badge>
       </div>

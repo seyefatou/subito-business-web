@@ -8,6 +8,8 @@ import confetti from 'canvas-confetti';
 import { ArrowLeft, Check, Minus, Plus, CreditCard, Calendar, Users, Wallet, Mail, Phone, User as UserIcon, CheckCircle2, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import { PriceCalculator } from './PriceCalculator';
@@ -508,13 +510,28 @@ function Step1ClientInfo({ user, selectedEmployee, setSelectedEmployee }: Step1P
     queryFn: () => api.employees.list({ limit: 100 }),
   });
 
+  const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+
   const employeesRaw = employeesResponse?.data;
   const employees = Array.isArray(employeesRaw)
     ? employeesRaw
     : (employeesRaw as any)?.items || (employeesRaw as any)?.list || [];
 
+  const filteredEmployees = employees.filter((emp: any) => {
+    const query = employeeSearch.toLowerCase();
+    return (
+      emp.prenom?.toLowerCase().includes(query) ||
+      emp.nom?.toLowerCase().includes(query) ||
+      emp.email?.toLowerCase().includes(query) ||
+      emp.telephone?.includes(query)
+    );
+  });
+
   const handleEmployeeSelect = (employee: any) => {
     setSelectedEmployee(employee);
+    setEmployeePopoverOpen(false);
+    setEmployeeSearch('');
   };
 
   const currentEmployee = selectedEmployee || user;
@@ -539,27 +556,69 @@ function Step1ClientInfo({ user, selectedEmployee, setSelectedEmployee }: Step1P
                 ⚠️ Aucun employé disponible
               </div>
             ) : (
-              <select
-                value={selectedEmployee?.id?.toString() || ''}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const emp = employees.find((emp) => emp.id === parseInt(e.target.value, 10));
-                    if (emp) {
-                      handleEmployeeSelect(emp);
-                    }
-                  } else {
-                    handleEmployeeSelect(null);
-                  }
-                }}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#171c1f]"
-              >
-                <option value="">-- Sélectionner un employé --</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id?.toString()}>
-                    {emp.prenom} {emp.nom}
-                  </option>
-                ))}
-              </select>
+              <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={employeePopoverOpen}
+                    className="w-full justify-between font-normal h-auto py-3 px-4 text-sm border-2 border-[#E04A1F] rounded-xl hover:border-[#d4421a] focus:outline-none focus:ring-2 focus:ring-[#E04A1F] focus:ring-opacity-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#E04A1F] text-white flex items-center justify-center text-xs font-bold">
+                        {selectedEmployee
+                          ? `${selectedEmployee.prenom?.[0]}${selectedEmployee.nom?.[0]}`.toUpperCase()
+                          : '?'}
+                      </div>
+                      <span className="text-[#171c1f]">
+                        {selectedEmployee
+                          ? `${selectedEmployee.prenom} ${selectedEmployee.nom}`
+                          : '-- Sélectionner un employé --'}
+                      </span>
+                    </span>
+                    <Search className="w-4 h-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Rechercher un employé..."
+                      value={employeeSearch}
+                      onValueChange={setEmployeeSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="p-4 text-center">
+                          <p className="text-sm text-slate-500 mb-2">Aucun employé trouvé</p>
+                          <p className="text-xs text-slate-400">Vous pouvez ajouter un nouvel employé dans la section Organisation</p>
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredEmployees.map((emp: any) => (
+                          <CommandItem
+                            key={emp.id}
+                            value={`${emp.prenom} ${emp.nom}`}
+                            onSelect={() => handleEmployeeSelect(emp)}
+                            className="cursor-pointer"
+                          >
+                            <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0">
+                              {emp.prenom?.[0]}{emp.nom?.[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{emp.prenom} {emp.nom}</p>
+                              {emp.email && <p className="text-xs text-slate-500 truncate">{emp.email}</p>}
+                            </div>
+                            {selectedEmployee?.id === emp.id && (
+                              <Check className="w-4 h-4 text-[#E04A1F] shrink-0" />
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
         </div>

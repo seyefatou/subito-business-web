@@ -389,6 +389,11 @@ export default function Billing() {
 
   async function handleDownloadPDF(invoice: Invoice) {
     try {
+      if (!invoice) {
+        toast.error('Facture non sélectionnée');
+        return;
+      }
+
       // If backend provides a PDF URL, download it directly
       if (invoice.pdf_url) {
         const link = document.createElement('a');
@@ -400,10 +405,20 @@ export default function Billing() {
       }
 
       // Fallback: generate PDF client-side
-      const [logoBase64, tamponBase64] = await Promise.all([
-        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo_subito_facture.png`),
-        loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/tamponSubito.jpeg`),
-      ]);
+      let logoBase64 = '';
+      let tamponBase64 = '';
+
+      try {
+        logoBase64 = await loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo_subito_facture.png`);
+      } catch (e) {
+        console.warn('Logo non trouvé, génération PDF sans logo');
+      }
+
+      try {
+        tamponBase64 = await loadImageAsBase64(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/tamponSubito.jpeg`);
+      } catch (e) {
+        console.warn('Tampon non trouvé, génération PDF sans tampon');
+      }
 
       const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
@@ -649,8 +664,14 @@ export default function Billing() {
   }
 
   function handleDownloadCSV(invoice: Invoice) {
-    const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
+    try {
+      if (!invoice) {
+        toast.error('Facture non sélectionnée');
+        return;
+      }
+
+      const fmtPrice = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      const invoiceNum = invoice.invoice_number || `FAC-${invoice.id}`;
     const rows: string[][] = [];
 
     // Header row
@@ -720,6 +741,10 @@ export default function Billing() {
     link.download = `Facture_${invoiceNum}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erreur téléchargement CSV:', err);
+      toast.error('Erreur lors du téléchargement du CSV');
+    }
   }
 
   const statsRaw = (billingStatsResponse?.data ?? billingStatsResponse) as Record<string, unknown> | undefined;

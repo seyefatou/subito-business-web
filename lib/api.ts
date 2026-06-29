@@ -2008,10 +2008,10 @@ class ApiClient {
       this.request<PaymentOption[]>('/payments/payment-options'),
 
     getInterCityCiCategories: () =>
-      this.request<any[]>('/bookings/inter-city/ci/categories'),
+      this.request<any[]>('/bookings/interville-ci/categories'),
 
     getInterCityCiOptions: () =>
-      this.request<any[]>('/bookings/inter-city/ci/options'),
+      this.request<any[]>('/bookings/interville-ci/options'),
   };
 
   // ==================== BOOKINGS COMPANY ====================
@@ -2406,39 +2406,38 @@ class ApiClient {
   // ==================== TICKETS COMPANY ====================
   tickets = {
     create: (data: CreateTicketDto) =>
-      this.authPost<TicketResponse>('/admin/compagny/tickets', data),
+      this.authPost<TicketResponse>('/compagny/tickets', data),
 
     list: (params?: { statut?: string }) => {
       const q = new URLSearchParams();
       if (params?.statut) q.set('statut', params.statut);
       const qs = q.toString();
-      return this.authGet<TicketResponse[]>(`/admin/compagny/tickets${qs ? `?${qs}` : ''}`);
+      return this.authGet<TicketResponse[]>(`/compagny/tickets${qs ? `?${qs}` : ''}`);
     },
 
     get: (id: number) =>
-      this.authGet<TicketResponse>(`/admin/compagny/tickets/${id}`),
+      this.authGet<TicketResponse>(`/compagny/tickets/${id}`),
 
     sendMessage: (id: number, data: CreateTicketMessageDto) =>
-      this.authPost<TicketMessageResponse>(`/admin/compagny/tickets/${id}/messages`, data),
+      this.authPost<TicketMessageResponse>(`/compagny/tickets/${id}/messages`, data),
   };
 
   // ==================== NOTIFICATIONS COMPANY ====================
-  // TODO: vérifier le chemin exact du service notifications pour le rôle compagny
   notifications = {
-    list: (limit = 100) =>
-      this.authGet<NotificationListResponse>(`/admin/admin/messagerie/notifications/compagny?limit=${limit}`),
+    list: (limit = 100, page = 1) =>
+      this.authGet<NotificationListResponse>(`/users/notifications/compagny?limit=${limit}&page=${page}`),
 
     unreadCount: () =>
-      this.authGet<{ count: number }>('/admin/admin/messagerie/notifications/compagny/unread-count'),
+      this.authGet<{ count: number }>('/users/notifications/compagny/unread-count'),
 
     get: (id: number) =>
-      this.authGet<CompagnyNotification>(`/admin/admin/messagerie/notifications/compagny/${id}`),
+      this.authGet<CompagnyNotification>(`/users/notifications/compagny/${id}`),
 
     markRead: (id: number) =>
-      this.authPatch<void>(`/admin/admin/messagerie/notifications/compagny/${id}/read`),
+      this.authPatch<void>(`/users/notifications/compagny/${id}/read`),
 
     markAllRead: () =>
-      this.authPatch<void>('/admin/admin/messagerie/notifications/compagny/read-all'),
+      this.authPatch<void>('/users/notifications/compagny/read-all'),
   };
 
   // ==================== BICTORYS PAYMENT ====================

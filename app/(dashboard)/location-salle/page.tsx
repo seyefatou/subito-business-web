@@ -73,7 +73,7 @@ export default function LocationSallePage() {
                 <div className="w-full h-40 bg-slate-100 relative overflow-hidden">
                   {lieu.images && lieu.images.length > 0 ? (
                     <img
-                      src={`https://dev.api.mysubito.net/uploads/${lieu.images[0]}`}
+                      src={`https://dev.api.mysubito.net/api/catalog/uploads/lieux/${lieu.images[0]}`}
                       alt={lieu.nom}
                       className="w-full h-full object-cover"
                       onError={(e) => {

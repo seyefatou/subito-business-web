@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api, CreateInterCityBookingDto } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -64,10 +64,12 @@ interface FormData {
 
 export default function InterCityCIBookingWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingReference, setBookingReference] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
 
   const [formData, setFormData] = useState<FormData>({
     clientName: '',
@@ -89,6 +91,30 @@ export default function InterCityCIBookingWizard() {
     selectedOptions: [],
     paidBy: 'company',
   });
+
+  // Récupérer l'employé depuis les paramètres d'URL
+  useEffect(() => {
+    const employeeId = searchParams.get('employeeId');
+    if (employeeId) {
+      // Fetch employee data
+      api.employees.get(Number(employeeId)).then((res: any) => {
+        const emp = res?.data || res;
+        if (emp) {
+          setSelectedEmployee(emp);
+          setFormData(prev => ({
+            ...prev,
+            clientName: `${emp.prenom} ${emp.nom}`,
+            clientEmail: emp.email || '',
+            clientPhone: emp.telephone || '',
+          }));
+          // Skip étape 1 (client) et aller directement à étape 2 (trajet)
+          setCurrentStep(2);
+        }
+      }).catch(err => {
+        console.error('Erreur récupération employé:', err);
+      });
+    }
+  }, [searchParams]);
 
   // Fetch categories
   const { data: categories, isLoading: categoriesLoading } = useQuery({

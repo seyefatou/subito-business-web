@@ -87,7 +87,8 @@ function Tracking() {
   }, [searchParams]);
   const [filterService, setFilterService] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const limit = 10;
+  const pageSize = 10;
+  const apiLimit = 100; // Récupérer plus de données pour paginer côté frontend
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -95,30 +96,31 @@ function Tracking() {
   }, [searchTerm, filterService, filterStatus]);
 
   // Fetch all company bookings — 3 types séparés (microservices)
+  // Always fetch page 1 with larger limit, paginate frontend
   const { data: shuttleResponse, isLoading: shuttleLoading } = useQuery({
-    queryKey: ['bookings-shuttle', page],
-    queryFn: () => api.bookings.airportShuttle.list(page, limit),
+    queryKey: ['bookings-shuttle'],
+    queryFn: () => api.bookings.airportShuttle.list(1, apiLimit),
   });
   const { data: interCityResponse, isLoading: interCityLoading } = useQuery({
-    queryKey: ['bookings-intercity', page],
-    queryFn: () => api.bookings.interCity.list(page, limit),
+    queryKey: ['bookings-intercity'],
+    queryFn: () => api.bookings.interCity.list(1, apiLimit),
   });
   const { data: vtcResponse, isLoading: vtcLoading } = useQuery({
-    queryKey: ['bookings-vtc', page],
-    queryFn: () => api.bookings.vtcHourly.list(page, limit),
+    queryKey: ['bookings-vtc'],
+    queryFn: () => api.bookings.vtcHourly.list(1, apiLimit),
   });
   const isLoading = shuttleLoading || interCityLoading || vtcLoading;
 
   // Fetch travel documents
   const { data: travelDocsResponse, isLoading: travelDocsLoading } = useQuery({
-    queryKey: ['travel-docs-compagny', page],
-    queryFn: () => api.travelDocuments.list({ page, limit }),
+    queryKey: ['travel-docs-compagny'],
+    queryFn: () => api.travelDocuments.list({ page: 1, limit: apiLimit }),
   });
 
   // Fetch service reservations (activite, logement, flotte)
   const { data: serviceResResponse, isLoading: serviceResLoading } = useQuery({
-    queryKey: ['service-reservations-compagny', page],
-    queryFn: () => api.serviceReservations.list(page, limit),
+    queryKey: ['service-reservations-compagny'],
+    queryFn: () => api.serviceReservations.list(1, apiLimit),
   });
 
   // Helper — extraire un tableau depuis une réponse paginée
@@ -182,18 +184,15 @@ function Tracking() {
   }));
 
   // Merge and sort by creation date (most recent first)
-  const bookings: BookingResponse[] = [...regularBookings, ...travelDocsAsBookings, ...serviceResAsBookings].sort(
+  const allBookings: BookingResponse[] = [...regularBookings, ...travelDocsAsBookings, ...serviceResAsBookings].sort(
     (a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
   );
-
-  const totalBookingsCount = bookingsTotal + travelDocsTotal + serviceResTotal;
-  const totalPages = Math.ceil(totalBookingsCount / limit) || 1;
 
   const isLoadingAll = isLoading || travelDocsLoading || serviceResLoading;
 
   // Exclude rejected payment requests (refused prise en charge) from the tracking table
   const rejectedPaymentStatuses = ['rejected', 'refused', 'declined'];
-  const visibleBookings = bookings.filter(b => {
+  const visibleBookings = allBookings.filter(b => {
     const paymentStatus = String((b as Record<string, unknown>).paymentStatus || '').toLowerCase();
     const status = (b.status || '').toLowerCase();
     if (rejectedPaymentStatuses.includes(paymentStatus)) return false;
@@ -201,7 +200,7 @@ function Tracking() {
     return true;
   });
 
-  // Client-side filtering
+  // Client-side filtering FIRST
   const filtered = visibleBookings.filter(b => {
     const matchSearch = !searchTerm ||
       (b.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -218,6 +217,12 @@ function Tracking() {
     const matchStatus = filterStatus === 'all' || b.status === filterStatus;
     return matchSearch && matchService && matchStatus;
   });
+
+  // Paginate AFTER filtering
+  const startIdx = (page - 1) * pageSize;
+  const bookings = filtered.slice(startIdx, startIdx + pageSize);
+  const totalBookingsCount = filtered.length;
+  const totalPages = Math.ceil(totalBookingsCount / pageSize) || 1;
 
   // Stats
   const stats = {
@@ -371,7 +376,7 @@ function Tracking() {
                 </thead>
                 <tbody className="divide-y divide-[#eaeef2]/50">
                   <AnimatePresence>
-                    {filtered.map((booking, index) => {
+                    {bookings.map((booking, index) => {
                       const service = getServiceInfo(booking.serviceType);
                       const status = getStatusInfo(booking.status);
                       const ServiceIcon = service.icon;

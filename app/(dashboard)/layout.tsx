@@ -152,7 +152,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       try {
         const response = await api.tickets.list();
         const raw = response as any;
-        const tickets = raw?.data || [];
+        const tickets = Array.isArray(raw) ? raw : (raw?.data || []);
         if (!Array.isArray(tickets)) { setUnreadTickets(0); return; }
         const count = tickets.filter((t: any) =>
           t.messages?.some((m: any) => m.senderType === 'manager' && !m.lu)
