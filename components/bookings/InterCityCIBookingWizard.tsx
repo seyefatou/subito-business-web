@@ -206,14 +206,135 @@ export default function InterCityCIBookingWizard() {
 
   if (bookingSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-slate-50 p-4">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <Check className="w-8 h-8 text-green-600" />
+      <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 py-8 px-4">
+        <div className="max-w-6xl mx-auto space-y-10">
+          {/* Header */}
+          <section className="mb-4">
+            <p className="text-[#E04A1F] font-bold tracking-widest text-xs uppercase mb-2">Derniere etape</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight leading-tight">
+              Recapitulatif de votre reservation
+            </h1>
+            <p className="text-slate-500 max-w-2xl leading-relaxed">
+              Votre trajet inter-urbain a ete enregistre. Une fois valide, votre demande sera traitee par notre equipe logistique.
+            </p>
+            <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#ffdbd0] rounded-full">
+              <CheckCircle2 className="w-4 h-4 text-[#E04A1F]" />
+              <span className="text-sm font-bold text-orange-700 tracking-wider">REF: {bookingReference}</span>
+            </div>
+          </section>
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Trip Details */}
+              <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 mb-6">
+                  <MapPin className="w-5 h-5 text-[#E04A1F]" />
+                  Details du trajet
+                </h2>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center pb-6 border-b border-slate-100">
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Depart</p>
+                      <p className="text-lg font-bold text-slate-900">{formData.departAddress || '—'}</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-slate-300" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Arrivee</p>
+                      <p className="text-lg font-bold text-slate-900">{formData.arriveeAddress || '—'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Date</p>
+                      <p className="font-semibold text-slate-900">{formData.scheduledDate || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Heure</p>
+                      <p className="font-semibold text-slate-900">{formData.scheduledTime || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Passagers</p>
+                      <p className="font-semibold text-slate-900">{formData.pax}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Vehicule</p>
+                      <p className="font-semibold text-slate-900">{selectedCategory?.label || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Client Info */}
+              <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 mb-6">
+                  <User className="w-5 h-5 text-[#E04A1F]" />
+                  Informations du client
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Nom</p>
+                    <p className="text-lg font-semibold text-slate-900">{formData.clientName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Email</p>
+                    <p className="text-slate-900">{formData.clientEmail}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Telephone</p>
+                    <p className="text-slate-900">{formData.clientPhone}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar - Action Buttons */}
+            <aside className="lg:col-span-1">
+              <div className="sticky top-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={() => router.push(`/tracking/${bookingReference}`)}
+                    className="w-full bg-[#E04A1F] text-white py-5 rounded-2xl font-extrabold text-base border-0 hover:shadow-[0_0_32px_rgba(172,53,9,0.4)] active:scale-[0.98] transition-all gap-2"
+                  >
+                    Suivi commande
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setFormData({
+                        clientName: '',
+                        clientEmail: '',
+                        clientPhone: '',
+                        departAddress: '',
+                        departLat: null,
+                        departLng: null,
+                        arriveeAddress: '',
+                        arriveeLat: null,
+                        arriveeLng: null,
+                        scheduledDate: '',
+                        scheduledTime: '',
+                        isOneWay: true,
+                        pax: 1,
+                        bagages23: 0,
+                        bagages10: 0,
+                        categoryCode: '',
+                        selectedOptions: [],
+                        paidBy: 'company',
+                      });
+                      setCurrentStep(2);
+                      setBookingSuccess(false);
+                      setBookingReference('');
+                    }}
+                    variant="outline"
+                    className="w-full py-5 rounded-2xl font-bold text-sm border border-slate-200 hover:bg-slate-50 transition-all"
+                  >
+                    Nouvelle reservation
+                  </Button>
+                </div>
+              </div>
+            </aside>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Réservation confirmée!</h2>
-          <p className="text-slate-600">Référence: <span className="font-bold text-orange-600">{bookingReference}</span></p>
-          <p className="text-slate-500">Redirection en cours...</p>
         </div>
       </div>
     );
