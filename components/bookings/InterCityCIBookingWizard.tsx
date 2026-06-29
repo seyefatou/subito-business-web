@@ -57,6 +57,14 @@ interface FormData {
   scheduledDate: string;
   scheduledTime: string;
   isOneWay: boolean;
+  departRetourAddress: string;
+  departRetourLat: number | null;
+  departRetourLng: number | null;
+  arriveeRetourAddress: string;
+  arriveeRetourLat: number | null;
+  arriveeRetourLng: number | null;
+  scheduledDateRetour: string;
+  scheduledTimeRetour: string;
   pax: number;
   bagages23: number;
   bagages10: number;
@@ -87,6 +95,14 @@ export default function InterCityCIBookingWizard() {
     scheduledDate: '',
     scheduledTime: '',
     isOneWay: true,
+    departRetourAddress: '',
+    departRetourLat: null,
+    departRetourLng: null,
+    arriveeRetourAddress: '',
+    arriveeRetourLat: null,
+    arriveeRetourLng: null,
+    scheduledDateRetour: '',
+    scheduledTimeRetour: '',
     pax: 1,
     bagages23: 0,
     bagages10: 0,
@@ -465,6 +481,85 @@ export default function InterCityCIBookingWizard() {
                     onCheckedChange={(v) => setFormData({ ...formData, isOneWay: !v })}
                   />
                 </div>
+
+                {/* Trajet retour section */}
+                {!formData.isOneWay && (
+                  <div className="space-y-4 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+                      <ArrowRightLeft className="w-5 h-5 text-[#E04A1F]" />
+                      Trajet retour
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Lieu de départ (retour)</Label>
+                        <AddressAutocomplete
+                          value={formData.departRetourAddress || ''}
+                          onChange={(val) => setFormData({ ...formData, departRetourAddress: val })}
+                          onSelect={(address: string, lat: number, lng: number) =>
+                            setFormData({
+                              ...formData,
+                              departRetourAddress: address,
+                              departRetourLat: lat,
+                              departRetourLng: lng,
+                            })
+                          }
+                          countryCode="CI"
+                          placeholder="Lieu de départ du retour"
+                          iconColor="text-green-500"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Destination retour</Label>
+                        <AddressAutocomplete
+                          value={formData.arriveeRetourAddress || ''}
+                          onChange={(val) => setFormData({ ...formData, arriveeRetourAddress: val })}
+                          onSelect={(address: string, lat: number, lng: number) =>
+                            setFormData({
+                              ...formData,
+                              arriveeRetourAddress: address,
+                              arriveeRetourLat: lat,
+                              arriveeRetourLng: lng,
+                            })
+                          }
+                          countryCode="CI"
+                          placeholder="Destination du retour"
+                          iconColor="text-red-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Date retour</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start">
+                                <CalendarIcon className="w-4 h-4 mr-2" />
+                                {formData.scheduledDateRetour ? formData.scheduledDateRetour : 'Choisir une date'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={formData.scheduledDateRetour ? new Date(formData.scheduledDateRetour) : undefined}
+                                onSelect={(date) => setFormData({ ...formData, scheduledDateRetour: date ? format(date, 'yyyy-MM-dd') : '' })}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label>Heure retour</Label>
+                          <Input
+                            type="time"
+                            value={formData.scheduledTimeRetour}
+                            onChange={(e) => setFormData({ ...formData, scheduledTimeRetour: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
