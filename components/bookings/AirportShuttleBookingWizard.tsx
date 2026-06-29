@@ -3981,6 +3981,28 @@ export default function AirportShuttleBookingWizard({
                   </div>
                 );
               })}
+              {isCIBooking && formData.is_round_trip && Object.entries(ciReturnSimpleOptions).map(([id, qty]) => {
+                if (!qty) return null;
+                const opt = ciOptions.find(o => o.id === Number(id));
+                if (!opt) return null;
+                return (
+                  <div key={`return-${id}`} className="flex justify-between gap-2">
+                    <span className="text-slate-500 shrink-0 truncate">{opt.label} (retour)</span>
+                    <span className="font-bold text-[#171c1f]">×{qty}</span>
+                  </div>
+                );
+              })}
+              {isCIBooking && formData.is_round_trip && Object.entries(ciReturnAddressOptions).map(([id, adrs]) => {
+                if (!adrs.length) return null;
+                const opt = ciOptions.find(o => o.id === Number(id));
+                if (!opt) return null;
+                return (
+                  <div key={`return-${id}`} className="flex justify-between gap-2">
+                    <span className="text-slate-500 shrink-0 truncate">{opt.label} (retour)</span>
+                    <span className="font-bold text-[#171c1f]">{adrs.length} arrêt{adrs.length > 1 ? 's' : ''}</span>
+                  </div>
+                );
+              })}
               {selectedTrajet?.vehicule && (
                 <div className="flex justify-between gap-2">
                   <span className="text-slate-500 shrink-0">Vehicule</span>
@@ -4026,6 +4048,34 @@ export default function AirportShuttleBookingWizard({
               return (
                 <div key={id} className="flex justify-between items-center">
                   <span className="text-sm text-slate-500">{opt.label} ×{adrs.length}</span>
+                  <span className="text-sm font-medium text-[#171c1f]">
+                    {opt.pricingMode === 'FLAT'
+                      ? `+${(opt.prix * adrs.length).toLocaleString()} FCFA`
+                      : 'Calculé au km'}
+                  </span>
+                </div>
+              );
+            })}
+            {isCIBooking && formData.is_round_trip && Object.entries(ciReturnSimpleOptions).map(([id, qty]) => {
+              if (!qty) return null;
+              const opt = ciOptions.find(o => o.id === Number(id));
+              if (!opt) return null;
+              return (
+                <div key={`return-${id}`} className="flex justify-between items-center">
+                  <span className="text-sm text-slate-500">{opt.label} (retour) ×{qty}</span>
+                  <span className="text-sm font-medium text-[#171c1f]">
+                    +{(opt.prix * qty).toLocaleString()} FCFA
+                  </span>
+                </div>
+              );
+            })}
+            {isCIBooking && formData.is_round_trip && Object.entries(ciReturnAddressOptions).map(([id, adrs]) => {
+              if (!adrs.length) return null;
+              const opt = ciOptions.find(o => o.id === Number(id));
+              if (!opt) return null;
+              return (
+                <div key={`return-${id}`} className="flex justify-between items-center">
+                  <span className="text-sm text-slate-500">{opt.label} (retour) ×{adrs.length}</span>
                   <span className="text-sm font-medium text-[#171c1f]">
                     {opt.pricingMode === 'FLAT'
                       ? `+${(opt.prix * adrs.length).toLocaleString()} FCFA`
