@@ -31,10 +31,12 @@ import {
   Mail,
   Loader2,
   ArrowRight,
+  ArrowLeft,
   ArrowRightLeft,
   Plus,
   X,
   CheckCircle2,
+  Users,
 } from 'lucide-react';
 
 const steps = [
@@ -431,222 +433,236 @@ export default function InterCityCIBookingWizard() {
           {currentStep === 2 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold">Détails du trajet</h2>
-              <div className="space-y-4">
-                <div>
-                  <Label>Lieu de départ</Label>
-                  <AddressAutocomplete
-                    value={formData.departAddress || ''}
-                    onChange={(val) => setFormData({ ...formData, departAddress: val })}
-                    onSelect={(address: string, lat: number, lng: number) =>
-                      setFormData({
-                        ...formData,
-                        departAddress: address,
-                        departLat: lat,
-                        departLng: lng,
-                      })
-                    }
-                    countryCode="CI"
-                  />
-                </div>
-                <div>
-                  <Label>Destination</Label>
-                  <AddressAutocomplete
-                    value={formData.arriveeAddress || ''}
-                    onChange={(val) => setFormData({ ...formData, arriveeAddress: val })}
-                    onSelect={(address: string, lat: number, lng: number) =>
-                      setFormData({
-                        ...formData,
-                        arriveeAddress: address,
-                        arriveeLat: lat,
-                        arriveeLng: lng,
-                      })
-                    }
-                    countryCode="CI"
-                  />
-                </div>
 
-                {/* Aller-retour toggle */}
-                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-5 mt-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
-                      <ArrowRightLeft className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-[#E04A1F] truncate">Aller-retour</p>
-                      <p className="text-xs text-slate-500">Reserver le retour</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={!formData.isOneWay}
-                    onCheckedChange={(v) => setFormData({ ...formData, isOneWay: !v })}
-                  />
-                </div>
-
-                {/* Trajet retour section */}
-                {!formData.isOneWay && (
-                  <div className="space-y-4 p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                    <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
-                      <ArrowRightLeft className="w-5 h-5 text-[#E04A1F]" />
-                      Trajet retour
-                    </h3>
-
-                    <div className="space-y-4">
-                      <div>
-                        <Label>Lieu de départ (retour)</Label>
-                        <AddressAutocomplete
-                          value={formData.departRetourAddress || ''}
-                          onChange={(val) => setFormData({ ...formData, departRetourAddress: val })}
-                          onSelect={(address: string, lat: number, lng: number) =>
-                            setFormData({
-                              ...formData,
-                              departRetourAddress: address,
-                              departRetourLat: lat,
-                              departRetourLng: lng,
-                            })
-                          }
-                          countryCode="CI"
-                          placeholder="Lieu de départ du retour"
-                          iconColor="text-green-500"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Destination retour</Label>
-                        <AddressAutocomplete
-                          value={formData.arriveeRetourAddress || ''}
-                          onChange={(val) => setFormData({ ...formData, arriveeRetourAddress: val })}
-                          onSelect={(address: string, lat: number, lng: number) =>
-                            setFormData({
-                              ...formData,
-                              arriveeRetourAddress: address,
-                              arriveeRetourLat: lat,
-                              arriveeRetourLng: lng,
-                            })
-                          }
-                          countryCode="CI"
-                          placeholder="Destination du retour"
-                          iconColor="text-red-500"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Date retour</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start">
-                                <CalendarIcon className="w-4 h-4 mr-2" />
-                                {formData.scheduledDateRetour ? formData.scheduledDateRetour : 'Choisir une date'}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={formData.scheduledDateRetour ? new Date(formData.scheduledDateRetour) : undefined}
-                                onSelect={(date) => setFormData({ ...formData, scheduledDateRetour: date ? format(date, 'yyyy-MM-dd') : '' })}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div>
-                          <Label>Heure retour</Label>
-                          <Input
-                            type="time"
-                            value={formData.scheduledTimeRetour}
-                            onChange={(e) => setFormData({ ...formData, scheduledTimeRetour: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
+              {/* ALLER SECTION */}
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                  <ArrowRight className="w-5 h-5 text-[#E04A1F]" />
+                  Trajet - Aller
+                </h3>
+                <div className="space-y-4">
                   <div>
-                    <Label>Bagages 23kg</Label>
-                    <Select
-                      value={String(formData.bagages23)}
-                      onValueChange={(v) => setFormData({ ...formData, bagages23: parseInt(v) })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3, 4].map((n: number) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Bagages 10kg</Label>
-                    <Select
-                      value={String(formData.bagages10)}
-                      onValueChange={(v) => setFormData({ ...formData, bagages10: parseInt(v) })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3, 4].map((n: number) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start">
-                          <CalendarIcon className="w-4 h-4 mr-2" />
-                          {formData.scheduledDate
-                            ? format(new Date(formData.scheduledDate), 'dd MMM yyyy', { locale: fr })
-                            : 'Sélectionner'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent>
-                        <Calendar
-                          mode="single"
-                          selected={formData.scheduledDate ? new Date(formData.scheduledDate) : undefined}
-                          onSelect={(date) =>
-                            setFormData({
-                              ...formData,
-                              scheduledDate: date ? format(date, 'yyyy-MM-dd') : '',
-                            })
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div>
-                    <Label>Heure</Label>
-                    <TimePicker
-                      value={formData.scheduledTime}
-                      onChange={(time) => setFormData({ ...formData, scheduledTime: time })}
+                    <Label>Lieu de départ</Label>
+                    <AddressAutocomplete
+                      value={formData.departAddress || ''}
+                      onChange={(val) => setFormData({ ...formData, departAddress: val })}
+                      onSelect={(address: string, lat: number, lng: number) =>
+                        setFormData({
+                          ...formData,
+                          departAddress: address,
+                          departLat: lat,
+                          departLng: lng,
+                        })
+                      }
+                      countryCode="CI"
+                      iconColor="text-green-500"
                     />
                   </div>
+                  <div>
+                    <Label>Destination</Label>
+                    <AddressAutocomplete
+                      value={formData.arriveeAddress || ''}
+                      onChange={(val) => setFormData({ ...formData, arriveeAddress: val })}
+                      onSelect={(address: string, lat: number, lng: number) =>
+                        setFormData({
+                          ...formData,
+                          arriveeAddress: address,
+                          arriveeLat: lat,
+                          arriveeLng: lng,
+                        })
+                      }
+                      countryCode="CI"
+                      iconColor="text-red-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Date aller</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start">
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            {formData.scheduledDate
+                              ? format(new Date(formData.scheduledDate), 'dd MMM yyyy', { locale: fr })
+                              : 'Sélectionner'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                          <Calendar
+                            mode="single"
+                            selected={formData.scheduledDate ? new Date(formData.scheduledDate) : undefined}
+                            onSelect={(date) =>
+                              setFormData({
+                                ...formData,
+                                scheduledDate: date ? format(date, 'yyyy-MM-dd') : '',
+                              })
+                            }
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <Label>Heure aller</Label>
+                      <TimePicker
+                        value={formData.scheduledTime}
+                        onChange={(time) => setFormData({ ...formData, scheduledTime: time })}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label>Nombre de passagers</Label>
-                  <Select value={String(formData.pax)} onValueChange={(v) => setFormData({ ...formData, pax: parseInt(v) })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5, 6].map((n: number) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n} personne{n > 1 ? 's' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              </div>
+
+              {/* ALLER-RETOUR TOGGLE */}
+              <div className="flex items-center justify-between gap-3 border border-slate-200 p-4 rounded-2xl bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-[#ffdbd0] flex items-center justify-center text-[#E04A1F] shrink-0">
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#E04A1F]">Aller-retour</p>
+                    <p className="text-xs text-slate-500">Réserver le retour</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={!formData.isOneWay}
+                  onCheckedChange={(v) => setFormData({ ...formData, isOneWay: !v })}
+                />
+              </div>
+
+              {/* RETOUR SECTION - CONDITIONAL */}
+              {!formData.isOneWay && (
+                <div className="bg-orange-50 rounded-3xl p-6 md:p-8 shadow-sm border border-orange-100 space-y-5">
+                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                    <ArrowLeft className="w-5 h-5 text-[#E04A1F]" />
+                    Trajet - Retour
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Lieu de départ (retour)</Label>
+                      <AddressAutocomplete
+                        value={formData.departRetourAddress || ''}
+                        onChange={(val) => setFormData({ ...formData, departRetourAddress: val })}
+                        onSelect={(address: string, lat: number, lng: number) =>
+                          setFormData({
+                            ...formData,
+                            departRetourAddress: address,
+                            departRetourLat: lat,
+                            departRetourLng: lng,
+                          })
+                        }
+                        countryCode="CI"
+                        iconColor="text-green-500"
+                      />
+                    </div>
+                    <div>
+                      <Label>Destination retour</Label>
+                      <AddressAutocomplete
+                        value={formData.arriveeRetourAddress || ''}
+                        onChange={(val) => setFormData({ ...formData, arriveeRetourAddress: val })}
+                        onSelect={(address: string, lat: number, lng: number) =>
+                          setFormData({
+                            ...formData,
+                            arriveeRetourAddress: address,
+                            arriveeRetourLat: lat,
+                            arriveeRetourLng: lng,
+                          })
+                        }
+                        countryCode="CI"
+                        iconColor="text-red-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Date retour</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-start">
+                              <CalendarIcon className="w-4 h-4 mr-2" />
+                              {formData.scheduledDateRetour ? formData.scheduledDateRetour : 'Sélectionner'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={formData.scheduledDateRetour ? new Date(formData.scheduledDateRetour) : undefined}
+                              onSelect={(date) => setFormData({ ...formData, scheduledDateRetour: date ? format(date, 'yyyy-MM-dd') : '' })}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <Label>Heure retour</Label>
+                        <Input
+                          type="time"
+                          value={formData.scheduledTimeRetour}
+                          onChange={(e) => setFormData({ ...formData, scheduledTimeRetour: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSAGERS ET BAGAGES SECTION */}
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900">
+                  <Users className="w-5 h-5 text-[#E04A1F]" />
+                  Passagers et bagages
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Nombre de passagers</Label>
+                    <Select value={String(formData.pax)} onValueChange={(v) => setFormData({ ...formData, pax: parseInt(v) })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6].map((n: number) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n} personne{n > 1 ? 's' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Bagages 23kg</Label>
+                      <Select
+                        value={String(formData.bagages23)}
+                        onValueChange={(v) => setFormData({ ...formData, bagages23: parseInt(v) })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1, 2, 3, 4].map((n: number) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Bagages 10kg</Label>
+                      <Select
+                        value={String(formData.bagages10)}
+                        onValueChange={(v) => setFormData({ ...formData, bagages10: parseInt(v) })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1, 2, 3, 4].map((n: number) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
