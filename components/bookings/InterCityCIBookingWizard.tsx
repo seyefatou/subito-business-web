@@ -142,7 +142,7 @@ export default function InterCityCIBookingWizard() {
       setBookingSuccess(true);
       toast.success('Réservation créée avec succès!');
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      setTimeout(() => router.push(`/tracking/${bookingCode}`), 2000);
+      // No auto-redirect, user can click button or wait
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Erreur lors de la création de la réservation');
@@ -294,7 +294,7 @@ export default function InterCityCIBookingWizard() {
               <div className="sticky top-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
                 <div className="flex flex-col gap-3">
                   <Button
-                    onClick={() => router.push(`/tracking/${bookingReference}`)}
+                    onClick={() => router.push("/tracking")}
                     className="w-full bg-[#E04A1F] text-white py-5 rounded-2xl font-extrabold text-base border-0 hover:shadow-[0_0_32px_rgba(172,53,9,0.4)] active:scale-[0.98] transition-all gap-2"
                   >
                     Suivi commande
