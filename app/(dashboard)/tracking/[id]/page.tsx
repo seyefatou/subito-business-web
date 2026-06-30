@@ -45,9 +45,14 @@ import { api, BookingResponse, BictorysServiceType } from "@/lib/api";
 import { extractBookingSub } from "@/lib/bookingResponse";
 
 const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
-  inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
-  intercity: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
+  airport_shuttle: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  AIRPORT_SHUTTLE: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  airport_to_city: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  city_to_airport: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  inter_city: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  intercity: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  INTER_CITY_CI: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  intercity_ci: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   salle: { label: "Salle", icon: Building2, color: "bg-orange-100 text-orange-700" },
   logement: { label: "Logement", icon: Home, color: "bg-cyan-100 text-cyan-700" },
