@@ -96,9 +96,14 @@ export default function TrackingDetailPage() {
 
   const { data, isLoading, error } = useQuery<unknown>({
     queryKey: ["booking-detail-page", id, serviceType],
-    queryFn: () => {
+    queryFn: async () => {
       const t = (serviceType || "").toLowerCase();
-      if (t === "inter_city" || t === "intercity") return api.bookings.interCity.get(id);
+      if (t === "inter_city" || t === "intercity" || t === "intercity_ci") {
+        // Use the unified endpoint for Inter-Ville CI
+        const res = await fetch(`/api/bookings/airport-shuttle/compagny/${id}`);
+        if (!res.ok) throw new Error('Failed to fetch booking');
+        return res.json();
+      }
       if (t === "vtc_hourly") return api.bookings.vtcHourly.get(id);
       if (t === "salle" || t === "service_reservation" || t === "logement" || t === "activite" || t === "circuit" || t === "vehicule") return api.serviceReservations.get(id);
       return api.bookings.airportShuttle.get(id);
