@@ -43,7 +43,8 @@ const steps = [
   { id: 1, title: 'Client', icon: User },
   { id: 2, title: 'Trajet', icon: MapPin },
   { id: 3, title: 'Véhicule', icon: Car },
-  { id: 4, title: 'Confirmation', icon: Check },
+  { id: 4, title: 'Paiement', icon: CreditCard },
+  { id: 5, title: 'Confirmation', icon: Check },
 ];
 
 interface FormData {
@@ -881,6 +882,61 @@ export default function InterCityCIBookingWizard() {
 
           {currentStep === 4 && (
             <div className="space-y-6">
+              <h2 className="text-2xl font-bold">Mode de paiement</h2>
+              <p className="text-slate-600">Qui paiera pour cette réservation?</p>
+
+              <div className="grid gap-4">
+                {/* Compte Entreprise */}
+                <div
+                  onClick={() => setFormData({ ...formData, paidBy: 'company' })}
+                  className={`p-6 border-2 rounded-xl cursor-pointer transition ${
+                    formData.paidBy === 'company'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="text-3xl">🏢</div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-slate-900">Compte entreprise</h3>
+                      <p className="text-sm text-slate-600 mt-1">L'entreprise paie via Bictorys</p>
+                    </div>
+                    {formData.paidBy === 'company' && (
+                      <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Client / Employe */}
+                <div
+                  onClick={() => setFormData({ ...formData, paidBy: 'client' })}
+                  className={`p-6 border-2 rounded-xl cursor-pointer transition ${
+                    formData.paidBy === 'client'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="text-3xl">👤</div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-slate-900">Client / Employe</h3>
+                      <p className="text-sm text-slate-600 mt-1">Le client ou l'employé paie lui-même</p>
+                    </div>
+                    {formData.paidBy === 'client' && (
+                      <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="space-y-6">
               <h2 className="text-2xl font-bold">Confirmation</h2>
               <div className="space-y-4 bg-slate-50 p-4 rounded-xl">
                 <div className="flex justify-between">
@@ -950,10 +1006,10 @@ export default function InterCityCIBookingWizard() {
           >
             Précédent
           </Button>
-          {currentStep < 4 ? (
+          {currentStep < 5 ? (
             <Button
               className="bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => setCurrentStep((s) => Math.min(4, s + 1))}
+              onClick={() => setCurrentStep((s) => Math.min(5, s + 1))}
             >
               Suivant
               <ArrowRight className="w-4 h-4 ml-2" />
