@@ -140,7 +140,11 @@ function Tracking() {
   }
 
   // Force le serviceType normalisé selon la source (quelle que soit la valeur renvoyée par l'API)
-  const shuttleBookings = extractItems<BookingResponse>(shuttleResponse).map(b => ({ ...b, serviceType: 'airport_shuttle' }));
+  // Note: shuttleResponse already includes both airport_shuttle AND inter_city_ci bookings (unified endpoint)
+  const shuttleBookings = extractItems<BookingResponse>(shuttleResponse).map(b => {
+    // Already has correct serviceType from API
+    return b;
+  });
   const interCityBookings = extractItems<BookingResponse>(interCityResponse).map(b => ({ ...b, serviceType: 'inter_city' }));
   const vtcBookings = extractItems<BookingResponse>(vtcResponse).map(b => ({ ...b, serviceType: 'vtc_hourly' }));
   const regularBookings: BookingResponse[] = [...shuttleBookings, ...interCityBookings, ...vtcBookings];
