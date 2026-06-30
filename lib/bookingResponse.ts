@@ -6,7 +6,7 @@
 
 const KNOWN_SUB_KEYS = [
   "airportShuttle", "airportShuttleBooking",
-  "interCity", "intercity", "interCityBooking",
+  "interCity", "intercity", "interCityBooking", "intervilleCiBooking",
   "vtcHourly", "hourlyVtc", "vtcHourlyBooking", "vtcHourlyDetails",
 ];
 
@@ -17,6 +17,7 @@ const SUB_FIELD_HINTS = [
   "pickupDateAller", "pickupDateRetour",
   "adressePriseEnCharge", "adressePriseEnChargeDepartAller",
   "departAddress", "arriveeAddress", "navetteCategoryCode",
+  "adresseDepartAller", "adresseArriveeAller", "adresseDepartRetour", "adresseArriveeRetour",
 ];
 
 export function extractBookingSub(booking: Record<string, unknown>): Record<string, unknown> {

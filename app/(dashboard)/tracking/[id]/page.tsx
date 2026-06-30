@@ -491,16 +491,16 @@ export default function TrackingDetailPage() {
               </div>
               <ItineraryTimeline
                 origin={isToAirport
-                  ? ((d.adressePriseEnChargeAller as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")
+                  ? ((d.adressePriseEnChargeAller as string) || (d.adresseDepartAller as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")
                   : isFromAirport
-                  ? (departVille || (d.adressePriseEnChargeAller as string) || (d.departAddress as string) || "—")
-                  : ((d.adressePriseEnChargeAller as string) || (d.adressePriseEnChargeDepartAller as string) || (d.pickupAddress as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")}
+                  ? (departVille || (d.adressePriseEnChargeAller as string) || (d.adresseDepartAller as string) || (d.departAddress as string) || "—")
+                  : ((d.adressePriseEnChargeAller as string) || (d.adresseDepartAller as string) || (d.adressePriseEnChargeDepartAller as string) || (d.pickupAddress as string) || (d.adressePriseEnCharge as string) || (d.departAddress as string) || departVille || "—")}
                 originLabel={departVille ? `Départ — ${departVille}` : "Prise en charge"}
                 destination={isToAirport
-                  ? ((d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
+                  ? ((d.adresseDestinationAller as string) || (d.adresseArriveeAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
                   : isFromAirport
-                  ? ((d.adressePriseEnChargeAller as string) || (d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
-                  : ((d.adressePriseEnChargeArriveeAller as string) || (d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || (d.adresseDestination as string) || "—")}
+                  ? ((d.adressePriseEnChargeAller as string) || (d.adresseDepartAller as string) || (d.adresseDestinationAller as string) || (d.adresseArriveeAller as string) || (d.arriveeAddress as string) || arriveeVille || "—")
+                  : ((d.adressePriseEnChargeArriveeAller as string) || (d.adresseArriveeAller as string) || (d.adresseDestinationAller as string) || (d.arriveeAddress as string) || arriveeVille || (d.adresseDestination as string) || "—")}
                 destinationLabel={arriveeVille ? `Arrivée — ${arriveeVille}` : "Destination"}
                 flightNumber={showFlightNumber ? ((d.flightNumber as string) || (d.flightNumber as string) || undefined) : undefined}
               />
@@ -524,9 +524,9 @@ export default function TrackingDetailPage() {
                   ) : null}
                 </div>
                 <ItineraryTimeline
-                  origin={(d.adressePriseEnChargeRetour as string) || (d.adressePriseEnChargeDepartRetour as string) || arriveeVille || "—"}
+                  origin={(d.adressePriseEnChargeRetour as string) || (d.adresseDepartRetour as string) || (d.adressePriseEnChargeDepartRetour as string) || arriveeVille || "—"}
                   originLabel={arriveeVille ? `Départ retour — ${arriveeVille}` : "Prise en charge retour"}
-                  destination={(d.adresseDestinationRetour as string) || departVille || "—"}
+                  destination={(d.adresseDestinationRetour as string) || (d.adresseArriveeRetour as string) || departVille || "—"}
                   destinationLabel={departVille ? `Arrivée retour — ${departVille}` : "Destination retour"}
                   flightNumber={isToAirport ? (d.flightNumber as string | undefined) : undefined}
                   variant="return"
