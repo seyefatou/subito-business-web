@@ -67,6 +67,13 @@ export default function ServiceReservationDetailPage() {
 
   const reservation = response?.data as any;
 
+  React.useEffect(() => {
+    if (reservation) {
+      console.log('Service Reservation Data:', reservation);
+      console.log('Inter-Ville CI Booking:', reservation.intervilleCiBooking);
+    }
+  }, [reservation]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
