@@ -33,14 +33,19 @@ import {
 } from "@/components/ui/select";
 
 const serviceLabels: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
-  airport_shuttle: { label: "Navette Aeroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
-  inter_city: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
-  intercity: { label: "Inter-ville", icon: Car, color: "bg-green-100 text-green-700" },
+  airport_shuttle: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  AIRPORT_SHUTTLE: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  airport_to_city: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  city_to_airport: { label: "Navette Aéroport", icon: Plane, color: "bg-blue-100 text-blue-700" },
+  inter_city: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  intercity: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  INTER_CITY_CI: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
+  intercity_ci: { label: "Inter-Ville", icon: Car, color: "bg-green-100 text-green-700" },
   vtc_hourly: { label: "VTC Horaire", icon: Clock, color: "bg-purple-100 text-purple-700" },
   visa_assistance: { label: "Documents Voyage", icon: FileText, color: "bg-orange-100 text-orange-700" },
-  ACTIVITE: { label: "Activite", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
+  ACTIVITE: { label: "Activité", icon: Compass, color: "bg-emerald-100 text-emerald-700" },
   LOGEMENT: { label: "Logement", icon: Hotel, color: "bg-cyan-100 text-cyan-700" },
-  FLOTTE: { label: "Location de vehicule", icon: Car, color: "bg-pink-100 text-pink-700" },
+  FLOTTE: { label: "Location de véhicule", icon: Car, color: "bg-pink-100 text-pink-700" },
   SALLE: { label: "Salle", icon: Package, color: "bg-orange-100 text-orange-700" },
   CIRCUIT: { label: "Circuit", icon: MapPin, color: "bg-indigo-100 text-indigo-700" },
 };
