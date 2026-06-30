@@ -61,15 +61,18 @@ export default function ServiceReservationDetailPage() {
 
   const { data: response, isLoading, error } = useQuery({
     queryKey: ['service-reservation-detail', id],
-    queryFn: async () => {
-      const res = await fetch(`/api/bookings/airport-shuttle/compagny/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch reservation');
-      return res.json();
-    },
+    queryFn: () => api.serviceReservations.get(id),
     enabled: !isNaN(id),
   });
 
-  const reservation = response as any;
+  const reservation = response?.data as any;
+
+  React.useEffect(() => {
+    if (reservation) {
+      console.log('Service Reservation Data:', reservation);
+      console.log('Inter-Ville CI Booking:', reservation.intervilleCiBooking);
+    }
+  }, [reservation]);
 
   if (isLoading) {
     return (
