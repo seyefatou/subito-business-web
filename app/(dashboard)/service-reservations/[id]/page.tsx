@@ -33,6 +33,8 @@ const serviceLabels: Record<string, { label: string; color: string }> = {
   ACTIVITE: { label: 'Activité', color: 'bg-emerald-100 text-emerald-700' },
   CIRCUIT: { label: 'Circuit', color: 'bg-purple-100 text-purple-700' },
   FLOTTE: { label: 'Location de véhicule', color: 'bg-pink-100 text-pink-700' },
+  AIRPORT_SHUTTLE: { label: 'Navette aéroport', color: 'bg-orange-100 text-orange-700' },
+  INTER_CITY_CI: { label: 'Inter-Ville', color: 'bg-blue-100 text-blue-700' },
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -152,8 +154,8 @@ export default function ServiceReservationDetailPage() {
         </Badge>
       </div>
 
-      {/* Hero image */}
-      {reservation.logement?.images?.[0] && (
+      {/* Hero image - accommodation only */}
+      {reservation.serviceType !== 'INTER_CITY_CI' && reservation.logement?.images?.[0] && (
         <section className="relative h-48 md:h-64 rounded-3xl overflow-hidden shadow-[0_8px_24px_rgba(23,28,31,0.06)]">
           <img
             src={reservation.logement.images[0]}
@@ -190,70 +192,117 @@ export default function ServiceReservationDetailPage() {
             </p>
           </section>
 
-          {/* Détails du séjour */}
-          <section className="bg-white rounded-3xl p-6 md:p-8 shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 space-y-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">
-              Détails du séjour
-            </h3>
+          {/* Détails du séjour / voyage */}
+          {reservation.serviceType === 'INTER_CITY_CI' ? (
+            <section className="bg-white rounded-3xl p-6 md:p-8 shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 space-y-6">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">
+                Détails du trajet
+              </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Dates */}
-              <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Arrivée</p>
-                  <p className="text-base font-bold text-[#171c1f]">
-                    {format(new Date(reservation.dateDebut), 'dd MMMM yyyy', { locale: fr })}
-                  </p>
-                  <p className="text-xs text-[#585e6c] mt-2">
-                    Check-in : {reservation.logement?.heureCheckIn || 'N/A'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Nuits */}
-              <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Durée</p>
-                  <p className="text-base font-bold text-[#171c1f]">{numberOfNights} nuit{numberOfNights > 1 ? 's' : ''}</p>
-                  {reservation.optionsSupplementaires?.pension && (
-                    <>
-                      <p className="text-xs text-[#585e6c] mt-1">
-                        {reservation.optionsSupplementaires.pension.nbNuits} en semaine
+              {/* Aller journey */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-[#171c1f] text-sm">Trajet Aller</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Départ */}
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Lieu de départ</p>
+                      <p className="text-base font-bold text-[#171c1f]">
+                        {reservation.intervilleCiBooking?.adresseDepartAller || '—'}
                       </p>
-                      {reservation.optionsSupplementaires.pension.nbWeekend > 0 && (
-                        <p className="text-xs text-[#585e6c]">
-                          + {reservation.optionsSupplementaires.pension.nbWeekend} jour{reservation.optionsSupplementaires.pension.nbWeekend > 1 ? 's' : ''} weekend
-                        </p>
+                    </div>
+                  </div>
+
+                  {/* Arrivée */}
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Lieu d&apos;arrivée</p>
+                      <p className="text-base font-bold text-[#171c1f]">
+                        {reservation.intervilleCiBooking?.adresseArriveeAller || '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Date et heure aller */}
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Date et heure</p>
+                      <p className="text-base font-bold text-[#171c1f]">
+                        {reservation.intervilleCiBooking?.pickupDateAller
+                          ? format(new Date(reservation.intervilleCiBooking.pickupDateAller), 'dd MMMM yyyy', { locale: fr })
+                          : '—'}
+                      </p>
+                      {reservation.intervilleCiBooking?.pickupTimeAller && (
+                        <p className="text-xs text-[#585e6c] mt-1">à {reservation.intervilleCiBooking.pickupTimeAller}</p>
                       )}
-                    </>
-                  )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Départ */}
-              <div className="flex gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-5 h-5 text-indigo-600" />
+              {/* Retour journey - only if not one-way */}
+              {!reservation.intervilleCiBooking?.isOneWay && (
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <h4 className="font-semibold text-[#171c1f] text-sm">Trajet Retour</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Départ retour */}
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Lieu de départ</p>
+                        <p className="text-base font-bold text-[#171c1f]">
+                          {reservation.intervilleCiBooking?.adresseDepartRetour || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Arrivée retour */}
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Lieu d&apos;arrivée</p>
+                        <p className="text-base font-bold text-[#171c1f]">
+                          {reservation.intervilleCiBooking?.adresseArriveeRetour || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Date et heure retour */}
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
+                        <Calendar className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Date et heure</p>
+                        <p className="text-base font-bold text-[#171c1f]">
+                          {reservation.intervilleCiBooking?.pickupDateRetour
+                            ? format(new Date(reservation.intervilleCiBooking.pickupDateRetour), 'dd MMMM yyyy', { locale: fr })
+                            : '—'}
+                        </p>
+                        {reservation.intervilleCiBooking?.pickupTimeRetour && (
+                          <p className="text-xs text-[#585e6c] mt-1">à {reservation.intervilleCiBooking.pickupTimeRetour}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Départ</p>
-                  <p className="text-base font-bold text-[#171c1f]">
-                    {format(new Date(reservation.dateFin), 'dd MMMM yyyy', { locale: fr })}
-                  </p>
-                  <p className="text-xs text-[#585e6c] mt-2">
-                    Check-out : {reservation.logement?.heureCheckOut || 'N/A'}
-                  </p>
-                </div>
-              </div>
+              )}
 
               {/* Voyageurs */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 pt-4 border-t border-slate-100">
                 <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5 text-green-600" />
                 </div>
@@ -262,35 +311,111 @@ export default function ServiceReservationDetailPage() {
                   <p className="text-base font-bold text-[#171c1f]">
                     {reservation.nombrePersonnes} personne{reservation.nombrePersonnes > 1 ? 's' : ''}
                   </p>
-                  {reservation.logement?.capacite && (
-                    <p className="text-xs text-[#585e6c] mt-1">Capacité : {reservation.logement.capacite}</p>
-                  )}
                 </div>
               </div>
-            </div>
+            </section>
+          ) : (
+            <section className="bg-white rounded-3xl p-6 md:p-8 shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 space-y-6">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F]">
+                Détails du séjour
+              </h3>
 
-            {/* Caractéristiques du logement */}
-            {reservation.logement && (
-              <div className="border-t border-slate-100 pt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Chambres</p>
-                  <p className="text-lg font-extrabold text-[#171c1f]">{reservation.logement.nbreChambres}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Dates */}
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Arrivée</p>
+                    <p className="text-base font-bold text-[#171c1f]">
+                      {format(new Date(reservation.dateDebut), 'dd MMMM yyyy', { locale: fr })}
+                    </p>
+                    <p className="text-xs text-[#585e6c] mt-2">
+                      Check-in : {reservation.logement?.heureCheckIn || 'N/A'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Salles de bain</p>
-                  <p className="text-lg font-extrabold text-[#171c1f]">{reservation.logement.salleDeBain}</p>
+
+                {/* Nuits */}
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Durée</p>
+                    <p className="text-base font-bold text-[#171c1f]">{numberOfNights} nuit{numberOfNights > 1 ? 's' : ''}</p>
+                    {reservation.optionsSupplementaires?.pension && (
+                      <>
+                        <p className="text-xs text-[#585e6c] mt-1">
+                          {reservation.optionsSupplementaires.pension.nbNuits} en semaine
+                        </p>
+                        {reservation.optionsSupplementaires.pension.nbWeekend > 0 && (
+                          <p className="text-xs text-[#585e6c]">
+                            + {reservation.optionsSupplementaires.pension.nbWeekend} jour{reservation.optionsSupplementaires.pension.nbWeekend > 1 ? 's' : ''} weekend
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Type</p>
-                  <p className="text-sm font-bold text-[#171c1f]">{reservation.logement.type}</p>
+
+                {/* Départ */}
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Départ</p>
+                    <p className="text-base font-bold text-[#171c1f]">
+                      {format(new Date(reservation.dateFin), 'dd MMMM yyyy', { locale: fr })}
+                    </p>
+                    <p className="text-xs text-[#585e6c] mt-2">
+                      Check-out : {reservation.logement?.heureCheckOut || 'N/A'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Annulation</p>
-                  <p className="text-sm font-bold text-[#171c1f]">{reservation.logement.typeAnnulation}</p>
+
+                {/* Voyageurs */}
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center shrink-0">
+                    <Users className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Voyageurs</p>
+                    <p className="text-base font-bold text-[#171c1f]">
+                      {reservation.nombrePersonnes} personne{reservation.nombrePersonnes > 1 ? 's' : ''}
+                    </p>
+                    {reservation.logement?.capacite && (
+                      <p className="text-xs text-[#585e6c] mt-1">Capacité : {reservation.logement.capacite}</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-          </section>
+
+              {/* Caractéristiques du logement */}
+              {reservation.logement && (
+                <div className="border-t border-slate-100 pt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Chambres</p>
+                    <p className="text-lg font-extrabold text-[#171c1f]">{reservation.logement.nbreChambres}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Salles de bain</p>
+                    <p className="text-lg font-extrabold text-[#171c1f]">{reservation.logement.salleDeBain}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Type</p>
+                    <p className="text-sm font-bold text-[#171c1f]">{reservation.logement.type}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-1">Annulation</p>
+                    <p className="text-sm font-bold text-[#171c1f]">{reservation.logement.typeAnnulation}</p>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Détails de facturation */}
           {reservation.optionsSupplementaires && (
@@ -300,7 +425,7 @@ export default function ServiceReservationDetailPage() {
               </h3>
 
               <div className="space-y-4">
-                {/* Pension */}
+                {/* Pension (accommodation only) */}
                 {reservation.optionsSupplementaires.pension && (
                   <div className="pb-4 border-b border-slate-100">
                     <div className="flex justify-between items-start mb-3">
@@ -336,8 +461,63 @@ export default function ServiceReservationDetailPage() {
                   </div>
                 )}
 
-                {/* Options */}
-                {reservation.optionsSupplementaires.priceOptions?.length > 0 && (
+                {/* Options for Inter-Ville CI */}
+                {reservation.serviceType === 'INTER_CITY_CI' && (
+                  <>
+                    {/* Aller options */}
+                    {reservation.optionsSupplementaires?.aller?.length > 0 && (
+                      <div>
+                        <p className="text-base font-extrabold text-[#171c1f] mb-4">Options - Trajet Aller</p>
+                        <div className="space-y-3">
+                          {reservation.optionsSupplementaires.aller.map((option: any, idx: number) => (
+                            <div key={`aller-${idx}`} className="bg-slate-50 rounded-xl p-4">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <p className="font-semibold text-[#171c1f] capitalize">{option.titre || option.name}</p>
+                                  {option.code && <p className="text-xs text-[#585e6c] mt-1">Code: {option.code}</p>}
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <p className="text-[#585e6c]">Prix</p>
+                                  <p className="font-semibold text-[#171c1f]">{FORMAT_FCFA(option.prix || option.price)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Retour options */}
+                    {reservation.optionsSupplementaires?.retour?.length > 0 && (
+                      <div>
+                        <p className="text-base font-extrabold text-[#171c1f] mb-4">Options - Trajet Retour</p>
+                        <div className="space-y-3">
+                          {reservation.optionsSupplementaires.retour.map((option: any, idx: number) => (
+                            <div key={`retour-${idx}`} className="bg-slate-50 rounded-xl p-4">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <p className="font-semibold text-[#171c1f] capitalize">{option.titre || option.name}</p>
+                                  {option.code && <p className="text-xs text-[#585e6c] mt-1">Code: {option.code}</p>}
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <p className="text-[#585e6c]">Prix</p>
+                                  <p className="font-semibold text-[#171c1f]">{FORMAT_FCFA(option.prix || option.price)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Options for accommodation and other services */}
+                {reservation.serviceType !== 'INTER_CITY_CI' && reservation.optionsSupplementaires.priceOptions?.length > 0 && (
                   <div>
                     <p className="text-base font-extrabold text-[#171c1f] mb-4">Options supplémentaires</p>
                     <div className="space-y-3">
