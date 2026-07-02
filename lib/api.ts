@@ -1,7 +1,7 @@
 'use client';
 
 // API Client — Mysubito Microservices
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dev.api.mysubito.net';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dev.api.mysubito.net/api';
 
 // Token keys for localStorage
 const TOKEN_KEY = 'subito_compagny_token';

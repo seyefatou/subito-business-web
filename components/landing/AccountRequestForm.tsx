@@ -54,7 +54,7 @@ export default function AccountRequestForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.mysubito.net/v1';
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.mysubito.net/api';
       const res = await fetch(`${API_BASE}/company-registration-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
