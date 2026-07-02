@@ -17,10 +17,34 @@ const app = initializeApp(firebaseConfig);
 
 let messaging: Messaging | null = null;
 
+let messagingUnsupported = false;
+
 function getMessagingInstance(): Messaging | null {
   if (typeof window === 'undefined') return null;
+  if (messagingUnsupported) return null;
+
+  // FCM exige un contexte sécurisé avec Service Worker + Notification + Push.
+  // Sur un contexte non supporté (ex : servi en HTTP), getMessaging() lève une
+  // exception synchrone. Sans garde, cette exception remonte hors du useEffect
+  // du layout et fait planter tout le dashboard ("Application error").
+  if (
+    !('serviceWorker' in navigator) ||
+    typeof Notification === 'undefined' ||
+    typeof PushManager === 'undefined'
+  ) {
+    messagingUnsupported = true;
+    console.warn('[FCM] Notifications push non supportées dans ce contexte (contexte non sécurisé ?)');
+    return null;
+  }
+
   if (!messaging) {
-    messaging = getMessaging(app);
+    try {
+      messaging = getMessaging(app);
+    } catch (err) {
+      messagingUnsupported = true;
+      console.warn('[FCM] Initialisation Messaging impossible:', err);
+      return null;
+    }
   }
   return messaging;
 }
