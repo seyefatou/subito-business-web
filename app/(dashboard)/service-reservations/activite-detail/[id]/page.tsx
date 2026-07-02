@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Star, MapPin, Clock, Users, ChevronRight } from 'lucide-react';
+import React, { Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { ArrowLeft, Star, MapPin, Clock, Users, ChevronRight, Loader2, Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api, Activite } from '@/lib/api';
 import { formatPrice } from '@/lib/booking-utils';
@@ -11,8 +12,17 @@ import { formatPrice } from '@/lib/booking-utils';
 const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
 
 export default function ActiviteDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <ActiviteDetailInner />
+    </Suspense>
+  );
+}
+
+function ActiviteDetailInner() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const activiteId = parseInt(id as string, 10);
 
   const { data: activiteResponse, isLoading, error } = useQuery({
@@ -22,6 +32,25 @@ export default function ActiviteDetailPage() {
   });
 
   const activite = activiteResponse?.data as Activite | undefined;
+
+  // Contexte séminaire
+  const seminaireId = searchParams.get('seminaireId');
+  const returnTo = searchParams.get('returnTo') || '/service-reservations?type=ACTIVITE';
+  const addToSeminaireMutation = useMutation({
+    mutationFn: async () => {
+      if (!seminaireId || !activite) throw new Error('Contexte séminaire manquant');
+      return api.seminaires.addActivite(Number(seminaireId), {
+        activiteId: activite.id,
+        nom: activite.titre,
+        prix: activite.prix,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Activité ajoutée au séminaire');
+      router.push(returnTo);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   if (isLoading) {
     return (
@@ -50,9 +79,20 @@ export default function ActiviteDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 py-8">
       <div className="max-w-5xl mx-auto px-4 md:px-6 lg:px-8">
+        {/* Bandeau contexte séminaire */}
+        {seminaireId && (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-[#ffdbd0] border border-[#E04A1F]/20 px-4 py-3">
+            <Compass className="w-5 h-5 text-[#E04A1F] shrink-0" />
+            <p className="text-sm text-[#171c1f]">
+              <span className="font-bold">Ajout à un séminaire</span> — consultez les détails, puis cliquez sur
+              « Ajouter au séminaire ».
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <button
-          onClick={() => router.back()}
+          onClick={() => (seminaireId ? router.push(returnTo) : router.back())}
           className="flex items-center gap-2 text-[#E04A1F] hover:text-[#C8330F] transition mb-8 font-semibold"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -181,15 +221,25 @@ export default function ActiviteDetailPage() {
 
               {/* Button */}
               <Button
-                onClick={() => router.push(`/service-reservations/activite/${activiteId}/wizard`)}
+                onClick={() => {
+                  if (seminaireId) {
+                    addToSeminaireMutation.mutate();
+                    return;
+                  }
+                  router.push(`/service-reservations/activite/${activiteId}/wizard`);
+                }}
+                disabled={addToSeminaireMutation.isPending}
                 className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
-                Réserver maintenant
-                <ChevronRight className="w-4 h-4" />
+                {addToSeminaireMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {seminaireId ? 'Ajouter au séminaire' : 'Réserver maintenant'}
+                {!addToSeminaireMutation.isPending && <ChevronRight className="w-4 h-4" />}
               </Button>
 
               <p className="text-xs text-[#585e6c] text-center mt-4">
-                Vous pouvez modifier vos sélections à chaque étape
+                {seminaireId
+                  ? 'Cette activité sera ajoutée au séminaire.'
+                  : 'Vous pouvez modifier vos sélections à chaque étape'}
               </p>
             </div>
           </div>

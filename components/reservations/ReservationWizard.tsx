@@ -1098,7 +1098,7 @@ function DateSection({ productType, state, setState }: DateSectionProps) {
           </div>
         )}
 
-        {(productType === 'logement' || productType === 'circuit' || productType === 'vehicule' || productType === 'salle') && (
+        {(productType === 'logement' || productType === 'circuit') && (
           <div>
             <label className="block text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-2">
               Date de départ

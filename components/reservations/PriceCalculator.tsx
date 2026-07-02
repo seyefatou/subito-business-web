@@ -102,7 +102,7 @@ export function PriceCalculator({
   useEffect(() => {
     if (onAvailabilityError) {
       const isUnavailable = (error as any)?.status === 409 || error?.message?.includes('indisponible') || error?.message?.includes('disponible');
-      onAvailabilityError(!!error && isUnavailable);
+      onAvailabilityError(!!error && !!isUnavailable);
     }
   }, [error, onAvailabilityError]);
 

@@ -1,16 +1,26 @@
 'use client';
 
-import React from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import React, { Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MapPin, Users, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, DollarSign, AlertCircle, Loader2, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SalleDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <SalleDetailInner />
+    </Suspense>
+  );
+}
+
+function SalleDetailInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const salleId = parseInt(params.id as string);
 
   const { data: salle, isLoading, error } = useQuery({
@@ -25,6 +35,25 @@ export default function SalleDetailPage() {
       }
       return null;
     },
+  });
+
+  // Contexte séminaire
+  const seminaireId = searchParams.get('seminaireId');
+  const returnTo = searchParams.get('returnTo') || '/location-salle';
+  const addToSeminaireMutation = useMutation({
+    mutationFn: async () => {
+      if (!seminaireId || !salle) throw new Error('Contexte séminaire manquant');
+      return api.seminaires.addSalle(Number(seminaireId), {
+        salleId: salle.id,
+        nom: salle.lieu?.nom ? `${salle.nom} — ${salle.lieu.nom}` : salle.nom,
+        prix: salle.prixParHeure || salle.prixParJour,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Salle ajoutée au séminaire');
+      router.push(returnTo);
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   if (isLoading) {
@@ -51,9 +80,20 @@ export default function SalleDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
+      {/* Bandeau contexte séminaire */}
+      {seminaireId && (
+        <div className="flex items-center gap-3 rounded-2xl bg-[#ffdbd0] border border-[#E04A1F]/20 px-4 py-3">
+          <Building2 className="w-5 h-5 text-[#E04A1F] shrink-0" />
+          <p className="text-sm text-[#171c1f]">
+            <span className="font-bold">Ajout à un séminaire</span> — consultez les détails, puis cliquez sur
+            « Ajouter au séminaire ».
+          </p>
+        </div>
+      )}
+
       {/* Back Button */}
       <button
-        onClick={() => router.back()}
+        onClick={() => (seminaireId ? router.push(returnTo) : router.back())}
         className="flex items-center gap-2 text-[#E04A1F] hover:underline"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -130,11 +170,22 @@ export default function SalleDetailPage() {
       )}
 
       {/* CTA */}
-      <Link href={`/service-reservations/salle/${salleId}/wizard`}>
-        <Button className="w-full bg-[#E04A1F] hover:bg-[#d4421a] h-14 text-lg">
-          Réserver maintenant
+      {seminaireId ? (
+        <Button
+          onClick={() => addToSeminaireMutation.mutate()}
+          disabled={addToSeminaireMutation.isPending}
+          className="w-full bg-[#E04A1F] hover:bg-[#d4421a] h-14 text-lg gap-2"
+        >
+          {addToSeminaireMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
+          Ajouter au séminaire
         </Button>
-      </Link>
+      ) : (
+        <Link href={`/service-reservations/salle/${salleId}/wizard`}>
+          <Button className="w-full bg-[#E04A1F] hover:bg-[#d4421a] h-14 text-lg">
+            Réserver maintenant
+          </Button>
+        </Link>
+      )}
     </div>
   );
 }

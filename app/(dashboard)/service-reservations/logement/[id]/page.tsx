@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -154,6 +155,25 @@ export default function LogementDetailPage() {
 
   const logement: Logement | undefined = logementResponse?.data;
 
+  // Contexte séminaire : si on vient d'un séminaire, "Réserver" ajoute le logement au séminaire
+  const seminaireId = searchParams.get("seminaireId");
+  const addToSeminaireMutation = useMutation({
+    mutationFn: async () => {
+      if (!seminaireId || !logement) throw new Error("Contexte séminaire manquant");
+      return api.seminaires.addLogement(Number(seminaireId), {
+        logementId: logement.id,
+        nom: logement.nom,
+        capacite: logement.capacite || logement.nbreChambres || 2,
+        prix: logement.prixParNuit,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Logement ajouté au séminaire");
+      router.push(returnTo);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -190,7 +210,13 @@ export default function LogementDetailPage() {
   const availableFormules = formulesConfig.filter(f => f.prixNuit != null);
   const activeFormule = formulesConfig.find(f => f.key === formule) ?? formulesConfig[0];
 
-  const handleReserve = () => router.push(`/service-reservations/logement/${logementId}/wizard`);
+  const handleReserve = () => {
+    if (seminaireId) {
+      addToSeminaireMutation.mutate();
+      return;
+    }
+    router.push(`/service-reservations/logement/${logementId}/wizard`);
+  };
   const handleCancel = () => router.push(returnTo);
 
   const images = logement.images || [];
@@ -203,6 +229,17 @@ export default function LogementDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto -m-2 md:-m-4 lg:-m-6 pb-24 lg:pb-10">
+      {/* Bandeau contexte séminaire */}
+      {seminaireId && (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl bg-[#ffdbd0] border border-[#E04A1F]/20 px-4 py-3">
+          <Home className="w-5 h-5 text-[#E04A1F] shrink-0" />
+          <p className="text-sm text-[#171c1f]">
+            <span className="font-bold">Ajout à un séminaire</span> — consultez les détails, puis cliquez sur
+            « Ajouter au séminaire » pour l&apos;ajouter et revenir.
+          </p>
+        </div>
+      )}
+
       {/* Hero Header */}
       <div className="mb-8">
         <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
@@ -677,7 +714,7 @@ export default function LogementDetailPage() {
         </div>
 
         {/* ReserveCard sticky - Version simple (détails sur la page checkout) */}
-        <aside className="hidden lg:block lg:col-span-4 sticky top-24 bg-white rounded-3xl shadow-xl shadow-black/5 border border-slate-100 p-6 space-y-5" onClick={() => router.push(`/service-reservations/logement/${logementId}/wizard`)}>
+        <aside className="hidden lg:block lg:col-span-4 sticky top-24 bg-white rounded-3xl shadow-xl shadow-black/5 border border-slate-100 p-6 space-y-5" onClick={() => { if (!seminaireId) router.push(`/service-reservations/logement/${logementId}/wizard`); }}>
           <div className="space-y-4">
             {/* Prix de base */}
             <div>
@@ -728,10 +765,11 @@ export default function LogementDetailPage() {
 
           <Button
             onClick={handleReserve}
+            disabled={addToSeminaireMutation.isPending}
             className="w-full bg-[#E04A1F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 hover:shadow-xl active:scale-[0.98] transition-all gap-2"
           >
-            <Check className="w-4 h-4" />
-            Réserver
+            {addToSeminaireMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {seminaireId ? "Ajouter au séminaire" : "Réserver"}
           </Button>
           <Button
             onClick={handleCancel}
@@ -910,11 +948,12 @@ export default function LogementDetailPage() {
             </Button>
             <Button
               onClick={handleReserve}
+              disabled={addToSeminaireMutation.isPending}
               className="bg-[#E04A1F] text-white border-0 font-bold shadow-md"
               size="sm"
             >
-              <Check className="w-4 h-4 mr-1" />
-              Réserver
+              {addToSeminaireMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Check className="w-4 h-4 mr-1" />}
+              {seminaireId ? "Ajouter au séminaire" : "Réserver"}
             </Button>
           </div>
         </div>

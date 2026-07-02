@@ -312,7 +312,6 @@ export interface CreateInterCityBookingDto {
   arriveeLng?: number;
   arriveeAddress?: string;
   pax?: number;
-  paidBy?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   pickupDateAller?: string;
@@ -349,7 +348,7 @@ export interface CreateInterCityBookingDto {
   arrivalTime?: string;
   departureTimeRetour?: string;
   arrivalTimeRetour?: string;
-  paidBy: 'company' | 'client';
+  paidBy?: 'company' | 'client';
   paymentMethod?: string;
   companyCode?: string;
   customerId?: number;
@@ -1105,6 +1104,241 @@ export interface ServiceReservationResponse {
   [key: string]: unknown;
 }
 
+// ==================== SEMINAIRES (EVENEMENTS ENTREPRISE) ====================
+export type SeminairePays = 'senegal' | 'cote_ivoire';
+export type SeminaireStatut = 'draft' | 'open' | 'closed' | 'published';
+
+export interface Seminaire {
+  id: number;
+  compagnyId: number;
+  nom: string;
+  description?: string;
+  pays: SeminairePays;
+  publicSlug?: string;
+  validationCode?: string;
+  dateDebut: string;
+  dateFin: string;
+  aller: boolean;
+  retour: boolean;
+  regrouper: boolean;
+  maxPaxParVehicule: number;
+  autoConfirm: boolean;
+  serviceNavette: boolean;
+  serviceLogement: boolean;
+  serviceActivite: boolean;
+  serviceSalle: boolean;
+  statut: SeminaireStatut;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SeminaireListItem extends Seminaire {
+  _count?: {
+    participants: number;
+    transferts: number;
+  };
+}
+
+export interface SeminaireParticipant {
+  id: number;
+  seminaireId: number;
+  prenom: string;
+  nom: string;
+  email?: string;
+  telephone?: string;
+  arrFlightNumber?: string;
+  arrAirline?: string;
+  arrAirport?: string;
+  arrDateTime?: string;
+  destVille?: string;
+  destAdresse?: string;
+  seminaireLogementId?: number;
+  smallBags?: number;
+  largeBags?: number;
+  siegeBebes?: number;
+  animalDeCompagnie?: boolean;
+  createdAt?: string;
+}
+
+export interface SeminaireArret {
+  id: number;
+  ordre: number;
+  participantId: number;
+  type: 'pickup' | 'dropoff';
+  adresse: string;
+}
+
+export interface SeminaireTransfert {
+  id: number;
+  seminaireId: number;
+  sens: 'aller' | 'retour';
+  statut: string;
+  driverId?: number | null;
+  bookingId?: number | null;
+  arrets: SeminaireArret[];
+}
+
+export interface SeminaireDetail extends Seminaire {
+  participants: SeminaireParticipant[];
+  transferts: SeminaireTransfert[];
+}
+
+export interface SeminairePublicInfo {
+  nom: string;
+  description?: string;
+  pays: SeminairePays;
+  dateDebut: string;
+  dateFin: string;
+  aller: boolean;
+  retour: boolean;
+  statut: SeminaireStatut;
+  ouvert: boolean;
+}
+
+export interface SeminaireShareInfo {
+  publicSlug: string;
+  validationCode: string;
+}
+
+export interface CreateSeminaireDto {
+  nom: string;
+  description?: string;
+  pays: SeminairePays;
+  dateDebut: string;
+  dateFin: string;
+  aller: boolean;
+  retour: boolean;
+  regrouper: boolean;
+  maxPaxParVehicule: number;
+  autoConfirm: boolean;
+  serviceNavette: boolean;
+  serviceLogement: boolean;
+  serviceActivite: boolean;
+  serviceSalle: boolean;
+}
+
+export type UpdateSeminaireDto = Partial<CreateSeminaireDto & { statut: SeminaireStatut }>;
+
+// --- Inscription publique d'un participant ---
+export interface RegisterParticipantDto {
+  validationCode: string;
+  prenom: string;
+  nom: string;
+  email?: string;
+  telephone?: string;
+  // Vol d'arrivée (besoin navette aller)
+  arrFlightNumber?: string;
+  arrAirline?: string;
+  arrAirportId?: number;
+  arrAirport?: string;
+  arrDateTime?: string;
+  // Destination (lieu du séminaire)
+  destVilleId?: number;
+  destVille?: string;
+  destAdresse?: string;
+  destLat?: number;
+  destLng?: number;
+  // Vol de départ (besoin navette retour)
+  depFlightNumber?: string;
+  depAirline?: string;
+  depAirportId?: number;
+  depAirport?: string;
+  depDateTime?: string;
+  depVilleId?: number;
+  depPickupAdresse?: string;
+  depPickupLat?: number;
+  depPickupLng?: number;
+  // Bagages / options
+  smallBags?: number;
+  largeBags?: number;
+  siegeBebes?: number;
+  animalDeCompagnie?: boolean;
+}
+
+export interface RegisterParticipantResponse {
+  message: string;
+  participantId: number;
+}
+
+// --- Logements du séminaire ---
+export interface SeminaireLogement {
+  id: number;
+  seminaireId: number;
+  logementId: number;
+  chambreId?: number | null;
+  nom: string;
+  capacite: number;
+  prix?: number | string | null;
+  reservationId?: number | null;
+  affectes?: number;
+  placesRestantes: number;
+}
+
+export interface AddSeminaireLogementDto {
+  logementId: number;
+  chambreId?: number;
+  nom: string;
+  capacite: number;
+  prix?: number;
+}
+
+// --- Activités du séminaire ---
+export interface SeminaireActivite {
+  id: number;
+  seminaireId: number;
+  activiteId: number;
+  nom: string;
+  dateDebut?: string;
+  nombrePersonnes?: number;
+  prix?: number;
+}
+
+export interface AddSeminaireActiviteDto {
+  activiteId: number;
+  nom: string;
+  dateDebut?: string;
+  nombrePersonnes?: number;
+  prix?: number;
+}
+
+// --- Salles du séminaire ---
+export interface SeminaireSalle {
+  id: number;
+  seminaireId: number;
+  salleId: number;
+  nom: string;
+  dateDebut?: string;
+  dateFin?: string;
+  nombreHeures?: number;
+  prix?: number;
+}
+
+export interface AddSeminaireSalleDto {
+  salleId: number;
+  nom: string;
+  dateDebut?: string;
+  dateFin?: string;
+  nombreHeures?: number;
+  prix?: number;
+}
+
+// --- Réponses d'actions ---
+export interface RegenerateTransfertsResponse {
+  message: string;
+  transferts: number;
+}
+
+export interface ValidateTransfertsResponse {
+  message: string;
+  verrouilles: number;
+  bookingsGeneres: number;
+}
+
+export interface GenerateReservationsResponse {
+  message: string;
+  generees: number;
+}
+
 // ==================== DELIVERIES COMPANY ====================
 export interface CreateDeliveryDto {
   deliveryTypeId: number;
@@ -1580,7 +1814,7 @@ function translateErrors(raw: string | string[]): string {
 }
 
 // ==================== LOCATION DE SALLE TYPES ====================
-export interface PriceOption {
+export interface SallePriceOption {
   id: number;
   code: string;
   titre: string;
@@ -1608,7 +1842,7 @@ export interface Salle {
   lieuId: number;
   createdAt: string;
   updatedAt: string;
-  priceOptions: PriceOption[];
+  priceOptions: SallePriceOption[];
 }
 
 export interface Partner {
@@ -2277,6 +2511,96 @@ class ApiClient {
         serviceId: id,
         ...data,
       }),
+  };
+
+  // ==================== SEMINAIRES (EVENEMENTS ENTREPRISE) ====================
+  seminaires = {
+    // Infos publiques d'un séminaire (sans authentification) — accès via le lien partagé
+    getPublic: (slug: string) =>
+      this.request<SeminairePublicInfo>(`/bookings/seminaires/public/${slug}`),
+
+    // Créer un séminaire pour l'entreprise authentifiée
+    create: (data: CreateSeminaireDto) =>
+      this.authPost<Seminaire>('/bookings/seminaires/compagny', data),
+
+    // Lister les séminaires de l'entreprise (avec _count participants/transferts)
+    list: () =>
+      this.authGet<{ data: SeminaireListItem[]; total: number }>('/bookings/seminaires/compagny'),
+
+    // Détail d'un séminaire (config + participants + transferts)
+    get: (id: number) =>
+      this.authGet<SeminaireDetail>(`/bookings/seminaires/compagny/${id}`),
+
+    // Modifier partiellement la configuration d'un séminaire
+    update: (id: number, data: UpdateSeminaireDto) =>
+      this.authPatch<Seminaire>(`/bookings/seminaires/compagny/${id}`, data),
+
+    // Lien public + code de validation à communiquer aux participants
+    share: (id: number) =>
+      this.authGet<SeminaireShareInfo>(`/bookings/seminaires/compagny/${id}/share`),
+
+    // --- Inscription publique d'un participant (avec code de validation) ---
+    register: (slug: string, data: RegisterParticipantDto) =>
+      this.request<RegisterParticipantResponse>(`/bookings/seminaires/public/${slug}/participants`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // Villes & aéroports (endpoint public) pour le formulaire d'inscription — filtrage par pays côté client
+    getVilles: () => this.request<Ville[]>('/villes'),
+
+    // --- Navette : regroupement & génération ---
+    // Recalculer les transferts (regroupement par vol/destination, limite maxPaxParVehicule)
+    regenerateTransferts: (id: number) =>
+      this.authPost<RegenerateTransfertsResponse>(`/bookings/seminaires/compagny/${id}/regenerate`, {}),
+
+    // Verrouiller les transferts + générer les réservations navette (idempotent)
+    validateTransferts: (id: number) =>
+      this.authPost<ValidateTransfertsResponse>(`/bookings/seminaires/compagny/${id}/validate`, {}),
+
+    // --- Logements ---
+    listLogements: (id: number) =>
+      this.authGet<{ data: SeminaireLogement[]; total: number }>(`/bookings/seminaires/compagny/${id}/logements`),
+
+    addLogement: (id: number, data: AddSeminaireLogementDto) =>
+      this.authPost<SeminaireLogement>(`/bookings/seminaires/compagny/${id}/logements`, data),
+
+    removeLogement: (id: number, logementRowId: number) =>
+      this.authDelete<{ message: string }>(`/bookings/seminaires/compagny/${id}/logements/${logementRowId}`),
+
+    generateLogementReservations: (id: number) =>
+      this.authPost<GenerateReservationsResponse>(`/bookings/seminaires/compagny/${id}/logements/generate-reservations`, {}),
+
+    // Affecter (seminaireLogementId) ou désaffecter (null) un participant à un logement
+    assignParticipantLogement: (id: number, participantId: number, seminaireLogementId: number | null) =>
+      this.authPatch<SeminaireParticipant>(
+        `/bookings/seminaires/compagny/${id}/participants/${participantId}/logement`,
+        { seminaireLogementId }
+      ),
+
+    // --- Activités ---
+    listActivites: (id: number) =>
+      this.authGet<{ data: SeminaireActivite[]; total: number }>(`/bookings/seminaires/compagny/${id}/activites`),
+
+    addActivite: (id: number, data: AddSeminaireActiviteDto) =>
+      this.authPost<SeminaireActivite>(`/bookings/seminaires/compagny/${id}/activites`, data),
+
+    removeActivite: (id: number, activiteRowId: number) =>
+      this.authDelete<{ message: string }>(`/bookings/seminaires/compagny/${id}/activites/${activiteRowId}`),
+
+    // --- Salles ---
+    listSalles: (id: number) =>
+      this.authGet<{ data: SeminaireSalle[]; total: number }>(`/bookings/seminaires/compagny/${id}/salles`),
+
+    addSalle: (id: number, data: AddSeminaireSalleDto) =>
+      this.authPost<SeminaireSalle>(`/bookings/seminaires/compagny/${id}/salles`, data),
+
+    removeSalle: (id: number, salleRowId: number) =>
+      this.authDelete<{ message: string }>(`/bookings/seminaires/compagny/${id}/salles/${salleRowId}`),
+
+    // Générer les réservations activités + salles (idempotent)
+    generateActivitesSallesReservations: (id: number) =>
+      this.authPost<GenerateReservationsResponse>(`/bookings/seminaires/compagny/${id}/activites-salles/generate-reservations`, {}),
   };
 
   // ==================== PUBLIC CATALOGS (NO AUTH) ====================

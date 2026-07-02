@@ -29,6 +29,7 @@ import {
   Calendar as CalendarIcon,
   Clock,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -604,7 +605,7 @@ export default function AirportShuttleBookingWizard({
                   arriveeRetourLng: ciReturnArriveAddressLng!,
                 }),
               });
-              const price = (result as any)?.data?.total ?? result?.total ?? opt.prix;
+              const price = (result as any)?.data?.total ?? (result as any)?.total ?? opt.prix;
               pricesMap.set(opt.code, price);
             } catch (err) {
               console.error(`❌ Error fetching price for ${opt.code}:`, err);

@@ -899,7 +899,7 @@ export default function InterCityCIBookingWizard() {
                     <div className="text-3xl">🏢</div>
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-slate-900">Compte entreprise</h3>
-                      <p className="text-sm text-slate-600 mt-1">L'entreprise paie via Bictorys</p>
+                      <p className="text-sm text-slate-600 mt-1">L&apos;entreprise paie via Bictorys</p>
                     </div>
                     {formData.paidBy === 'company' && (
                       <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
@@ -922,7 +922,7 @@ export default function InterCityCIBookingWizard() {
                     <div className="text-3xl">👤</div>
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-slate-900">Client / Employe</h3>
-                      <p className="text-sm text-slate-600 mt-1">Le client ou l'employé paie lui-même</p>
+                      <p className="text-sm text-slate-600 mt-1">Le client ou l&apos;employé paie lui-même</p>
                     </div>
                     {formData.paidBy === 'client' && (
                       <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
