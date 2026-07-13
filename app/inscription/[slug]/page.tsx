@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -9,25 +9,16 @@ import {
   Presentation,
   Calendar,
   MapPin,
-  Plane,
-  PlaneTakeoff,
-  PlaneLanding,
-  Luggage,
-  Baby,
-  PawPrint,
-  KeyRound,
-  User,
-  Mail,
-  Phone,
   Loader2,
   CheckCircle2,
   AlertCircle,
   Lock,
+  ArrowRight,
+  Map as MapIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -36,9 +27,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AddressAutocomplete, countryNameToCode } from '@/components/ui/address-autocomplete';
+import { cn } from '@/lib/utils';
 import { api, RegisterParticipantDto, Ville } from '@/lib/api';
 
 const MANROPE = { fontFamily: 'Manrope, system-ui, sans-serif' };
+
+// Palette Subito (rôles de couleur Material 3 du mockup mappés sur la marque)
+const PRIMARY = '#E04A1F';
+const PRIMARY_DARK = '#C8330F';
+const TERTIARY_CONTAINER = '#16A34A'; // état « envoyé »
+
+// Champ de saisie : fond doux, devient blanc au focus.
+const fieldInput = 'bg-[#f1f2f9] border-transparent rounded-lg h-11 focus-visible:bg-white transition-colors';
 
 const paysLabels: Record<string, string> = {
   senegal: 'Sénégal',
@@ -51,9 +51,82 @@ function unwrapPublic(response: unknown): any {
   return raw;
 }
 
+/**
+ * Champ de formulaire avec micro-interaction : le label passe en couleur
+ * primaire quand un élément à l'intérieur (input, select, autocomplete) est actif.
+ */
+function Field({
+  label,
+  hint,
+  htmlFor,
+  className,
+  children,
+}: {
+  label: React.ReactNode;
+  hint?: string;
+  htmlFor?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div
+      className={cn('min-w-0', className)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
+    >
+      <Label
+        htmlFor={htmlFor}
+        className="text-sm font-semibold transition-colors"
+        style={{ color: focused ? PRIMARY : '#171c1f' }}
+      >
+        {label}
+      </Label>
+      <div className="mt-1.5">{children}</div>
+      {hint && <p className="text-xs text-slate-500 mt-2">{hint}</p>}
+    </div>
+  );
+}
+
+/** Section de formulaire en carte, avec pastille numérotée (style mockup). */
+function SectionCard({
+  n,
+  title,
+  delay = 0,
+  children,
+}: {
+  n: number;
+  title: string;
+  delay?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className="animate-fade-up bg-white rounded-2xl border border-slate-100 shadow-[0_4px_16px_rgba(23,28,31,0.03)] p-6 md:p-7"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex items-center gap-3 mb-5">
+        <span
+          className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-extrabold shrink-0"
+          style={{ backgroundColor: `${PRIMARY}14`, color: PRIMARY }}
+        >
+          {n}
+        </span>
+        <h3 className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
+          {title}
+        </h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function InscriptionSeminairePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug || '';
+
+  const destSectionRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const { data: response, isLoading, error } = useQuery({
     queryKey: ['seminaire-public', slug],
@@ -96,6 +169,23 @@ export default function InscriptionSeminairePage() {
     onError: (err: Error) => setFormError(err.message),
   });
 
+  // Ville de destination par défaut : Dakar (séminaires Sénégal uniquement)
+  useEffect(() => {
+    if (form.destVilleId || !sem || allVilles.length === 0) return;
+    const paysCode = sem.pays === 'cote_ivoire' ? 'CI' : 'SN';
+    const paysNames =
+      sem.pays === 'cote_ivoire' ? ["côte d'ivoire", "cote d'ivoire"] : ['sénégal', 'senegal'];
+    const inCountry = (v: any) =>
+      v?.paysInfo?.code === paysCode || paysNames.includes(String(v?.pays || '').toLowerCase());
+    const nameOf = (v: any) => v.name || v.nom || '';
+    const dakar = allVilles.find(
+      (v) => inCountry(v) && !v.isAeroport && nameOf(v).toLowerCase().includes('dakar'),
+    );
+    if (dakar) {
+      setForm((p) => ({ ...p, destVilleId: Number(dakar.id), destVille: nameOf(dakar) }));
+    }
+  }, [allVilles, sem, form.destVilleId]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -115,11 +205,17 @@ export default function InscriptionSeminairePage() {
     });
   };
 
+  // FAB « carte » : décoratif — défile vers la section adresse.
+  const handleMapFab = () => {
+    const target = destSectionRef.current || formRef.current;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   // --- Loading / error states ---
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-10 h-10 animate-spin text-[#E04A1F]" />
+        <Loader2 className="w-10 h-10 animate-spin" style={{ color: PRIMARY }} />
       </div>
     );
   }
@@ -147,8 +243,11 @@ export default function InscriptionSeminairePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.08)] border border-slate-100 p-8 md:p-12 text-center max-w-md">
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-6">
-            <CheckCircle2 className="w-10 h-10 text-green-500" />
+          <div
+            className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6"
+            style={{ backgroundColor: `${TERTIARY_CONTAINER}1A` }}
+          >
+            <CheckCircle2 className="w-10 h-10" style={{ color: TERTIARY_CONTAINER }} />
           </div>
           <h1 className="text-2xl font-extrabold text-[#171c1f]" style={MANROPE}>
             Inscription confirmée !
@@ -175,386 +274,387 @@ export default function InscriptionSeminairePage() {
     v?.paysInfo?.code === paysCode || paysNames.includes(String(v?.pays || '').toLowerCase());
   const villeName = (v: Ville) => v.name || v.nom || '';
   const aeroports = allVilles.filter((v) => inCountry(v) && v.isAeroport);
-  const destinations = allVilles.filter((v) => inCountry(v) && !v.isAeroport);
+  // Ordre d'affichage : Dakar en premier, Saly en deuxième, puis les autres villes
+  const villeRank = (v: Ville) => {
+    const n = villeName(v).toLowerCase();
+    if (n.includes('dakar')) return 0;
+    if (n.includes('saly')) return 1;
+    return 2;
+  };
+  const destinations = allVilles
+    .filter((v) => inCountry(v) && !v.isAeroport)
+    .sort((a, b) => villeRank(a) - villeRank(b));
+
+  // Numérotation des sections (les trajets sont conditionnels)
+  const allerNo = 3;
+  const retourNo = sem.aller ? 4 : 3;
+  const year = new Date().getFullYear();
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* En-tête séminaire */}
-        <div className="bg-gradient-to-br from-[#E04A1F] to-[#C8330F] rounded-3xl p-6 md:p-8 text-white shadow-[0_8px_24px_rgba(224,74,31,0.25)]">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-              <Presentation className="w-5 h-5" />
+    <div className="min-h-screen bg-slate-50" style={MANROPE}>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,380px)_1fr] items-start min-h-screen">
+        {/* Panneau latéral séminaire (gauche, fixe au scroll ; seul le formulaire défile) */}
+        <aside
+          className="relative text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto"
+          style={{ background: `linear-gradient(160deg, ${PRIMARY} 0%, ${PRIMARY_DARK} 100%)` }}
+        >
+          <div className="flex flex-col min-h-full px-6 sm:px-8 py-8 lg:py-12">
+            <div className="flex-1 animate-fade-up">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest">
+                <Presentation className="w-3.5 h-3.5" />
+                Inscription au séminaire
+              </span>
+              <h1 className="mt-6 text-2xl sm:text-3xl font-extrabold leading-tight tracking-tight">
+                {sem.nom}
+              </h1>
+              <div className="mt-6 h-px bg-white/20" />
+              <div className="mt-6 space-y-5">
+                <div className="flex items-start gap-3">
+                  <span className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <Calendar className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/70">Dates</p>
+                    <p className="font-semibold">
+                      {format(new Date(sem.dateDebut), 'dd MMM', { locale: fr })} →{' '}
+                      {format(new Date(sem.dateFin), 'dd MMM yyyy', { locale: fr })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <MapPin className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/70">Lieu</p>
+                    <p className="font-semibold">{paysLabels[sem.pays] || sem.pays}</p>
+                  </div>
+                </div>
+              </div>
+              {sem.description && (
+                <div className="mt-8 rounded-2xl bg-white/10 border border-white/10 p-5 text-sm text-white/85 leading-relaxed">
+                  {sem.description}
+                </div>
+              )}
             </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-white/80">
-              Inscription au séminaire
-            </span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight" style={MANROPE}>
-            {sem.nom}
-          </h1>
-          {sem.description && <p className="text-white/85 mt-2 text-sm">{sem.description}</p>}
-          <div className="flex flex-wrap gap-4 mt-5 text-sm">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" />
-              {format(new Date(sem.dateDebut), 'dd MMM', { locale: fr })} →{' '}
-              {format(new Date(sem.dateFin), 'dd MMM yyyy', { locale: fr })}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <MapPin className="w-4 h-4" />
-              {paysLabels[sem.pays] || sem.pays}
-            </span>
-          </div>
-        </div>
-
-        {/* Inscriptions fermées */}
-        {!isOuvert ? (
-          <div className="bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 p-8 text-center">
-            <div className="w-16 h-16 mx-auto rounded-full bg-amber-50 flex items-center justify-center mb-4">
-              <Lock className="w-8 h-8 text-amber-500" />
-            </div>
-            <h2 className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
-              Inscriptions fermées
-            </h2>
-            <p className="text-[#585e6c] mt-2">
-              Les inscriptions à ce séminaire ne sont pas ouvertes actuellement.
+            <p className="mt-8 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/60">
+              <MapIcon className="w-3.5 h-3.5" />
+              Propulsé par Subito Business
             </p>
           </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white rounded-3xl shadow-[0_8px_24px_rgba(23,28,31,0.04)] border border-slate-100 p-6 md:p-8 space-y-8"
-          >
-            {formError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                {formError}
-              </div>
-            )}
+        </aside>
 
-            {/* Code de validation */}
-            <div>
-              <Label htmlFor="code" className="flex items-center gap-1.5 text-sm font-bold text-[#171c1f]">
-                <KeyRound className="w-4 h-4 text-[#E04A1F]" />
-                Code de validation
-              </Label>
-              <p className="text-xs text-[#585e6c] mb-2 mt-1">
-                Saisissez le code communiqué par votre entreprise.
+        {/* Colonne formulaire */}
+        <main className="px-4 sm:px-6 lg:px-10 py-8 lg:py-12">
+          {!isOuvert ? (
+            <div className="animate-fade-up bg-white rounded-2xl border border-slate-100 shadow-[0_4px_16px_rgba(23,28,31,0.03)] p-8 text-center">
+              <div className="w-16 h-16 mx-auto rounded-full bg-amber-50 flex items-center justify-center mb-4">
+                <Lock className="w-8 h-8 text-amber-500" />
+              </div>
+              <h2 className="text-lg font-extrabold text-[#171c1f]" style={MANROPE}>
+                Inscriptions fermées
+              </h2>
+              <p className="text-[#585e6c] mt-2">
+                Les inscriptions à ce séminaire ne sont pas ouvertes actuellement.
               </p>
-              <Input
-                id="code"
-                placeholder="Ex: ACME26"
-                value={form.validationCode}
-                onChange={(e) => set('validationCode', e.target.value)}
-                className="rounded-xl border-slate-200 font-mono tracking-widest uppercase"
-              />
             </div>
+          ) : (
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+              {formError && (
+                <div className="animate-fade-up bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  {formError}
+                </div>
+              )}
 
-            {/* Identité */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" />
-                Vos informations
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="prenom" className="text-sm font-bold text-[#171c1f]">Prénom</Label>
+              {/* 1 — Code de validation */}
+              <SectionCard n={1} title="Code de validation" delay={0}>
+                <Field htmlFor="code" label="Entrez votre code d'invitation" hint="Veuillez utiliser le code envoyé par email par l'organisation.">
                   <Input
-                    id="prenom"
-                    value={form.prenom}
-                    onChange={(e) => set('prenom', e.target.value)}
-                    className="mt-1.5 rounded-xl border-slate-200"
+                    id="code"
+                    placeholder="EX-2026-XXXX"
+                    value={form.validationCode}
+                    onChange={(e) => set('validationCode', e.target.value)}
+                    className={cn(fieldInput, 'tracking-widest uppercase')}
                   />
-                </div>
-                <div>
-                  <Label htmlFor="nom" className="text-sm font-bold text-[#171c1f]">Nom</Label>
-                  <Input
-                    id="nom"
-                    value={form.nom}
-                    onChange={(e) => set('nom', e.target.value)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email" className="flex items-center gap-1 text-sm font-bold text-[#171c1f]">
-                    <Mail className="w-3.5 h-3.5" /> Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email || ''}
-                    onChange={(e) => set('email', e.target.value)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tel" className="flex items-center gap-1 text-sm font-bold text-[#171c1f]">
-                    <Phone className="w-3.5 h-3.5" /> Téléphone
-                  </Label>
-                  <Input
-                    id="tel"
-                    value={form.telephone || ''}
-                    onChange={(e) => set('telephone', e.target.value)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
-              </div>
-            </div>
+                </Field>
+              </SectionCard>
 
-            {/* Trajet aller (si proposé) */}
-            {sem.aller && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] flex items-center gap-1.5">
-                  <PlaneTakeoff className="w-3.5 h-3.5" />
-                  Arrivée — vol & destination
-                </h3>
+              {/* 2 — Vos informations */}
+              <SectionCard n={2} title="Vos informations" delay={60}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">N° de vol</Label>
+                  <Field htmlFor="prenom" label="Prénom">
                     <Input
-                      placeholder="Ex: AF718"
-                      value={form.arrFlightNumber || ''}
-                      onChange={(e) => set('arrFlightNumber', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
+                      id="prenom"
+                      placeholder="Jean"
+                      value={form.prenom}
+                      onChange={(e) => set('prenom', e.target.value)}
+                      className={fieldInput}
                     />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Compagnie aérienne</Label>
+                  </Field>
+                  <Field htmlFor="nom" label="Nom">
                     <Input
-                      placeholder="Ex: Air France"
-                      value={form.arrAirline || ''}
-                      onChange={(e) => set('arrAirline', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
+                      id="nom"
+                      placeholder="Dupont"
+                      value={form.nom}
+                      onChange={(e) => set('nom', e.target.value)}
+                      className={fieldInput}
                     />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Aéroport d&apos;arrivée</Label>
-                    <Select
-                      value={form.arrAirportId ? String(form.arrAirportId) : ''}
-                      onValueChange={(val) => {
-                        const a = aeroports.find((x) => String(x.id) === val);
-                        setForm((p) => ({ ...p, arrAirportId: Number(val), arrAirport: a ? villeName(a) : '' }));
-                      }}
-                    >
-                      <SelectTrigger className="mt-1.5 rounded-xl border-slate-200 h-11">
-                        <SelectValue placeholder="Sélectionner un aéroport" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {aeroports.map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {villeName(a)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Date & heure d&apos;arrivée</Label>
+                  </Field>
+                  <Field htmlFor="email" label="Email professionnel">
                     <Input
-                      type="datetime-local"
-                      value={form.arrDateTime || ''}
-                      onChange={(e) => set('arrDateTime', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
+                      id="email"
+                      type="email"
+                      placeholder="jean.dupont@entreprise.com"
+                      value={form.email || ''}
+                      onChange={(e) => set('email', e.target.value)}
+                      className={fieldInput}
                     />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Ville de destination</Label>
-                    <Select
-                      value={form.destVilleId ? String(form.destVilleId) : ''}
-                      onValueChange={(val) => {
-                        const v = destinations.find((x) => String(x.id) === val);
-                        setForm((p) => ({ ...p, destVilleId: Number(val), destVille: v ? villeName(v) : '' }));
-                      }}
-                    >
-                      <SelectTrigger className="mt-1.5 rounded-xl border-slate-200 h-11">
-                        <SelectValue placeholder="Sélectionner une ville" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {destinations.map((v) => (
-                          <SelectItem key={v.id} value={String(v.id)}>
-                            {villeName(v)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Adresse de destination</Label>
-                    <AddressAutocomplete
-                      value={form.destAdresse || ''}
-                      onChange={(val) => set('destAdresse', val)}
-                      onSelect={(address, lat, lng) =>
-                        setForm((p) => ({ ...p, destAdresse: address, destLat: lat, destLng: lng }))
-                      }
-                      placeholder="Ex: Hôtel Radisson Blu"
-                      countryCode={countryCode}
-                      iconColor="text-[#E04A1F]"
-                      className="mt-1.5"
+                  </Field>
+                  <Field htmlFor="tel" label="Téléphone">
+                    <Input
+                      id="tel"
+                      placeholder="+221 77 000 00 00"
+                      value={form.telephone || ''}
+                      onChange={(e) => set('telephone', e.target.value)}
+                      className={fieldInput}
                     />
-                  </div>
+                  </Field>
                 </div>
-              </div>
-            )}
+              </SectionCard>
 
-            {/* Trajet retour (si proposé) */}
-            {sem.retour && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] flex items-center gap-1.5">
-                  <PlaneLanding className="w-3.5 h-3.5" />
-                  Départ — vol retour
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">N° de vol</Label>
-                    <Input
-                      value={form.depFlightNumber || ''}
-                      onChange={(e) => set('depFlightNumber', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
-                    />
+              {/* 3 — Arrivée (si proposé) */}
+              {sem.aller && (
+                <SectionCard n={allerNo} title="Arrivée — Vol & Destination" delay={120}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Numéro de vol arrivée">
+                      <Input
+                        placeholder="ex: AF718"
+                        value={form.arrFlightNumber || ''}
+                        onChange={(e) => set('arrFlightNumber', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Date et heure d'arrivée">
+                      <Input
+                        type="datetime-local"
+                        value={form.arrDateTime || ''}
+                        onChange={(e) => set('arrDateTime', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Compagnie aérienne">
+                      <Input
+                        placeholder="ex: Air France"
+                        value={form.arrAirline || ''}
+                        onChange={(e) => set('arrAirline', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Aéroport d'arrivée">
+                      <Select
+                        value={form.arrAirportId ? String(form.arrAirportId) : ''}
+                        onValueChange={(val) => {
+                          const a = aeroports.find((x) => String(x.id) === val);
+                          setForm((p) => ({ ...p, arrAirportId: Number(val), arrAirport: a ? villeName(a) : '' }));
+                        }}
+                      >
+                        <SelectTrigger className={fieldInput}>
+                          <SelectValue placeholder="Sélectionner un aéroport" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {aeroports.map((a) => (
+                            <SelectItem key={a.id} value={String(a.id)}>
+                              {villeName(a)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Ville de destination">
+                      <Select
+                        value={form.destVilleId ? String(form.destVilleId) : ''}
+                        onValueChange={(val) => {
+                          const v = destinations.find((x) => String(x.id) === val);
+                          setForm((p) => ({ ...p, destVilleId: Number(val), destVille: v ? villeName(v) : '' }));
+                        }}
+                      >
+                        <SelectTrigger className={fieldInput}>
+                          <SelectValue placeholder="Sélectionner une ville" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {destinations.map((v) => (
+                            <SelectItem key={v.id} value={String(v.id)}>
+                              {villeName(v)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Adresse de destination">
+                      <div ref={destSectionRef}>
+                        <AddressAutocomplete
+                          value={form.destAdresse || ''}
+                          onChange={(val) => set('destAdresse', val)}
+                          onSelect={(address, lat, lng) =>
+                            setForm((p) => ({ ...p, destAdresse: address, destLat: lat, destLng: lng }))
+                          }
+                          placeholder="Ex: Hôtel Radisson Blu"
+                          countryCode={countryCode}
+                          iconColor="text-[#E04A1F]"
+                        />
+                      </div>
+                    </Field>
                   </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Compagnie aérienne</Label>
-                    <Input
-                      value={form.depAirline || ''}
-                      onChange={(e) => set('depAirline', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Aéroport de départ</Label>
-                    <Select
-                      value={form.depAirportId ? String(form.depAirportId) : ''}
-                      onValueChange={(val) => {
-                        const a = aeroports.find((x) => String(x.id) === val);
-                        setForm((p) => ({ ...p, depAirportId: Number(val), depAirport: a ? villeName(a) : '' }));
-                      }}
-                    >
-                      <SelectTrigger className="mt-1.5 rounded-xl border-slate-200 h-11">
-                        <SelectValue placeholder="Sélectionner un aéroport" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {aeroports.map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {villeName(a)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Date & heure de départ</Label>
-                    <Input
-                      type="datetime-local"
-                      value={form.depDateTime || ''}
-                      onChange={(e) => set('depDateTime', e.target.value)}
-                      className="mt-1.5 rounded-xl border-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-bold text-[#171c1f]">Ville de départ</Label>
-                    <Select
-                      value={form.depVilleId ? String(form.depVilleId) : ''}
-                      onValueChange={(val) => setForm((p) => ({ ...p, depVilleId: Number(val) }))}
-                    >
-                      <SelectTrigger className="mt-1.5 rounded-xl border-slate-200 h-11">
-                        <SelectValue placeholder="Sélectionner une ville" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {destinations.map((v) => (
-                          <SelectItem key={v.id} value={String(v.id)}>
-                            {villeName(v)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="text-sm font-bold text-[#171c1f]">Adresse de prise en charge (retour)</Label>
-                    <AddressAutocomplete
-                      value={form.depPickupAdresse || ''}
-                      onChange={(val) => set('depPickupAdresse', val)}
-                      onSelect={(address, lat, lng) =>
-                        setForm((p) => ({ ...p, depPickupAdresse: address, depPickupLat: lat, depPickupLng: lng }))
-                      }
-                      placeholder="Lieu où vous récupérer pour le retour"
-                      countryCode={countryCode}
-                      iconColor="text-[#E04A1F]"
-                      className="mt-1.5"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+                </SectionCard>
+              )}
 
-            {/* Bagages & options */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[#E04A1F] flex items-center gap-1.5">
-                <Luggage className="w-3.5 h-3.5" />
-                Bagages & options
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-bold text-[#171c1f]">Petits bagages</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.smallBags ?? 0}
-                    onChange={(e) => set('smallBags', Number(e.target.value) || 0)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-bold text-[#171c1f]">Grands bagages</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.largeBags ?? 0}
-                    onChange={(e) => set('largeBags', Number(e.target.value) || 0)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
-                <div>
-                  <Label className="flex items-center gap-1 text-sm font-bold text-[#171c1f]">
-                    <Baby className="w-3.5 h-3.5" /> Sièges bébé
-                  </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.siegeBebes ?? 0}
-                    onChange={(e) => set('siegeBebes', Number(e.target.value) || 0)}
-                    className="mt-1.5 rounded-xl border-slate-200"
-                  />
-                </div>
+              {/* 4 — Départ (si proposé) */}
+              {sem.retour && (
+                <SectionCard n={retourNo} title="Départ — Vol Retour" delay={180}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Numéro de vol retour">
+                      <Input
+                        placeholder="ex: AF719"
+                        value={form.depFlightNumber || ''}
+                        onChange={(e) => set('depFlightNumber', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Date et heure de départ">
+                      <Input
+                        type="datetime-local"
+                        value={form.depDateTime || ''}
+                        onChange={(e) => set('depDateTime', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Compagnie aérienne">
+                      <Input
+                        placeholder="ex: Air France"
+                        value={form.depAirline || ''}
+                        onChange={(e) => set('depAirline', e.target.value)}
+                        className={fieldInput}
+                      />
+                    </Field>
+                    <Field label="Aéroport de départ">
+                      <Select
+                        value={form.depAirportId ? String(form.depAirportId) : ''}
+                        onValueChange={(val) => {
+                          const a = aeroports.find((x) => String(x.id) === val);
+                          setForm((p) => ({ ...p, depAirportId: Number(val), depAirport: a ? villeName(a) : '' }));
+                        }}
+                      >
+                        <SelectTrigger className={fieldInput}>
+                          <SelectValue placeholder="Sélectionner un aéroport" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {aeroports.map((a) => (
+                            <SelectItem key={a.id} value={String(a.id)}>
+                              {villeName(a)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Ville de départ">
+                      <Select
+                        value={form.depVilleId ? String(form.depVilleId) : ''}
+                        onValueChange={(val) => setForm((p) => ({ ...p, depVilleId: Number(val) }))}
+                      >
+                        <SelectTrigger className={fieldInput}>
+                          <SelectValue placeholder="Sélectionner une ville" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {destinations.map((v) => (
+                            <SelectItem key={v.id} value={String(v.id)}>
+                              {villeName(v)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Adresse de prise en charge (retour)">
+                      <AddressAutocomplete
+                        value={form.depPickupAdresse || ''}
+                        onChange={(val) => set('depPickupAdresse', val)}
+                        onSelect={(address, lat, lng) =>
+                          setForm((p) => ({ ...p, depPickupAdresse: address, depPickupLat: lat, depPickupLng: lng }))
+                        }
+                        placeholder="Lieu où vous récupérer pour le retour"
+                        countryCode={countryCode}
+                        iconColor="text-[#E04A1F]"
+                      />
+                    </Field>
+                  </div>
+                </SectionCard>
+              )}
+
+              {/* Disclaimer + soumission */}
+              <div className="animate-fade-up pt-2" style={{ animationDelay: '240ms' }}>
+                <p className="text-center text-sm text-slate-500 max-w-md mx-auto mb-5">
+                  En confirmant votre inscription, vous acceptez les conditions de participation et la
+                  politique de confidentialité de l&apos;événement.
+                </p>
+                <Button
+                  type="submit"
+                  disabled={registerMutation.isPending}
+                  className="w-full h-14 rounded-xl text-white border-0 font-bold text-base gap-2 active:scale-[0.99] transition-all disabled:opacity-100"
+                  style={{
+                    background: `linear-gradient(135deg, ${PRIMARY} 0%, ${PRIMARY_DARK} 100%)`,
+                    boxShadow: `0 10px 20px -6px ${PRIMARY}66`,
+                  }}
+                >
+                  {registerMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Traitement…
+                    </>
+                  ) : (
+                    <>
+                      Confirmer mon inscription
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
               </div>
-              <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-[#f0f4f8] border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <PawPrint className="w-5 h-5 text-[#E04A1F]" />
-                  <p className="font-bold text-sm text-[#171c1f]">Animal de compagnie</p>
-                </div>
-                <Switch
-                  checked={!!form.animalDeCompagnie}
-                  onCheckedChange={(v) => set('animalDeCompagnie', v)}
-                />
-              </div>
+            </form>
+          )}
+
+          {/* Pied de page (décoratif, contenu neutre) */}
+          <footer className="mt-10 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+            <span className="text-center sm:text-left">
+              © {year} {sem.nom} · Propulsé par Subito Business
+            </span>
+            <div className="flex items-center gap-5">
+              <span>Confidentialité</span>
+              <span>Conditions</span>
+              <span>Contact</span>
             </div>
-
-            {/* Submit */}
-            <Button
-              type="submit"
-              disabled={registerMutation.isPending}
-              className="w-full bg-[#E04A1F] hover:bg-[#C8330F] text-white border-0 py-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 active:scale-[0.98] transition-all gap-2"
-              style={MANROPE}
-            >
-              {registerMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Confirmer mon inscription
-            </Button>
-          </form>
-        )}
-
-        <p className="text-center text-xs text-slate-400">
-          Propulsé par Subito Business
-        </p>
+          </footer>
+        </main>
       </div>
+
+      {/* FAB « carte » flottant (décoratif : défile vers l'adresse) */}
+      {isOuvert && (
+        <div className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-30">
+          <div className="group relative">
+            <div
+              className="absolute -inset-1 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"
+              style={{ background: `linear-gradient(90deg, ${PRIMARY}, ${PRIMARY_DARK})` }}
+            />
+            <button
+              type="button"
+              onClick={handleMapFab}
+              aria-label="Voir la section adresse"
+              className="relative w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-105 transition-transform"
+              style={{ color: PRIMARY }}
+            >
+              <MapIcon className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

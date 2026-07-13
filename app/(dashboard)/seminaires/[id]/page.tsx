@@ -169,10 +169,10 @@ function SeminaireDetailInner() {
   const isOpen = sem.statut === 'open' || sem.statut === 'published';
 
   const services = [
-    { active: sem.serviceNavette, icon: Bus, label: 'Navette' },
-    { active: sem.serviceLogement, icon: Hotel, label: 'Logement' },
-    { active: sem.serviceActivite, icon: Compass, label: 'Activité' },
-    { active: sem.serviceSalle, icon: Building2, label: 'Salle' },
+    { active: sem.serviceNavette, icon: Bus, label: 'Navette', disabled: false },
+    { active: sem.serviceLogement, icon: Hotel, label: 'Logement', disabled: true },
+    { active: sem.serviceActivite, icon: Compass, label: 'Activité', disabled: true },
+    { active: sem.serviceSalle, icon: Building2, label: 'Salle', disabled: true },
   ];
 
   const participants = sem.participants || [];
@@ -268,24 +268,27 @@ function SeminaireDetailInner() {
               Navette
             </TabsTrigger>
           )}
-          {sem.serviceLogement && (
-            <TabsTrigger value="logement" className={TAB_TRIGGER}>
-              <Hotel className="w-4 h-4" />
-              Logement
-            </TabsTrigger>
-          )}
-          {sem.serviceActivite && (
-            <TabsTrigger value="activites" className={TAB_TRIGGER}>
-              <Compass className="w-4 h-4" />
-              Activités
-            </TabsTrigger>
-          )}
-          {sem.serviceSalle && (
-            <TabsTrigger value="salles" className={TAB_TRIGGER}>
-              <Building2 className="w-4 h-4" />
-              Salles
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="logement" className={`${TAB_TRIGGER} opacity-50 cursor-not-allowed`} disabled>
+            <Hotel className="w-4 h-4" />
+            Logement
+            <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500 bg-slate-200 rounded-full px-1.5 py-0.5 ml-1">
+              Bientôt
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="activites" className={`${TAB_TRIGGER} opacity-50 cursor-not-allowed`} disabled>
+            <Compass className="w-4 h-4" />
+            Activités
+            <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500 bg-slate-200 rounded-full px-1.5 py-0.5 ml-1">
+              Bientôt
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="salles" className={`${TAB_TRIGGER} opacity-50 cursor-not-allowed`} disabled>
+            <Building2 className="w-4 h-4" />
+            Salles
+            <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500 bg-slate-200 rounded-full px-1.5 py-0.5 ml-1">
+              Bientôt
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         {/* ---- Vue d'ensemble ---- */}
@@ -388,12 +391,19 @@ function SeminaireDetailInner() {
                   <p className="text-xs font-bold text-[#585e6c] uppercase tracking-widest mb-3">Services</p>
                   <div className="space-y-2">
                     {services.map((s) => (
-                      <div key={s.label} className="flex items-center justify-between">
+                      <div
+                        key={s.label}
+                        className={`flex items-center justify-between ${s.disabled ? 'opacity-50' : ''}`}
+                      >
                         <span className="flex items-center gap-2 text-sm text-[#171c1f]">
                           <s.icon className="w-4 h-4 text-slate-400" />
                           {s.label}
                         </span>
-                        {s.active ? (
+                        {s.disabled ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-200 rounded-full px-2 py-0.5">
+                            Bientôt
+                          </span>
+                        ) : s.active ? (
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
                         ) : (
                           <span className="text-xs text-slate-400">Désactivé</span>

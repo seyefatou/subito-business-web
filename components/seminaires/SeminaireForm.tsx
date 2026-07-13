@@ -43,23 +43,35 @@ interface ToggleRowProps {
   subtitle?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }
 
-function ToggleRow({ icon: Icon, title, subtitle, checked, onChange }: ToggleRowProps) {
+function ToggleRow({ icon: Icon, title, subtitle, checked, onChange, disabled }: ToggleRowProps) {
   return (
-    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-[#f0f4f8] border border-slate-100">
+    <div
+      className={`flex items-center justify-between gap-4 p-4 rounded-2xl bg-[#f0f4f8] border border-slate-100 ${
+        disabled ? 'opacity-60' : ''
+      }`}
+    >
       <div className="flex items-center gap-3 min-w-0">
         {Icon && (
           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-sm">
-            <Icon className="w-5 h-5 text-[#E04A1F]" />
+            <Icon className={`w-5 h-5 ${disabled ? 'text-slate-400' : 'text-[#E04A1F]'}`} />
           </div>
         )}
         <div className="min-w-0">
-          <p className="font-bold text-sm text-[#171c1f]">{title}</p>
+          <p className="font-bold text-sm text-[#171c1f] flex items-center gap-2 flex-wrap">
+            {title}
+            {disabled && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-200 rounded-full px-2 py-0.5">
+                Bientôt
+              </span>
+            )}
+          </p>
           {subtitle && <p className="text-xs text-[#585e6c] mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
 }
@@ -159,8 +171,8 @@ export default function SeminaireForm({
               <SelectValue placeholder="Sélectionner un pays" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="senegal">Sénégal (tarif fixe par ville)</SelectItem>
-              <SelectItem value="cote_ivoire">Côte d&apos;Ivoire (tarif au km)</SelectItem>
+              <SelectItem value="senegal">Sénégal</SelectItem>
+              <SelectItem value="cote_ivoire">Côte d&apos;Ivoire</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -233,6 +245,7 @@ export default function SeminaireForm({
             subtitle="Hébergement des participants"
             checked={values.serviceLogement}
             onChange={(v) => set('serviceLogement', v)}
+            disabled
           />
           <ToggleRow
             icon={Compass}
@@ -240,6 +253,7 @@ export default function SeminaireForm({
             subtitle="Activités et excursions"
             checked={values.serviceActivite}
             onChange={(v) => set('serviceActivite', v)}
+            disabled
           />
           <ToggleRow
             icon={Building2}
@@ -247,6 +261,7 @@ export default function SeminaireForm({
             subtitle="Location de salle de séminaire"
             checked={values.serviceSalle}
             onChange={(v) => set('serviceSalle', v)}
+            disabled
           />
         </div>
       </div>

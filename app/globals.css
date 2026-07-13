@@ -110,12 +110,74 @@
     @apply border-border outline-ring/50;
   }
 
+  /*
+   * Taille racine fluide, fortement pilotée par la largeur (vw) : c'est ce qui
+   * la rend « consciente » du zoom. Le zoom navigateur/OS (125%, 150%…) réduit
+   * la largeur CSS effective → donc la racine rétrécit avec, au lieu de rester
+   * grosse. Un SEUL réglage pour tous les écrans ET tous les pourcentages.
+   *   largeur effective ~1920px → 13px (plafond)
+   *   ~1280px                   → ~13px
+   *   ~1000px (ex. 1920 @ ~150%) → ~13px  puis descend en dessous
+   *   ~800px                    → 12px
+   *   ~480px (petit tél.)       → ~11px (plancher)
+   * Baisser la borne haute (13px) pour réduire encore ; la monter pour agrandir.
+   */
+  html {
+    font-size: clamp(11px, 0.5vw + 8px, 13px);
+  }
+
   body {
     @apply bg-background text-foreground;
   }
 }
 
 @layer utilities {
+  /*
+   * Barre de défilement horizontale toujours visible (associée à
+   * overflow-x-scroll). Style propre et cohérent Chrome/Edge + Firefox,
+   * pour que la barre du bas apparaisse sur toutes les tailles d'écran.
+   */
+  .table-scroll {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+  .table-scroll::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .table-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 9999px;
+  }
+  .table-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+    border: 2px solid #f1f5f9;
+  }
+  .table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Révélation douce au chargement (page d'inscription) */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .animate-fade-up {
+    animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-up {
+      animation: none;
+    }
+  }
+
   .gradient-subito {
     background-image: linear-gradient(135deg, #FF7842 0%, #DC3F1A 100%);
   }

@@ -71,7 +71,7 @@ const navigation: NavigationItem[] = [
   { name: "Logement", href: "/service-reservations?type=LOGEMENT", icon: Hotel },
   { name: "Location de salle", href: "/location-salle", icon: Building2 },
   { name: "Location de vehicule", href: "/location-vehicule", icon: Car },
-  { name: "Séminaires", href: "/seminaires", icon: Presentation },
+  { name: "Événements", href: "/seminaires", icon: Presentation },
   { name: "Assurance", href: "/assurance", icon: Shield },
   { name: "Suivi commandes", href: "/tracking", icon: MapPin },
   { name: "Rapports", href: "/reports", icon: FileText },

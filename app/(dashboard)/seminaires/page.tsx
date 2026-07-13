@@ -66,7 +66,7 @@ export default function SeminairesPage() {
     mutationFn: (data: CreateSeminaireDto) => api.seminaires.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seminaires'] });
-      toast.success('Séminaire créé avec succès');
+      toast.success('Événement créé avec succès');
       setDialogOpen(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -80,15 +80,13 @@ export default function SeminairesPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="min-w-0">
           <nav className="flex gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-            <span>Événements</span>
-            <span>/</span>
-            <span className="text-[#E04A1F]">Séminaires</span>
+            <span className="text-[#E04A1F]">Événements</span>
           </nav>
           <h1
             className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#171c1f] leading-tight"
             style={MANROPE}
           >
-            Séminaires
+            Événements
           </h1>
           <p className="text-[#585e6c] font-medium mt-1">
             Organisez vos événements d&apos;entreprise et gérez les inscriptions
@@ -99,13 +97,13 @@ export default function SeminairesPage() {
           <DialogTrigger asChild>
             <Button className="bg-[#E04A1F] hover:bg-[#C8330F] text-white border-0 py-6 px-6 rounded-2xl font-bold text-base shadow-lg shadow-[#E04A1F]/20 active:scale-[0.98] transition-all gap-2">
               <Plus className="w-4 h-4" />
-              Nouveau séminaire
+              Nouvel événement
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-extrabold text-[#171c1f]" style={MANROPE}>
-                Créer un séminaire
+                Créer un événement
               </DialogTitle>
               <DialogDescription className="text-[#585e6c]">
                 Configurez votre événement. Un lien d&apos;inscription et un code seront générés automatiquement.
@@ -116,7 +114,7 @@ export default function SeminairesPage() {
                 onSubmit={(values) => createMutation.mutate(values)}
                 onCancel={() => setDialogOpen(false)}
                 isSubmitting={createMutation.isPending}
-                submitLabel="Créer le séminaire"
+                submitLabel="Créer l'événement"
               />
             </div>
           </DialogContent>
@@ -144,17 +142,17 @@ export default function SeminairesPage() {
             <Presentation className="w-10 h-10 text-[#E04A1F]" />
           </div>
           <p className="font-bold text-[#171c1f] text-lg" style={MANROPE}>
-            Aucun séminaire
+            Aucun événement
           </p>
           <p className="text-sm text-[#585e6c] mt-1 mb-6">
-            Créez votre premier séminaire pour démarrer
+            Créez votre premier événement pour démarrer
           </p>
           <Button
             onClick={() => setDialogOpen(true)}
             className="bg-[#E04A1F] hover:bg-[#C8330F] text-white border-0 rounded-2xl font-bold gap-2"
           >
             <Plus className="w-4 h-4" />
-            Nouveau séminaire
+            Nouvel événement
           </Button>
         </div>
       ) : (
